@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Ghi lại lịch sử build local, refactor viewer và CI baseline; thêm quy ước Conventional Commits/GitHub Flow.  
+> **Thay đổi gần nhất:** Sửa đường dẫn dependency dev để CI cài đúng `backend/requirements.txt`.  
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-06 — Current
@@ -12,6 +12,10 @@
 - `knee-web/requirements-dev.txt` và `knee-web/pyproject.toml` cho dev checks.
 - [CONTRIBUTING.md](../CONTRIBUTING.md) với branch strategy, Conventional Commits, cách push và lộ trình CD.
 - [15 — CI/CD plan](15-ci-cd-plan.md).
+
+### Fixed
+
+- `knee-web/requirements-dev.txt` dùng `-r backend/requirements.txt`, khớp với vị trí thật của production dependencies khi workflow chạy trong `knee-web`.
 
 ### Changed
 

@@ -10,6 +10,7 @@ export default function ViewerToolbar({
   activeView,
   changeZoom,
   resetView,
+  showZoom = true,
 }) {
   const maxSliceIndex = Math.max(slices.length - 1, 0)
 
@@ -31,13 +32,13 @@ export default function ViewerToolbar({
 
       <div className="toolbar-spacer" />
 
-      <div className="toolbar-group compact">
+      {showZoom && <div className="toolbar-group compact">
         <label>Zoom</label>
         <button className="icon-button" aria-label="Zoom out" onClick={() => changeZoom(activeSeries?.id, -0.25)} disabled={activeView.zoom === 1}><Minus size={15} /></button>
         <span className="zoom-value">{Math.round(activeView.zoom * 100)}%</span>
         <button className="icon-button" aria-label="Zoom in" onClick={() => changeZoom(activeSeries?.id, 0.25)}><Plus size={15} /></button>
         <button className="button ghost small" onClick={() => resetView(activeSeries?.id)}>Reset</button>
-      </div>
+      </div>}
     </div>
   )
 }

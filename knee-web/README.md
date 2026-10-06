@@ -1,22 +1,28 @@
 # Knee Review — local DICOM workspace
 
 > **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Bổ sung CI baseline và hướng dẫn source layout.  
+> **Thay đổi gần nhất:** Focused multi-view dùng Pointer mặc định, rail dọc chọn slice, zoom/reset riêng từng viewport và bắt đầu từ slice 1.
 > **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
 
-This is the first local vertical slice for the knee diagnostic web service.
+This is the first local vertical slice for the knee diagnostic web service. Upload accepts individual `.dcm` files, folders, and unencrypted `.zip` archives containing DICOM files.
 The UI is in English and currently supports:
 
-- one seeded example study containing the existing `series_1` and `series_2` DICOM folders;
+- one seeded, read-only example study; it can be sourced from `series_1`/`series_2` folders or `results.zip` in the mounted examples directory;
 - importing individual `.dcm` files or a folder of `.dcm` files;
 - grouping by `StudyInstanceUID` and `SeriesInstanceUID`;
 - browsing series and slices with sagittal/coronal/axial labels when DICOM geometry is available;
 - local PNG rendering, slice navigation, wheel/pinch zoom, pointer-drag pan, and Reset view controls;
 - zoom starts at the initial fit size (100%); Zoom out cannot go below fit, while Zoom in has no artificial maximum;
 - each image card shows its current slice position; clicking an Overview image selects that series without changing tabs, and only the selected card receives Slice/zoom/pan/reset controls; Open moves to the direction-focused tab;
-- newly opened series start on a middle representative slice; the user can then browse the full stack;
+- newly opened focused series start on slice 1 instead of an arbitrary middle slice; the user can browse the full stack with the vertical rail or wheel;
 - a collapsible Study → Series → slice-file tree in the workspace;
 - tabs for Overview, Sagittal, Coronal, Axial, and Images / Series, plus a Study information panel; Overview is a compact 4-up comparison, each direction tab focuses its plane in a large fit-to-image viewport, and Images / Series is an acquisition browser;
+- focused direction tabs use one Layout dropdown with presets `1x1` and `2x2`, plus a hover-to-preview custom grid up to `4x4`; each viewport has its own vertical slice rail, zoom/reset controls, can be selected, panned, or optionally slice-synced;
+- focused direction wheel navigation changes slices (scroll down = next, scroll up = previous); zoom remains explicit through the zoom controls;
+- focused direction tools are grouped into one selector: Pointer (default), Length, Rectangle, Ellipse, Freehand, and Arrow + note; preview measurements show px or calibrated mm when DICOM PixelSpacing is available;
+- Arrow + note opens an inline editor after drawing; `Undo mark` removes the last mark and `Clear slice marks` removes all marks on the current slice. Capture exports the active viewport as PNG/JPEG with optional annotations and slice/orientation metadata;
+- Overview supports `3D four-up`, `3D primary`, and `3D main` arrangements; the 3D card remains an orientation locator, not patient-specific anatomy;
+- Crosshair is visible but disabled until mapped MPR geometry is available; current sample geometry is not cross-series compatible;
 - an explicit local ingest pipeline: DICOM validation, metadata extraction, UID grouping, geometry-aware sorting, and on-demand preview rendering;
 - Contrast, Brightness, Invert, and Reset display controls for the local presentation preview;
 - an Analyze button that clearly reports that the future AI/Triton pipeline is not connected yet;
@@ -79,12 +85,14 @@ cd ..
 python -m uvicorn backend.main:app --reload --port 8080
 ```
 
-The backend expects the sample DICOM folder at `../dicom-viewer/files`. Override it with `EXAMPLES_DIR` if needed.
+The backend expects sample DICOM folders or `results.zip` at `../dicom-viewer/files`. Override it with `EXAMPLES_DIR` if needed. An example ZIP is indexed on startup; users do not need to upload it through the UI.
 
 ## Deliberate first-slice limitations
 
 Only uncompressed grayscale DICOM is rendered in this first slice. ZIP, compressed transfer syntaxes,
-multi-frame studies, MPR/crosshair, patient-specific 3D, AI inference, and Triton are intentionally
-deferred. DICOM Window Center/Width is used when available; otherwise the preview falls back to a
-percentile range. The 3D card is an orientation locator, not a generic anatomy model and not a
-diagnosis. The display controls change only the browser presentation; they do not modify source files.
+multi-frame studies, mapped MPR/crosshair, patient-specific 3D, AI inference, and Triton are intentionally
+deferred. Freehand/shape overlays are viewport-coordinate annotations in this phase; calibrated mm
+measurements, persisted annotations, DICOM SR, and MPR-linked crosshair require a geometry-aware viewer
+engine. DICOM Window Center/Width is used when available; otherwise the preview falls back to a percentile
+range. The 3D card is an orientation locator, not a generic anatomy model and not a diagnosis. Capture
+and display controls change only the browser presentation; they do not modify source files.

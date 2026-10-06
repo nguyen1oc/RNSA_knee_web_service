@@ -67,7 +67,7 @@ export default function StudySidebar({
 
       <button className="drop-card" onClick={onImport} disabled={uploading}>
         <UploadCloud size={20} />
-        <span><b>{uploading ? 'Ingesting…' : 'Import DICOM study'}</b><small>Choose .dcm files or a folder</small></span>
+        <span><b>{uploading ? 'Ingesting…' : 'Import DICOM study'}</b><small>Choose .dcm files, a folder, or a .zip</small></span>
         <Plus size={17} />
       </button>
 

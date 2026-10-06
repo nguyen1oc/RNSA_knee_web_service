@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AlertCircle, ArrowLeft, Image as ImageIcon, Info, Sparkles, Trash2, UploadCloud, X } from 'lucide-react'
 import './styles.css'
+import './viewer-overrides.css'
 
 import DisplayToolbar from './components/DisplayToolbar'
 import EmptyWorkspace from './components/EmptyWorkspace'
-import ImageCard from './components/ImageCard'
+import FocusedViewer from './components/FocusedViewer'
 import OverviewGrid from './components/OverviewGrid'
 import SeriesBrowser from './components/SeriesBrowser'
 import StudyInfoPanel from './components/StudyInfoPanel'
@@ -38,6 +39,7 @@ function App() {
   const [slices, setSlices] = useState([])
   const [seriesSliceMap, setSeriesSliceMap] = useState({})
   const [sliceIndex, setSliceIndex] = useState(null)
+  const [overviewSliceIndices, setOverviewSliceIndices] = useState({})
   const [viewerTab, setViewerTab] = useState('Overview')
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -82,7 +84,7 @@ function App() {
       const preferred = full.series.find((series) => series.id === requestedSeriesId)
         || full.series.find((series) => series.plane === 'SAG')
         || full.series[0]
-      await selectSeries(preferred)
+      await selectSeries(preferred, { switchToDirection: false })
       if (!requestedSeriesId) setViewerTab('Overview')
       return full
     } catch (error) {
@@ -95,8 +97,12 @@ function App() {
   const selectSeries = async (series, { switchToDirection = true } = {}) => {
     if (!series) return
     setActiveSeries(series)
-    if (switchToDirection) setViewerTab(series.plane === 'SAG' ? 'Sagittal' : series.plane === 'COR' ? 'Coronal' : series.plane === 'AX' ? 'Axial' : 'Images / Series')
-    setSliceIndex(null)
+    if (switchToDirection) {
+      setViewerTab(series.plane === 'SAG' ? 'Sagittal' : series.plane === 'COR' ? 'Coronal' : series.plane === 'AX' ? 'Axial' : 'Images / Series')
+      setSliceIndex(0)
+    } else {
+      setSliceIndex(null)
+    }
     setSlices([])
     try {
       setSlices(await api(`/api/series/${series.id}/slices`))
@@ -121,7 +127,7 @@ function App() {
     event.target.value = ''
     if (!files.length) return
     setUploading(true)
-    setNotice({ type: 'info', text: `Validating and indexing ${files.length} DICOM file${files.length === 1 ? '' : 's'}…` })
+    setNotice({ type: 'info', text: `Validating and indexing ${files.length} DICOM file or ZIP archive${files.length === 1 ? '' : 's'}…` })
     const form = new FormData()
     files.forEach((file) => form.append('files', file, file.name))
     try {
@@ -185,6 +191,15 @@ function App() {
   const handleWheel = (seriesId, event) => {
     if (!event.currentTarget.querySelector('img')) return
     event.preventDefault()
+    event.stopPropagation()
+    if (viewerTab === 'Overview') {
+      if (seriesId !== activeSeries?.id || !slices.length) return
+      setSliceIndex((current) => {
+        const index = current === null ? Math.floor((slices.length - 1) / 2) : current
+        return Math.min(Math.max(index + (event.deltaY > 0 ? 1 : -1), 0), slices.length - 1)
+      })
+      return
+    }
     changeZoom(seriesId, event.deltaY > 0 ? -0.15 : 0.15)
   }
   const handlePointerDown = (seriesId, event) => {
@@ -219,9 +234,8 @@ function App() {
   }
   const focusedPlane = viewerTab === 'Sagittal' ? 'SAG' : viewerTab === 'Coronal' ? 'COR' : viewerTab === 'Axial' ? 'AX' : null
   const focusedSeries = focusedPlane ? planeSeries[focusedPlane] : null
-  const focusedSlice = focusedSeries?.id === activeSeries?.id ? currentSlice : seriesSliceMap[focusedSeries?.id]?.[Math.max(0, Math.floor(((seriesSliceMap[focusedSeries?.id] || []).length - 1) / 2))]
   const focusedItems = seriesSliceMap[focusedSeries?.id] || []
-  const focusedPosition = focusedSeries?.id === activeSeries?.id ? (slices.length ? `${currentIndex + 1} / ${slices.length}` : '—') : focusedItems.length ? `${Math.max(0, Math.floor((focusedItems.length - 1) / 2)) + 1} / ${focusedItems.length}` : '—'
+  const focusedSlices = focusedSeries?.id === activeSeries?.id ? slices : focusedItems
   const activeView = getViewport(activeSeries?.id)
   const seriesInteractionProps = (seriesId) => ({
     pan: getViewport(seriesId).pan,
@@ -235,12 +249,17 @@ function App() {
   if (loading && !activeStudy) return <div className="loading-screen"><div className="brand-mark">KR</div><p>Loading local workspace…</p></div>
 
   const viewerContent = viewerTab === 'Overview' ? (
-    <OverviewGrid
+      <OverviewGrid
       planeSeries={planeSeries}
       activeSeries={activeSeries}
       currentSlice={currentSlice}
       slices={slices}
-      currentIndex={currentIndex}
+        currentIndex={currentIndex}
+        overviewSliceIndices={overviewSliceIndices}
+        onOverviewSliceChange={(seriesId, index) => {
+          setOverviewSliceIndices((current) => ({ ...current, [seriesId]: index }))
+          if (seriesId === activeSeries?.id) setSliceIndex(index)
+        }}
       seriesSliceMap={seriesSliceMap}
       getViewport={getViewport}
       contrast={contrast}
@@ -255,31 +274,23 @@ function App() {
   ) : viewerTab === 'Images / Series' ? (
     <SeriesBrowser study={activeStudy} activeSeriesId={activeSeries?.id} sliceMap={seriesSliceMap} onSelect={(series) => selectSeries(series, { switchToDirection: false })} />
   ) : (
-    <div className="focused-view">
-      <ImageCard
-        title={viewerTab}
-        series={focusedSeries}
-        active
-        interactive
-        slice={focusedSlice}
-        slicePosition={focusedPosition}
-        focused
-        {...getViewport(focusedSeries?.id)}
-        contrast={contrast}
-        brightness={brightness}
-        inverted={inverted}
-        onSelect={() => selectSeries(focusedSeries)}
-        onResetView={() => resetView(focusedSeries?.id)}
-        {...seriesInteractionProps(focusedSeries?.id)}
-      />
-    </div>
+    <FocusedViewer
+      series={focusedSeries}
+      slices={focusedSlices}
+      currentIndex={currentIndex}
+      onActiveSliceChange={setSliceIndex}
+      contrast={contrast}
+      brightness={brightness}
+      inverted={inverted}
+      geometryReady={Boolean(activeStudy.geometry?.mapping_ready)}
+    />
   )
 
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="brand"><div className="brand-mark">KR</div><div><h1>Knee Review</h1><span>Local DICOM workspace</span></div></div>
-        <div className="top-actions"><span className="status-dot"><i /> Local only</span><button className="button primary" onClick={() => fileInput.current?.click()} disabled={uploading}><UploadCloud size={16} /> Import study</button><input ref={fileInput} hidden type="file" accept=".dcm,application/dicom" multiple onChange={upload} /><input ref={folderInput} hidden type="file" webkitdirectory="true" multiple onChange={upload} /></div>
+        <div className="top-actions"><span className="status-dot"><i /> Local only</span><button className="button primary" onClick={() => fileInput.current?.click()} disabled={uploading}><UploadCloud size={16} /> Import study</button><input ref={fileInput} hidden type="file" accept=".dcm,.zip,application/dicom,application/zip" multiple onChange={upload} /><input ref={folderInput} hidden type="file" webkitdirectory="true" multiple onChange={upload} /></div>
       </header>
 
       {notice && <div className={`notice ${notice.type}`}><span>{notice.type === 'error' ? <AlertCircle size={16} /> : <Info size={16} />}{notice.text}</span><button aria-label="Dismiss notice" onClick={() => setNotice(null)}><X size={15} /></button></div>}
@@ -314,7 +325,7 @@ function App() {
               <div className="viewer-shell">
                 <section className="viewer-pane" aria-label="DICOM viewer">
                   <ViewerTabs tabs={tabs} activeTab={viewerTab} onChange={changeTab} />
-                  <ViewerToolbar activeStudy={activeStudy} activeSeries={activeSeries} selectSeries={selectSeries} currentIndex={currentIndex} slices={slices} setSliceIndex={setSliceIndex} activeView={activeView} changeZoom={changeZoom} resetView={resetView} />
+                  <ViewerToolbar activeStudy={activeStudy} activeSeries={activeSeries} selectSeries={selectSeries} currentIndex={currentIndex} slices={slices} setSliceIndex={setSliceIndex} activeView={activeView} changeZoom={changeZoom} resetView={resetView} showZoom={viewerTab === 'Overview'} />
                   <DisplayToolbar contrast={contrast} brightness={brightness} inverted={inverted} setContrast={setContrast} setBrightness={setBrightness} setInverted={setInverted} />
                   {viewerContent}
                   <div className="viewer-footer"><span><ImageIcon size={14} /> {currentSlice?.filename || 'Select a series to view images'}</span><span>Preview pipeline complete · Window / level metadata applied when available</span></div>

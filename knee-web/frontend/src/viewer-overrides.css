@@ -1,0 +1,23 @@
+/* Viewer interaction overrides kept separate from the base design sheet. */
+html.slice-rail-dragging,body.slice-rail-dragging{overflow:hidden!important;overscroll-behavior:none!important;user-select:none!important}
+.image-stage{overscroll-behavior:none}
+.slice-rail{top:0;right:0;bottom:0;width:13px;padding:0;border-radius:0;background:transparent}
+.slice-rail>span{display:none}
+.slice-rail input[type=range]{display:block;width:13px;height:100%;margin:0;padding:0}
+.slice-rail input[type=range]::-webkit-slider-runnable-track{width:13px;background:#3f474e;border-radius:0}
+.slice-rail input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:48px;margin:0;border:0;border-radius:2px;background:#89949d;box-shadow:none;cursor:ns-resize}
+.slice-rail input[type=range]::-moz-range-track{width:13px;background:#3f474e;border-radius:0}
+.slice-rail input[type=range]::-moz-range-thumb{width:13px;height:48px;border:0;border-radius:2px;background:#89949d;box-shadow:none;cursor:ns-resize}
+.slice-rail input[type=range]:disabled{opacity:.32;cursor:wait}
+.overview-slice-rail{width:13px}
+
+.tool-picker-wrap{position:relative}
+.tool-picker{position:relative}
+.tool-picker-trigger{min-width:108px}
+.tool-picker-popover{position:absolute;z-index:14;top:35px;left:0;min-width:155px;padding:5px;background:#fff;border:1px solid #c9dce9;border-radius:8px;box-shadow:0 12px 28px #24476524}
+.tool-picker-popover button{width:100%;display:flex;align-items:center;gap:8px;border:0;border-radius:5px;background:#fff;color:#557089;padding:7px 8px;font:600 10px 'DM Sans';cursor:pointer;text-align:left}
+.tool-picker-popover button:hover,.tool-picker-popover button.selected-control{background:#e8f4ff;color:#17679f}
+.tool-picker-popover svg{flex:0 0 auto}
+
+.annotation-overlay text{fill:#f6fbff;font:600 3.2px 'DM Sans',sans-serif;letter-spacing:.08px;paint-order:stroke;stroke:#10202f;stroke-width:.8px}
+.annotation-overlay .measurement-label{fill:#e9f7ff;font:700 3.4px 'DM Sans',sans-serif}

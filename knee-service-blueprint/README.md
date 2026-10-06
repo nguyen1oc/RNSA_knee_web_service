@@ -1,5 +1,9 @@
 # Knee Review — kế hoạch local Docker
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Thêm index cho CI/CD, changelog và quy ước đóng góp.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 Cập nhật **05/10/2026** theo phạm vi mới: local web, upload DICOM `.dcm`, một example study gồm `series_1` và `series_2`, **không auth và chưa làm model/GCP**. App vertical slice chạy tại `../knee-web`; bộ docs mô tả scope và các bước mở rộng tiếp theo.
 
 Bắt đầu bằng [12 — Các bước build local](12-local-docker-build-steps.md), sau đó đọc [13 — Input và example studies](13-input-formats-and-example-studies.md). Lịch hiện hành ở [11](11-team-rebalance-and-vibe-frontend.md).
@@ -23,6 +27,9 @@ Bắt đầu bằng [12 — Các bước build local](12-local-docker-build-step
 | [12 Build steps](12-local-docker-build-steps.md) | Làm từng bước và giải thích Triton | Điểm bắt đầu |
 | [13 Input/examples](13-input-formats-and-example-studies.md) | Format, grouping, seed và storage | Hiện hành |
 | [14 Metrics](14-local-metrics-and-acceptance.md) | Đánh giá đúng dữ liệu, xóa, restart, hiệu năng và UX | Hiện hành |
+| [15 CI/CD](15-ci-cd-plan.md) | CI baseline và lộ trình staging/autodeploy | CI hiện hành; CD để sau |
+| [CHANGELOG](CHANGELOG.md) | Lịch sử thay đổi đáng chú ý | Hiện hành |
+| [CONTRIBUTING](../CONTRIBUTING.md) | Commit, branch, push, review và CI/CD | Hiện hành |
 | [15 CI/CD](15-ci-cd-plan.md) | CI baseline và lộ trình staging/autodeploy | CI hiện hành; CD để sau |
 
 ## Mặc định để bắt đầu

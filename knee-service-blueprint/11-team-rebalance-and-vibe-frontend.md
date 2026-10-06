@@ -1,5 +1,9 @@
 # 11 — Hai người build local viewer
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; ownership local hiện hành được giữ nguyên.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 **Cập nhật 05/10/2026:** thay kế hoạch ngày 30/09 bằng local Docker, upload + viewer + một sample study gồm hai series, không auth và chưa AI/GCP. Scope ở [01](01-product-scope.md), trình tự kỹ thuật ở [12](12-local-docker-build-steps.md).
 
 ## 1. Ownership

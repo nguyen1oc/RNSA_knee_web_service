@@ -1,5 +1,9 @@
 # 00 — Workflow local và màn hình cần xây
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; workflow local hiện hành được giữ nguyên.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 Phạm vi 05/10/2026: không tài khoản, mật khẩu, IAP hoặc identity gate. Vào thẳng danh sách study. Upload đi qua ingest pipeline; workspace có nút **Analyze** để giữ đúng workflow tương lai, nhưng hiện chỉ hiển thị thông báo “coming soon”; chưa có model, AI panel, score hoặc endpoint inference.
 
 ## 1. User flow

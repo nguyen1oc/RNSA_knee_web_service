@@ -1,5 +1,9 @@
 # 05 — API v0.2: local upload và viewer
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; API contract hiện hành được giữ nguyên.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 Đề xuất 05/10/2026, thay v0.1 có auth/inference. Base `/api/v1`, JSON snake_case, thời gian UTC, ID UUID; examples dùng stable slug. Không login/logout/identity, token, owner filter hoặc model endpoint. API/React cùng origin qua web proxy.
 
 ## Endpoints P0

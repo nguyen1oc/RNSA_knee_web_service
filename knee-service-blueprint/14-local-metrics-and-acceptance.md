@@ -1,5 +1,9 @@
 # 14 — Metrics đánh giá local viewer
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; metrics/acceptance local được giữ nguyên.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 Cập nhật 05/10/2026. Các metric dưới đây đánh giá service local sau khi build; chúng không đo độ chính xác model, vì inference/Triton chưa nằm trong scope.
 
 ## 1. Bộ metric tối thiểu cần ghi

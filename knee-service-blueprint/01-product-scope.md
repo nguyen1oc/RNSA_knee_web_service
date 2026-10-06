@@ -1,5 +1,9 @@
 # 01 — Phạm vi local viewer
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; scope local hiện hành được giữ nguyên.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 Cập nhật 05/10/2026. MVP hiện tại là **web xem study chạy local bằng Docker**, không có auth và chưa có AI/GCP. Workspace có Analyze CTA dạng placeholder, không có AI result. [Workflow](00-user-workflow-features.md), [build steps](12-local-docker-build-steps.md).
 
 ## P0 cần hoàn thành

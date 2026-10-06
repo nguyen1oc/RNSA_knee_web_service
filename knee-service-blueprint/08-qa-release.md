@@ -1,5 +1,9 @@
 # 08 — QA và bàn giao local Docker
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; acceptance plan local được giữ nguyên.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 Cập nhật 05/10/2026. Mặc định mọi test là NOT_RUN; đây là acceptance plan. Người 1 own upload/storage/Docker, Người 2 own UI/viewer. Model, GCP, IAP không là release gate local.
 
 ## Bộ test bắt buộc

@@ -1,5 +1,9 @@
 # TASK-ID — Tên việc
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Thêm metadata bắt buộc cho task document.  
+> **Lịch sử:** [CHANGELOG](../CHANGELOG.md)
+
 - Owner: Người 1 (Data & Local Platform) hoặc Người 2 (Web & Viewer)
 - Reviewer: người còn lại
 - Priority: P0 / P1 / P2

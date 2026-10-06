@@ -1,5 +1,9 @@
 # 02 — Viewer và DICOM
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; contract viewer/DICOM hiện hành được giữ nguyên.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 > Phạm vi 05/10/2026: chỉ DICOM `.dcm` cho local viewer. Nút Analyze có mặt để giữ workflow nhưng chỉ báo “coming soon”; chưa có AI panel/model. Các đoạn mô tả MPR/3D bên dưới là P1 sau P0, không bắt buộc sprint này. Seed và input theo [13](13-input-formats-and-example-studies.md).
 
 ## Mô hình thông tin

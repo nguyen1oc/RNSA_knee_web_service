@@ -1,5 +1,9 @@
 # Test report — ngày / release
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Thêm metadata bắt buộc cho test report.  
+> **Lịch sử:** [CHANGELOG](../CHANGELOG.md)
+
 Status: NOT_RUN. Người chạy: … Reviewer: … Phase: LOCAL_VIEWER (hiện hành) / AI (sau).
 
 ## Environment

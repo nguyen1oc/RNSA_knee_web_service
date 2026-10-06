@@ -1,5 +1,9 @@
 # 09 — GCP và Triton: giai đoạn sau
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; GCP/Triton vẫn deferred, không là gate local.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 **Hoãn từ 05/10/2026.** Sprint hiện tại chạy local không auth; không tạo tài nguyên cloud hoặc yêu cầu quota/GPU/checkpoint để hoàn thành viewer. Runbook local ở [12](12-local-docker-build-steps.md). Thiết kế IAP trong phiên bản 30/09 đã được rút khỏi scope, không mặc định áp lại.
 
 ## Vai trò của GCP sau này

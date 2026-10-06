@@ -1,5 +1,9 @@
 # 07 — Kế hoạch 2 người / 10 ngày làm việc
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; kế hoạch này vẫn là historical và không thay thế lịch local hiện hành.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 > **LỊCH SỬ — không thực thi từ 05/10/2026.** Scope AI/cloud/auth và lịch bên dưới đã bị thay bởi local viewer không auth. Dùng [11 — Hai người build local](11-team-rebalance-and-vibe-frontend.md) và [12 — Build steps](12-local-docker-build-steps.md). Các gate checkpoint/GCP/auth ở đây không áp dụng hiện tại.
 
 ## Năng lực và ngân sách

@@ -1,5 +1,9 @@
 # 15 — CI trước, CD sau
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Bổ sung quy ước ghi changelog và Conventional Commits; CI baseline vẫn là gate hiện tại.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 ## Mục tiêu hiện tại
 
 Local viewer chưa có test DICOM fixture đầy đủ, nên CI chỉ cần bảo đảm code có thể kiểm tra tĩnh và đóng gói được. Chưa tự deploy mỗi lần push; deploy tự động chỉ nên bật sau khi có môi trường staging và health check rõ ràng.
@@ -7,6 +11,8 @@ Local viewer chưa có test DICOM fixture đầy đủ, nên CI chỉ cần bả
 ## Pipeline CI hiện tại
 
 Workflow: `.github/workflows/ci.yml`
+
+Quy ước commit, branch và push nằm ở [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ```text
 push / pull request

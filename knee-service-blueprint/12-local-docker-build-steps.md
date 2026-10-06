@@ -1,5 +1,9 @@
 # 12 — Build local từng bước: upload, viewer, 1 example study, Docker
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; bổ sung liên kết quy ước commit/CI/CD.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 Ngày chốt phạm vi: **05/10/2026**. Kế hoạch này đã có vertical slice đầu tiên tại `../knee-web`: FastAPI + SQLite + React build tĩnh, Docker Compose, sample study và upload/view DICOM. Các bước MPR/3D thật, ZIP, worker indexing và AI/cloud vẫn là phần tiếp theo. Tài liệu này cùng file 13 thay thế lịch AI/cloud ở file 07 và phiên bản file 11 ngày 30/09.
 
 ## 1. Kết quả cần có

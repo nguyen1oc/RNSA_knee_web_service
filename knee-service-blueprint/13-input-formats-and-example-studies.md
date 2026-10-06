@@ -1,5 +1,9 @@
 # 13 — Input DICOM và lưu một example study
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; format input và example study hiện hành được giữ nguyên.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 Áp dụng cho giai đoạn local ngày 05/10/2026. “Study” DICOM là nhóm theo StudyInstanceUID; một thư mục chỉ là cách chọn nhiều file, không tự quyết định số study. ZIP được ghi ở đây như hướng mở rộng, chưa thuộc vertical slice.
 
 ## 1. Supported matrix giai đoạn đầu

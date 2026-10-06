@@ -1,5 +1,9 @@
 # 04 — Kiến trúc local và lưu trữ
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; kiến trúc local hiện hành được giữ nguyên.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 Phạm vi 05/10/2026: không auth, không inference, không cloud. Docker Compose trên máy người dùng.
 
 ```mermaid

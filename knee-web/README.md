@@ -1,5 +1,9 @@
 # Knee Review — local DICOM workspace
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Bổ sung CI baseline và hướng dẫn source layout.  
+> **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
+
 This is the first local vertical slice for the knee diagnostic web service.
 The UI is in English and currently supports:
 

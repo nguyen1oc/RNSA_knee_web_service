@@ -1,5 +1,9 @@
 # 03 — Design system: Knee Review
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; design system sáng hiện hành được giữ nguyên.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 Tên làm việc: **Knee Review**. Đây là đề xuất UI cho prototype, không phải thương hiệu đã chốt. Xem [design board](templates/design-board.html) và [CSS tokens](templates/design-tokens.css).
 
 Phạm vi 05/10/2026: trang đầu có một sample study card + study upload; không account/login hoặc AI panel. Trong workspace, React phải bám visual contract của `templates/design-board.html`: tabs hướng, viewer 4 ô, panel Study information và ingest pipeline. Nút chính là “Import study”; Analyze có nhãn “Coming soon”, nhưng chưa có score/result/endpoint. MPR/3D để sau; display preview dùng Contrast/Brightness/Invert và Window Center/Width khi DICOM có metadata.

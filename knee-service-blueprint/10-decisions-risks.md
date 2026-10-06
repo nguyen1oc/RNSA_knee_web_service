@@ -1,5 +1,9 @@
 # 10 — Quyết định, giả định và nguồn
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; các quyết định hiện hành được giữ nguyên.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 ## Quyết định hiện hành 05/10/2026
 
 Các quyết định này ưu tiên hơn bảng lịch sử bên dưới. Scope local được yêu cầu trực tiếp: không tạo tài khoản, không auth, chưa làm model/GCP.

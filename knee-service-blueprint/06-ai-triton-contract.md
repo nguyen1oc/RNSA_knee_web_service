@@ -1,5 +1,9 @@
 # 06 — Model contract và Triton
 
+> **Cập nhật gần nhất:** 2026-10-06  
+> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; phase AI/Triton vẫn được đánh dấu deferred.  
+> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
 > **Hoãn từ 05/10/2026:** tài liệu cho phase AI sau local viewer. “Ngày 1–2”, “MVP” và các gate dưới đây chỉ áp dụng khi bắt đầu sprint AI; không chặn upload/viewer/examples. Phân biệt NVIDIA Triton Inference Server với Triton language và vị trí GPU/checkpoint ở [12, mục 6](12-local-docker-build-steps.md#6-triton-nào-checkpoint-đặt-đâu-gpu-từ-đâu).
 
 ## Gate ngày 1 của phase AI

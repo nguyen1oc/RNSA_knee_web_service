@@ -49,7 +49,9 @@ Cây dưới là cấu trúc đích. Hiện vertical slice đã được tạo t
 
 ```text
 knee-web/
-  frontend/                 # React UI, current build uses CSS; Tailwind can follow
+  frontend/src/main.jsx    # page orchestrator: API, study/session and viewer state
+  frontend/src/components/ # small reusable viewer/sidebar/toolbar components
+  frontend/src/styles.css  # shared layout and design tokens
   backend/main.py            # FastAPI upload, catalog, DICOM metadata and PNG routes
   backend/requirements.txt
   compose.yaml               # localhost:8080 + named data volume + read-only examples
@@ -57,6 +59,11 @@ knee-web/
   README.md
   data/                      # runtime-only when running without Docker
 ```
+
+The current frontend keeps `main.jsx` focused on orchestration. `ImageCard`, `OverviewGrid`,
+`StudySidebar`, `SeriesBrowser`, `ViewerTabs`, `ViewerToolbar`, `DisplayToolbar`, `LocatorCard`,
+`StudyInfoPanel` and `EmptyWorkspace` are separate components so viewport behavior and layout
+can be reviewed without growing one large page file.
 
 Current implemented vertical slice:
 

@@ -40,6 +40,19 @@ docker compose down
 
 Do not use `docker compose down -v` unless you intentionally want to remove local uploads and the database.
 
+## Frontend source layout
+
+`frontend/src/main.jsx` is intentionally kept as the page orchestrator: it owns study/session state, API calls and viewer interaction state. The visual surface is split into small components so direction cards and controls can be changed independently:
+
+- `components/StudySidebar.jsx` — Study → Series → slice tree and import/delete actions;
+- `components/OverviewGrid.jsx` and `components/ImageCard.jsx` — four-slot Overview and reusable image viewport;
+- `components/LocatorCard.jsx` — non-diagnostic 3D orientation locator placeholder;
+- `components/ViewerTabs.jsx`, `ViewerToolbar.jsx`, `DisplayToolbar.jsx` — navigation and display controls;
+- `components/SeriesBrowser.jsx` — Images / Series acquisition browser;
+- `components/StudyInfoPanel.jsx`, `EmptyWorkspace.jsx` — supporting panels and empty state.
+
+Keep new UI behavior in the smallest relevant component. Add shared state or API behavior to `main.jsx` only when it affects more than one surface.
+
 ## Run without Docker
 
 Build the frontend:

@@ -29,6 +29,16 @@ docker compose up --build
 
 The Dockerfile builds the React frontend in a multi-stage image, so `frontend/dist` does not need to exist in a fresh clone.
 
+## CI baseline
+
+GitHub Actions runs on pushes to `main` and on pull requests. The current gate is intentionally small:
+
+- backend: Ruff lint, Mypy type-check, and Python compilation;
+- frontend: clean `npm ci` followed by `npm run build`;
+- Docker: build the production image from a clean checkout.
+
+There is not yet a DICOM fixture test suite. Add API/rendering tests before treating CI as a clinical-quality release gate; the current workflow only proves that the service is statically valid and packages successfully.
+
 Open <http://localhost:8080>.
 
 The SQLite database and uploaded files are stored in the `knee_data` named volume.

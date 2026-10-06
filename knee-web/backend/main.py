@@ -6,6 +6,7 @@ import os
 import shutil
 import sqlite3
 import uuid
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,6 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
-
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.getenv("DATA_DIR", ROOT / "data"))
@@ -101,6 +101,17 @@ def clean(value: Any) -> str:
     if value is None:
         return ""
     return str(value).replace("\x00", "").strip()
+
+
+def dicom_number(value: Any, default: float = 0.0) -> float:
+    """Read a numeric DICOM value, including pydicom multi-value fields."""
+    candidate: Any = value
+    if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
+        candidate = next(iter(value), default)
+    try:
+        return float(candidate)
+    except (TypeError, ValueError):
+        return default
 
 
 def as_float_list(value: Any) -> list[float]:
@@ -630,15 +641,13 @@ def instance_image(instance_id: str) -> Response:
         finite = pixels[np.isfinite(pixels)]
         window_center = getattr(ds, "WindowCenter", None)
         window_width = getattr(ds, "WindowWidth", None)
-        try:
-            center = float(window_center[0] if hasattr(window_center, "__iter__") and not isinstance(window_center, (str, bytes)) else window_center)
-            width = float(window_width[0] if hasattr(window_width, "__iter__") and not isinstance(window_width, (str, bytes)) else window_width)
-        except (TypeError, ValueError, IndexError):
-            center, width = 0.0, 0.0
+        center = dicom_number(window_center)
+        width = dicom_number(window_width)
         if width > 0:
             low, high = center - width / 2, center + width / 2
         else:
-            low, high = np.percentile(finite, [1, 99])
+            percentiles = np.asarray(np.percentile(finite, [1, 99]), dtype=float)
+            low, high = float(percentiles[0]), float(percentiles[1])
         if high <= low:
             low, high = float(np.min(pixels)), float(np.max(pixels) or 1)
         pixels = np.clip((pixels - low) / max(high - low, 1e-6), 0, 1)

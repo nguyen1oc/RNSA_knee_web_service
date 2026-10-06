@@ -12,7 +12,7 @@
 |---|---|
 | GET /health/ready | DB/storage/migration readiness; seed status có trường riêng |
 | GET /examples | Một manifest entry với state, source_kind=dicom, study_id và lỗi nếu sample thiếu |
-| POST /uploads | kind=files, label optional; 201 upload_id; ZIP deferred |
+| POST /uploads | kind=files, label optional; 201 upload_id; accepts `.dcm` files/folders and `.zip` archives |
 | POST /uploads/{id}/files | Multipart streaming + client_file_id/relative_path; 200 receipts/checksums |
 | POST /uploads/{id}/complete | Freeze receipt set, enqueue index; 202 job_id |
 | GET /uploads/{id} | Receipt summary, job state, study_ids và import report khi xong |
@@ -37,7 +37,7 @@ Frontend folder picker gửi relative paths; backend không nhận absolute host
 
 Complete dùng Idempotency-Key scoped theo upload. Cùng key/cùng receipt-set → cùng job; đổi payload → 409. Một upload chỉ complete một lần; gọi lại với key mới vẫn trả job đã có nếu receipt-set không đổi. OPEN mới nhận file; CLOSED reject file mới.
 
-Local vertical slice chỉ nhận `.dcm` files/folders; validate + metadata extraction + grouping + geometry-aware sorting chạy trong request upload. Preview pixel render on demand khi viewport yêu cầu. Không resumable byte chunks ở P0, chỉ retry từng file chưa có receipt. 500 MiB received và tối đa 2.000 file DICOM; vượt trả 413. ZIP/nested/encrypted ZIP chưa mở trong scope hiện tại. Chi tiết [13](13-input-formats-and-example-studies.md).
+Local vertical slice nhận `.dcm` files/folders và một `.zip` archive không mã hóa; server đọc các member `.dcm` trong archive, bỏ qua thư mục và không cho phép path traversal/nested ZIP. Validate + metadata extraction + grouping + geometry-aware sorting chạy trong request upload. Preview pixel render on demand khi viewport yêu cầu. Không resumable byte chunks ở P0, chỉ retry từng file chưa có receipt. 500 MiB received và tối đa 2.000 file DICOM; vượt trả 413. Chi tiết [13](13-input-formats-and-example-studies.md).
 
 ## Series manifest tối thiểu
 

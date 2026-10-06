@@ -6,6 +6,7 @@ import os
 import shutil
 import sqlite3
 import uuid
+import zipfile
 from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -423,9 +424,29 @@ def study_payload(study_row: sqlite3.Row) -> dict[str, Any]:
 def seed_sample() -> None:
     if not EXAMPLES_DIR.exists():
         return
+    archive = next(
+        (
+            candidate
+            for candidate in [EXAMPLES_DIR / "results.zip", EXAMPLES_DIR / "result.zip"]
+            if candidate.is_file()
+        ),
+        None,
+    )
     with db() as connection:
-        if connection.execute("SELECT 1 FROM studies WHERE source = 'sample' LIMIT 1").fetchone():
-            return
+        sample_row = connection.execute("SELECT id FROM studies WHERE source = 'sample' LIMIT 1").fetchone()
+        if sample_row:
+            sample_paths = connection.execute(
+                "SELECT path FROM instances WHERE series_id IN (SELECT id FROM series WHERE study_id = ?)",
+                (sample_row["id"],),
+            ).fetchall()
+            if sample_paths and all(Path(row["path"]).is_file() for row in sample_paths):
+                return
+            if archive is None:
+                return
+            connection.execute("DELETE FROM studies WHERE id = ?", (sample_row["id"],))
+    if archive is not None:
+        seed_sample_archive(archive)
+        return
     dicom_files = sorted(EXAMPLES_DIR.rglob("*.dcm"))
     if not dicom_files:
         return
@@ -441,6 +462,32 @@ def seed_sample() -> None:
     if len(study_uids) != 1:
         return
     insert_study(study_uid=next(iter(study_uids)), display_name="Example Knee Study", source="sample", files=parsed, study_id="sample-knee")
+
+
+def seed_sample_archive(archive: Path) -> None:
+    sample_root = STORAGE_DIR / "sample-archive"
+    shutil.rmtree(sample_root, ignore_errors=True)
+    sample_root.mkdir(parents=True, exist_ok=True)
+    parsed: list[tuple[dict[str, Any], Path]] = []
+    try:
+        with zipfile.ZipFile(archive) as source:
+            members = [member for member in source.infolist() if not member.is_dir() and member.filename.lower().endswith(".dcm")]
+            for index, member in enumerate(members):
+                raw = source.read(member)
+                try:
+                    metadata = parse_metadata(raw)
+                except Exception:
+                    continue
+                target = sample_root / f"slice-{index:05d}.dcm"
+                target.write_bytes(raw)
+                parsed.append((metadata, target.resolve()))
+    except (zipfile.BadZipFile, OSError, RuntimeError):
+        shutil.rmtree(sample_root, ignore_errors=True)
+        return
+    if not parsed or len({item[0]["study_uid"] for item in parsed}) != 1:
+        shutil.rmtree(sample_root, ignore_errors=True)
+        return
+    insert_study(study_uid=parsed[0][0]["study_uid"], display_name="Example Knee Study", source="sample", files=parsed, study_id="sample-knee")
 
 
 def refresh_geometry_records() -> None:
@@ -550,15 +597,32 @@ async def upload_study(files: list[UploadFile] = File(...)) -> dict[str, Any]:
     rejected: list[dict[str, str]] = []
     upload_root = STORAGE_DIR / f"upload-{uuid.uuid4().hex[:12]}"
     upload_root.mkdir(parents=True, exist_ok=True)
+    candidates: list[tuple[str, bytes]] = []
     for upload in files:
         filename = Path(upload.filename or "").name
-        if not filename.lower().endswith(".dcm"):
-            rejected.append({"filename": filename or "unnamed", "reason": "Only .dcm files are supported"})
-            continue
         raw = await upload.read()
         if not raw:
             rejected.append({"filename": filename, "reason": "Empty file"})
             continue
+        if filename.lower().endswith(".zip"):
+            try:
+                with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                    members = [member for member in archive.infolist() if not member.is_dir() and member.filename.lower().endswith(".dcm")]
+                    if not members:
+                        rejected.append({"filename": filename, "reason": "ZIP contains no .dcm files"})
+                        continue
+                    for member in members:
+                        member_name = Path(member.filename).name or f"slice-{uuid.uuid4().hex[:8]}.dcm"
+                        candidates.append((member_name, archive.read(member)))
+            except (zipfile.BadZipFile, OSError, RuntimeError) as exc:
+                rejected.append({"filename": filename, "reason": f"Invalid ZIP archive: {exc}"})
+            continue
+        if not filename.lower().endswith(".dcm"):
+            rejected.append({"filename": filename or "unnamed", "reason": "Only .dcm files or .zip archives are supported"})
+            continue
+        candidates.append((filename, raw))
+
+    for filename, raw in candidates:
         try:
             metadata = parse_metadata(raw)
         except Exception as exc:

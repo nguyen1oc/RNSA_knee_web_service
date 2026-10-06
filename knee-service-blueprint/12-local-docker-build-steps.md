@@ -4,7 +4,7 @@
 > **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; bổ sung liên kết quy ước commit/CI/CD.  
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-Ngày chốt phạm vi: **05/10/2026**. Kế hoạch này đã có vertical slice đầu tiên tại `../knee-web`: FastAPI + SQLite + React build tĩnh, Docker Compose, sample study và upload/view DICOM. Các bước MPR/3D thật, ZIP, worker indexing và AI/cloud vẫn là phần tiếp theo. Tài liệu này cùng file 13 thay thế lịch AI/cloud ở file 07 và phiên bản file 11 ngày 30/09.
+Ngày chốt phạm vi: **05/10/2026**. Kế hoạch này đã có vertical slice đầu tiên tại `../knee-web`: FastAPI + SQLite + React build tĩnh, Docker Compose, sample study và upload/view DICOM. Upload hiện nhận file/thư mục `.dcm` và archive `.zip` không mã hóa; MPR/3D thật, worker indexing và AI/cloud vẫn là phần tiếp theo. Tài liệu này cùng file 13 thay thế lịch AI/cloud ở file 07 và phiên bản file 11 ngày 30/09.
 
 ## 1. Kết quả cần có
 
@@ -36,14 +36,14 @@ Mở `http://localhost:8080` → thấy một sample study gồm hai series và 
 | **1 — Chốt dữ liệu** | Kiểm kê một sample study; định nghĩa DICOM `.dcm`; freeze manifest/API v0.2 | Cả hai | `series_1`/`series_2` có metadata, số ảnh và expected order |
 | **2 — Skeleton Docker** | Tạo `knee-web/` với frontend, backend, worker, compose; SQLite migration; web proxy `/api/v1` | Người 1; Người 2 dựng shell | Một URL localhost mở app; `/health/ready` báo DB/storage được; chưa cần GPU |
 | **3 — Import DICOM** | Upload file/thư mục, receipt, index UID, manifest, file endpoint; dựng một stack bằng Cornerstone | Người 1 API; Người 2 viewer | Tự upload ca DICOM hiện có → 1 study, 2 series, 34 và 30 ảnh; lướt ảnh đúng thứ tự |
-| **4 — Danh sách + sample** | Study list, import dialog/progress, seed một source gồm `series_1`/`series_2` cùng pipeline | Người 1 seed; Người 2 UI | Bấm Mở mẫu không upload lại; seed chạy lần 2 không sinh thêm study |
+| **4 — Danh sách + sample** | Study list, import dialog/progress, seed folder hoặc `results.zip` cùng pipeline | Người 1 seed; Người 2 UI | Bấm Mở mẫu không upload lại; seed chạy lần 2 không sinh thêm study |
 | **5 — Workspace tree** | Sidebar Study → Series → slice files, 4 ô hoặc một stack, hướng, zoom/pan/display preview/reset, Analyze placeholder | Người 2; Người 1 metadata | Series chọn độc lập; thiếu hướng báo rõ |
 | **6 — Xóa + bền vững** | Confirmation, sample read-only, cleanup files/DB, refresh, restart, duplicate import | Người 1 storage; Người 2 states | Study upload xóa được; sample không xóa; restart không mất dữ liệu |
 | **7 — Lỗi + limits** | Unsupported DICOM, disk/memory, partial/failed | Cả hai | Lỗi có hành động rõ, không orphan/delete nhầm |
 | **8 — ZIP (deferred)** | Chỉ làm khi scope mở lại: giải nén giới hạn, nhận diện DICOM, report lỗi | Cả hai khi được bật lại | Không block local vertical slice hiện tại |
 | **9 — Nghiệm thu Docker** | Build mới, seed, upload folder/file `.dcm`, đổi study 10 lần; backup/restore; README chạy local | Cả hai | Người còn lại chạy theo README và mở được sample + study upload |
 
-Step 3 là mốc đầu tiên: **upload thật → một stack thật**. Không cần chờ dựng xong mọi màn hình. Sau đó seed, tree/display controls và delete có thể làm song song khi contract ổn định; ZIP để sau khi P0 hiện tại ổn định.
+Step 3 là mốc đầu tiên: **upload thật → một stack thật**. Không cần chờ dựng xong mọi màn hình. Sau đó seed, tree/display controls, ZIP ingest và delete có thể làm song song khi contract ổn định.
 
 MPR/crosshair/khung 3D là P1 sau step 9; không là điều kiện nghiệm thu local. Ô trên trái của overview hiện 3D locator/khung định hướng, không hiển thị khối giả như dữ liệu bệnh nhân và chưa mapping click → patient slice.
 
@@ -89,7 +89,7 @@ Current implemented vertical slice:
 | `web` | React build + Nginx; serve SPA và proxy API | Frontend trong image | `127.0.0.1:8080:80` |
 | `api` | FastAPI, migration trước readiness | `knee_data:/data` | Không publish |
 | `worker` | Nhận job index từ SQLite, 1 job/lần | `knee_data:/data` | Không publish |
-| `seed` | Chạy một lần mỗi lần Compose khởi động/recreate; đăng ký sample import idempotent | `${EXAMPLES_DIR}:/examples:ro` và `knee_data:/data` | Không publish |
+| `seed` | Chạy một lần mỗi lần Compose khởi động/recreate; đăng ký sample folder hoặc `results.zip` idempotent | `${EXAMPLES_DIR}:/examples:ro` và `knee_data:/data` | Không publish |
 
 API hoàn tất migration rồi seed/worker mới bắt đầu. Seed copy source mẫu vào staging trong `/data`, tạo job và thoát; worker index như upload bình thường. UI poll tới READY/PARTIAL. Thiếu sample không làm sập API: sample hiện “Chưa có dữ liệu mẫu”; sample chỉ tính xong khi cả `series_1` và `series_2` mở được.
 

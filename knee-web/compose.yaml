@@ -1,0 +1,14 @@
+services:
+  knee-web:
+    build: .
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      DATA_DIR: /app/data
+      EXAMPLES_DIR: /examples
+    volumes:
+      - knee_data:/app/data
+      - ../dicom-viewer/files:/examples:ro
+
+volumes:
+  knee_data:

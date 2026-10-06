@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "template_only": true,
+  "examples": [
+    {
+      "example_id": "demo-knee-study",
+      "version": 1,
+      "label": "MRI example 1",
+      "source_kind": "dicom",
+      "source_path": "demo-knee-study/source",
+      "source_sha256": null,
+      "provenance": "Candidate: dicom-viewer/files; metadata inspected 2026-10-05, pixels not reviewed",
+      "deidentification_status": "not_reviewed",
+      "expected": { "studies": 1, "series": 2, "images": 64, "series_paths": ["series_1", "series_2"] }
+    }
+  ]
+}

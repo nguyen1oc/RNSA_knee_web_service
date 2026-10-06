@@ -1,0 +1,54 @@
+/* Knee Review — proposal tokens; import into the React app entry. */
+/* Font binaries are not bundled. Add self-hosted Noto Sans @font-face before release. */
+:root {
+  color-scheme: light;
+  --kr-bg: #F4F7FB;
+  --kr-surface: #FFFFFF;
+  --kr-raised: #EDF3F8;
+  --kr-selection: #E0F2FE;
+  --kr-canvas: #F8FAFC;
+  --kr-canvas-text: #102A43;
+  --kr-canvas-muted: #52657A;
+  --kr-canvas-border: #CBD5E1;
+  --kr-canvas-accent: #0369A1;
+  --kr-border: #D7E1EC;
+  --kr-control-border: #64748B;
+  --kr-text: #102A43;
+  --kr-muted: #52657A;
+  --kr-accent: #0369A1;
+  --kr-on-accent: #FFFFFF;
+  --kr-success: #166534;
+  --kr-warning: #92400E;
+  --kr-danger: #B91C1C;
+  /* Axis labels on the light canvas; image overlays need a contrasting backing. */
+  --kr-axis-sag: #B91C1C;
+  --kr-axis-cor: #166534;
+  --kr-axis-ax: #1D4ED8;
+  --kr-font: 'Noto Sans', 'Segoe UI', Arial, sans-serif;
+  --kr-mono: ui-monospace, Consolas, monospace;
+  --kr-space-1: 4px;
+  --kr-space-2: 8px;
+  --kr-space-3: 12px;
+  --kr-space-4: 16px;
+  --kr-space-6: 24px;
+  --kr-space-8: 32px;
+  --kr-radius-control: 6px;
+  --kr-radius-card: 8px;
+  --kr-control-height: 36px;
+  --kr-sidebar-width: 248px;
+  --kr-results-width: 304px;
+}
+
+body { margin: 0; background: var(--kr-bg); color: var(--kr-text); font: 400 14px/1.5 var(--kr-font); }
+*, *::before, *::after { box-sizing: border-box; }
+a { color: var(--kr-accent); }
+button, input, select { font: inherit; }
+button, input, select, summary, a { outline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--kr-accent); }
+.kr-panel { background: var(--kr-surface); border: 1px solid var(--kr-border); border-radius: var(--kr-radius-card); }
+.kr-muted { color: var(--kr-muted); }
+.kr-mono { font-family: var(--kr-mono); font-variant-numeric: tabular-nums; }
+.kr-badge { display: inline-block; padding: 2px 8px; border: 1px solid var(--kr-control-border); border-radius: var(--kr-radius-control); font-size: 12px; line-height: 18px; }
+.kr-button { min-height: var(--kr-control-height); display: inline-flex; align-items: center; justify-content: center; padding: 6px 12px; border: 1px solid var(--kr-control-border); border-radius: var(--kr-radius-control); background: var(--kr-raised); color: var(--kr-text); font-weight: 500; }
+.kr-button-primary { background: var(--kr-accent); color: var(--kr-on-accent); border-color: var(--kr-accent); }
+.kr-number { font-variant-numeric: tabular-nums; }

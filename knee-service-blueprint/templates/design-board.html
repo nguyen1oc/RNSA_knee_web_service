@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Knee Review — Light design board</title>
+  <link rel="stylesheet" href="design-tokens.css">
+  <style>
+    main { max-width: 1600px; margin: auto; padding: 32px; }
+    h1 { margin: 8px 0; font-size: 32px; line-height: 1.25; font-weight: 600; }
+    h2 { margin: 0 0 16px; font-size: 20px; font-weight: 600; }
+    h3 { margin: 0 0 12px; font-size: 16px; }
+    p { margin: 8px 0; }
+    .eyebrow { color: var(--kr-accent); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; }
+    .intro { max-width: 860px; margin-bottom: 24px; }
+    .journey { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; align-items: center; }
+    .journey span { background: var(--kr-raised); border: 1px solid var(--kr-border); padding: 8px 12px; border-radius: 6px; }
+    .entry { margin: 24px 0; padding: 24px; }
+    .entry-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .study-table-wrap { overflow-x: auto; margin: 16px 0; }
+    .study-table { border-collapse: collapse; width: 100%; min-width: 600px; text-align: left; }
+    .study-table th, .study-table td { padding: 12px; border-bottom: 1px solid var(--kr-border); }
+    .study-table th { color: var(--kr-muted); font-size: 12px; font-weight: 600; background: var(--kr-raised); }
+    .build-order { margin: 16px 0; padding-left: 24px; }
+    .build-order li { margin: 8px 0; }
+    .note { padding: 12px 16px; border-left: 3px solid var(--kr-warning); background: var(--kr-surface); color: var(--kr-warning); margin: 16px 0 24px; }
+    .workspace { border: 1px solid var(--kr-border); border-radius: 8px; overflow: hidden; }
+    .appbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 16px; background: var(--kr-surface); border-bottom: 1px solid var(--kr-border); }
+    .brand { font-size: 18px; font-weight: 600; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .shell { display: grid; grid-template-columns: 216px minmax(0,1fr) 260px; min-height: 580px; }
+    .sidebar, .results { background: var(--kr-surface); padding: 16px; }
+    .sidebar { border-right: 1px solid var(--kr-border); }
+    .results { border-left: 1px solid var(--kr-border); }
+    .small { font-size: 12px; line-height: 18px; }
+    .series { padding: 12px; margin: 12px 0; border: 1px solid var(--kr-border); border-radius: 6px; }
+    .series.active { border: 2px solid var(--kr-accent); background: var(--kr-selection); }
+    .series strong { display: block; margin-bottom: 8px; font-weight: 600; }
+    .tree { margin-top: 14px; }
+    .tree-row { display:flex; align-items:center; gap:6px; padding:7px 6px; border-radius:6px; }
+    .tree-row.active { background: var(--kr-selection); color: var(--kr-accent); }
+    .tree-caret { color: var(--kr-muted); width: 14px; }
+    .tree-children { border-left:1px solid var(--kr-border); margin-left:9px; padding-left:10px; }
+    .tree-slice { color: var(--kr-muted); font-size: 11px; padding:3px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .analyze { color:var(--kr-accent); background:#EAF5FF; border-color:#B9DCF5; }
+    .display-note { margin-top:10px; padding:8px 10px; background:var(--kr-raised); border:1px solid var(--kr-border); border-radius:6px; }
+    .viewer { min-width: 0; padding: 12px; }
+    .tabs { display: flex; gap: 16px; flex-wrap: wrap; padding: 0 4px 12px; border-bottom: 1px solid var(--kr-border); }
+    .tab { color: var(--kr-muted); padding-bottom: 6px; }
+    .tab.active { color: var(--kr-accent); border-bottom: 2px solid var(--kr-accent); }
+    .toolbar { padding: 12px 0; }
+    .viewgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+    .viewport { color-scheme: light; color: var(--kr-canvas-text); min-height: 200px; background: var(--kr-canvas); border: 1px solid var(--kr-canvas-border); display: flex; flex-direction: column; padding: 12px; }
+    .viewport.active { border: 2px solid var(--kr-canvas-accent); }
+    .viewport :focus-visible { outline-color: var(--kr-canvas-accent); }
+    .vp-title { font-weight: 600; font-size: 12px; }
+    .placeholder { flex: 1; display: grid; place-content: center; text-align: center; color: var(--kr-canvas-muted); padding: 16px 4px; }
+    .placeholder .large { font-size: 28px; font-weight: 600; letter-spacing: .06em; }
+    .vp-footer { color: var(--kr-canvas-muted); font-size: 12px; font-family: var(--kr-mono); }
+    .controls { border-top: 1px solid var(--kr-border); margin-top: 12px; padding-top: 12px; }
+    .slider-demo { display: grid; grid-template-columns: 100px 1fr 48px; gap: 12px; align-items: center; padding: 5px 0; }
+    .track { height: 4px; background: var(--kr-control-border); position: relative; border-radius: 3px; }
+    .track::after { content: ''; position: absolute; left: 48%; top: -4px; width: 12px; height: 12px; border-radius: 50%; background: var(--kr-accent); }
+    .warning { color: var(--kr-warning); }
+    .success { color: var(--kr-success); }
+    .danger { color: var(--kr-danger); }
+    .pipeline-list { list-style:none; margin:16px 0 0; padding:0; display:grid; gap:8px; }
+    .pipeline-list li { display:grid; grid-template-columns:8px 1fr auto; gap:7px; align-items:center; font-size:12px; }
+    .pipeline-dot { width:8px; height:8px; border-radius:50%; background:var(--kr-success); }
+    .pipeline-dot.pending { background:var(--kr-warning); }
+    .pipeline-list small { color:var(--kr-muted); font-size:10px; }
+    .score { display: flex; justify-content: space-between; border-top: 1px solid var(--kr-border); padding: 12px 0; }
+    .sections { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; }
+    .section { padding: 24px; }
+    .swatches { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+    .swatch { height: 48px; border-radius: 6px; border: 1px solid var(--kr-control-border); margin-bottom: 8px; }
+    .sample { padding: 12px 0; border-top: 1px solid var(--kr-border); }
+    .footer { margin-top: 24px; color: var(--kr-muted); font-size: 12px; }
+    @media (max-width: 1200px) { .shell { grid-template-columns: 180px minmax(0,1fr); } .results { grid-column: 1 / -1; border-top: 1px solid var(--kr-border); border-left: 0; } }
+    @media (max-width: 760px) { main { padding: 16px; } .shell, .sections, .viewgrid { grid-template-columns: 1fr; } .sidebar { border-right: 0; border-bottom: 1px solid var(--kr-border); } .appbar { align-items: flex-start; flex-direction: column; } .swatches { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="intro">
+    <div class="eyebrow">Local viewer · Light theme · October 2026</div>
+    <h1>Knee Review</h1>
+    <p class="kr-muted">Không gian làm việc tông sáng: nền trắng và xám nhạt, chữ xanh đậm, điểm nhấn xanh y tế. Cả 3D locator và nền các ô ảnh dùng xám sáng; vùng tối trong ảnh MRI thật vẫn theo dữ liệu và display preview.</p>
+  </div>
+    <div class="note">Design board là visual source of truth cho vertical slice Docker tại <code>knee-web/</code>. App thật phải giữ tabs, viewer 4 ô, focused direction viewport, cây Study → Series, panel Study information, ingest pipeline và nút Analyze placeholder.</div>
+
+  <section class="kr-panel entry" aria-labelledby="journey-title">
+    <div class="eyebrow">User journey · Bắt đầu từ đây</div>
+    <h2 id="journey-title" style="margin-top:8px">Người dùng vào trang như thế nào?</h2>
+    <div class="journey" aria-label="Các bước chính"><span>1. Danh sách study</span><span>2. Mở mẫu / Nhập `.dcm`</span><span>3. Expand Study → Series</span><span>4. Tab hướng / Wheel-zoom / Drag-pan</span><span>5. Analyze · Coming soon</span></div>
+    <p class="kr-muted">Vào thẳng trang danh sách trên localhost; không tài khoản hoặc mật khẩu. Giai đoạn hiện tại tập trung upload và viewer.</p>
+    <p><a href="../12-local-docker-build-steps.md">Các bước build local bằng Docker</a> · <a href="../13-input-formats-and-example-studies.md">Lưu sample study</a></p>
+  </section>
+
+  <section class="kr-panel entry" aria-labelledby="study-list-title">
+    <div class="eyebrow">Màn hình đầu · S02 · Example sources</div>
+    <div class="entry-heading"><h2 id="study-list-title" style="margin:8px 0">Danh sách study</h2><span class="kr-button kr-button-primary">+ Nhập study · mẫu</span></div>
+    <p class="kr-muted">Một sample study gồm hai series sẽ mở ảnh đã seed. Nhập thêm folder `.dcm` hoặc nhiều file `.dcm`; ZIP và AI chưa thuộc vertical slice hiện tại.</p>
+    <div class="study-table-wrap"><table class="study-table">
+      <thead><tr><th scope="col">Study mẫu</th><th scope="col">Series</th><th scope="col">Dữ liệu nguồn</th><th scope="col">Loại</th><th scope="col">Hành động</th></tr></thead>
+      <tbody>
+        <tr><td class="kr-mono">DEMO-KNEE</td><td>2</td><td>64 DICOM · ứng viên sample</td><td>DICOM</td><td><a href="#workspace-preview">Xem bố cục minh họa ↓</a></td></tr>
+        <tr><td class="kr-mono">UPLOAD-001</td><td>2</td><td>Study người dùng đã nhập</td><td>DICOM</td><td><span class="kr-button">Mở ảnh</span> <span class="kr-button">Xóa</span></td></tr>
+      </tbody>
+    </table></div>
+    <h3>Study đã nhập</h3><p class="kr-muted">Chưa có study upload trong bản mẫu. Chọn Nhập study để bắt đầu; mỗi study upload có hành động Mở ảnh và Xóa. Sample là read-only.</p>
+  </section>
+
+  <h2>Workspace sau khi chọn một study · S03</h2>
+  <p class="kr-muted" style="margin-bottom:16px">Bố cục minh họa một study giả định có ba hướng, không phải inventory DEMO-001. Trái: cây Study → Series → slice files. Giữa: 3D locator và ảnh. Phải: thông tin nguồn. Patient-specific 3D/MPR để giai đoạn sau.</p>
+  <section id="workspace-preview" class="workspace" aria-label="Bố cục viewer đề xuất">
+    <header class="appbar">
+      <div><span class="brand">Knee Review</span><span class="kr-muted"> / Study minh họa bố cục</span></div>
+      <div class="row"><span class="kr-badge">Local prototype</span><span class="kr-button analyze">Analyze · Coming soon</span><span class="kr-button">Import study</span></div>
+    </header>
+    <div class="shell">
+      <aside class="sidebar" aria-label="Danh sách series minh họa">
+        <h3>Study / Series / DICOM</h3>
+        <p class="small kr-muted">Expand/collapse để giữ sidebar gọn. Chỉ hiện vài filename đại diện.</p>
+        <div class="tree">
+          <div class="tree-row active"><span class="tree-caret">▾</span><strong>Example Knee Study</strong></div>
+          <div class="tree-children">
+            <div class="tree-row active"><span class="tree-caret">▾</span><strong>Sagittal PD FS</strong></div>
+            <div class="tree-children">
+              <div class="tree-slice">▧ 0001.dcm</div><div class="tree-slice">▧ 0002.dcm</div><div class="tree-slice">▧ 0003.dcm</div><div class="tree-slice kr-muted">… 32 slice files</div>
+            </div>
+            <div class="tree-row"><span class="tree-caret">▸</span><strong>Coronal T1</strong></div>
+            <div class="tree-row"><span class="tree-caret">▸</span><strong>Axial T2 FS</strong></div>
+          </div>
+        </div>
+        <p class="small kr-muted" style="margin-top:12px">Một hướng có thể có nhiều series. FS/fluid-sensitive có thể là UNKNOWN.</p>
+      </aside>
+      <div class="viewer">
+        <div class="tabs" aria-label="Tab minh họa"><span class="tab active">Overview</span><span class="tab">Sagittal</span><span class="tab">Coronal</span><span class="tab">Axial</span><span class="tab">Images / Series</span></div>
+        <div class="row toolbar"><span class="kr-button">Drag / Pan</span><span class="kr-button">Wheel / Pinch zoom</span><span class="kr-button">Slice 16 / 32</span><span class="kr-button">Fit / Reset</span></div>
+        <p class="small kr-muted">Overview keeps four readable slots for comparison, preserving each image aspect ratio. Click an image card to make its series active without changing tabs; only that active card receives Slice, zoom, pan and Reset controls. Open moves to the direction-focused tab. Sagittal, Coronal and Axial fit the full image; zoom starts at 100% fit, scales around the viewport center without an artificial max, pan remains explicit, and each card plus the toolbar expose Reset view. Images / Series is the acquisition browser, not another 4-up copy.</p>
+        <div class="viewgrid">
+          <div class="viewport"><div class="vp-title">3D locator · P1</div><div class="placeholder"><span class="large">3D</span><span class="small">Khung định hướng và các mặt phẳng<br>chưa mapping anatomy bệnh nhân</span></div><div class="vp-footer">Geometry validation required for slice picking</div></div>
+          <div class="viewport active"><div class="vp-title" style="color:var(--kr-axis-sag)">SAG · Ảnh gốc · Đang chọn</div><div class="placeholder"><span class="large">SAG</span><span class="small">Vùng hiển thị DICOM<br>Mở ở lát giữa để có preview đại diện</span></div><div class="vp-footer">Lát giữa / 32 · Zoom 100%</div></div>
+          <div class="viewport"><div class="vp-title" style="color:var(--kr-axis-cor)">COR · Ảnh gốc</div><div class="placeholder"><span class="large">COR</span><span class="small">Series chọn độc lập</span></div><div class="vp-footer">Lát 14 / 28 · Zoom 100%</div></div>
+          <div class="viewport"><div class="vp-title" style="color:var(--kr-axis-ax)">AX · Ảnh gốc</div><div class="placeholder"><span class="large">AX</span><span class="small">Không đồng bộ theo slice index</span></div><div class="vp-footer">Lát 12 / 24 · Zoom 100%</div></div>
+        </div>
+        <div class="controls" aria-label="Local display preview controls">
+          <div class="slider-demo"><span>Contrast</span><div class="track" aria-hidden="true"></div><span class="kr-number">1.3</span></div>
+          <div class="slider-demo"><span>Brightness</span><div class="track" aria-hidden="true"></div><span class="kr-number">0.9</span></div>
+          <div class="row"><span class="kr-button">Invert</span><span class="kr-button">Reset display</span></div>
+          <p class="small kr-muted display-note">Preview only: changes browser presentation, not source DICOM. Calibrated DICOM Window / Level is a later adapter.</p>
+        </div>
+      </div>
+      <aside class="results" aria-label="Thông tin study minh họa">
+        <div class="eyebrow">Study information</div><h3 style="margin-top:8px">Thông tin nguồn</h3>
+        <p class="warning small">BỐ CỤC MẪU · Chưa nạp ảnh</p>
+        <p class="small kr-muted">Loại: DICOM `.dcm`<br>Thứ tự: theo manifest sau index</p>
+        <p class="small kr-muted">DICOM hiển thị geometry khi đủ metadata. Study upload có thể xóa sau confirmation.</p>
+        <div class="eyebrow" style="margin-top:20px">Ingest pipeline</div>
+        <ul class="pipeline-list" aria-label="Các bước ingest mẫu">
+          <li><span class="pipeline-dot"></span><span>Validate DICOM</span><small>Complete</small></li>
+          <li><span class="pipeline-dot"></span><span>Extract metadata</span><small>Complete</small></li>
+          <li><span class="pipeline-dot"></span><span>Group Study / Series</span><small>Complete</small></li>
+          <li><span class="pipeline-dot"></span><span>Geometry-aware sort</span><small>Complete</small></li>
+          <li><span class="pipeline-dot pending"></span><span>Pixel preview</span><small>On demand</small></li>
+        </ul>
+        <details style="margin-top:20px"><summary>Giới hạn cần hiển thị</summary><p class="small kr-muted">Codec chưa hỗ trợ, geometry thiếu, file lỗi và số ảnh hợp lệ.</p></details>
+      </aside>
+    </div>
+  </section>
+
+  <section class="kr-panel entry" aria-labelledby="build-title">
+    <h2 id="build-title">Nên làm tính năng nào trước?</h2>
+    <ol class="build-order">
+      <li><strong>D1–3: Luồng chạy được.</strong> Docker → Upload/index DICOM → Mở một series → Lướt lát.</li>
+      <li><strong>D4: Examples.</strong> Seed có version/checksum; mở mẫu từ danh sách.</li>
+      <li><strong>D5–6: Workspace tree và display.</strong> Cây Study → Series → slice, 4 ô Overview, focused direction tabs, wheel/pinch zoom, drag-pan, Contrast/Brightness/Invert/Reset và Analyze placeholder.</li>
+      <li><strong>D7–10: Persistence và bàn giao.</strong> Xóa study upload, restart, QA, README local; ZIP/MPR/3D/AI để phase sau.</li>
+    </ol>
+    <p class="kr-muted">MPR/3D làm sau khi local P0 hoàn tất và geometry phù hợp. Các mẫu thật cần được cung cấp và index trước khi gọi demo hoàn chỉnh.</p>
+  </section>
+
+  <div class="sections">
+    <section class="kr-panel section"><h2>Palette</h2><div class="swatches">
+      <div><div class="swatch" style="background:var(--kr-bg)"></div>Nền xám nhạt<br><span class="kr-muted kr-mono small">#F4F7FB</span></div>
+      <div><div class="swatch" style="background:var(--kr-surface)"></div>Panel trắng<br><span class="kr-muted kr-mono small">#FFFFFF</span></div>
+      <div><div class="swatch" style="background:var(--kr-accent)"></div>Xanh y tế<br><span class="kr-muted kr-mono small">#0369A1</span></div>
+      <div><div class="swatch" style="background:var(--kr-success)"></div>Hoàn thành<br><span class="kr-muted kr-mono small">#166534</span></div>
+      <div><div class="swatch" style="background:var(--kr-warning)"></div>Cần chú ý<br><span class="kr-muted kr-mono small">#92400E</span></div>
+      <div><div class="swatch" style="background:var(--kr-danger)"></div>Lỗi xử lý<br><span class="kr-muted kr-mono small">#B91C1C</span></div>
+    </div></section>
+    <section class="kr-panel section"><h2>Typography &amp; trạng thái</h2>
+      <p class="kr-muted">Noto Sans → Segoe UI → Arial. Bản mẫu không tải font/CDN bên ngoài.</p>
+      <div class="sample" style="font-size:20px;font-weight:600">Đánh giá MRI khớp gối · Tiếng Việt</div>
+      <div class="sample">Body 14/20 · Đổi chuỗi ảnh để đối chiếu các hướng chụp.</div>
+      <div class="sample small kr-muted">Metadata 12/18 · Lát cắt 16 / 32 · Nhạy dịch: Chưa xác định</div>
+      <div class="sample kr-mono small">SOP / frame · 00016 · W:800 L:400</div>
+      <div class="row" style="margin-top:16px"><span class="kr-badge success">✓ Hoàn tất</span><span class="kr-badge warning">! Thiếu đầu vào</span><span class="kr-badge danger">× Lỗi decode</span></div>
+    </section>
+  </div>
+  <p class="footer">Design board tĩnh · Bố cục minh họa dùng panel thu gọn so với kích thước khuyến nghị trong spec · Không chứa dữ liệu bệnh nhân · <a href="../03-design-system.md">Đặc tả design system</a></p>
+</main>
+</body>
+</html>

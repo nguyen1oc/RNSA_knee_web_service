@@ -1,0 +1,16 @@
+data/
+frontend/node_modules/
+frontend/dist/
+*.pyc
+__pycache__/
+*.sqlite
+*.sqlite3
+*.db
+*.dcm
+*.dicom
+*.zip
+*.log
+.pytest_cache/
+.env
+.env.*
+!.env.example

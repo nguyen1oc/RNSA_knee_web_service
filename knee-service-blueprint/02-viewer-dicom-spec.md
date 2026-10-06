@@ -1,7 +1,7 @@
 # 02 — Viewer và DICOM
 
 > **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; contract viewer/DICOM hiện hành được giữ nguyên.  
+> **Thay đổi gần nhất:** Bật upload ZIP DICOM, thêm rail slice sát mép phải kiểu scrollbar browser cho Overview/focused view, chờ ảnh load trước khi scrub, khóa body scroll khi kéo/wheel và đổi từng slice; MPR vẫn deferred.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 > Phạm vi 05/10/2026: chỉ DICOM `.dcm` cho local viewer. Nút Analyze có mặt để giữ workflow nhưng chỉ báo “coming soon”; chưa có AI panel/model. Các đoạn mô tả MPR/3D bên dưới là P1 sau P0, không bắt buộc sprint này. Seed và input theo [13](13-input-formats-and-example-studies.md).
@@ -28,13 +28,15 @@ Desktop mục tiêu ≥1280×800; khuyến nghị 1440×900. Sidebar 248 px thu 
 
 | Tab | Nội dung |
 |---|---|
-| Tổng quan | Snapshot 4 ô để so sánh nhanh; 3D locator ở trên trái, ba ô SAG/COR/AX có kích thước đủ đọc nhanh và fit theo aspect ratio gốc, panel phải hiển thị study + ingest pipeline |
-| Sagittal / Coronal / Axial | Hướng được chọn trở thành một viewport lớn; toolbar Slice và active series điều khiển stack đó |
+| Tổng quan | Snapshot 4 ô để so sánh nhanh; 3D locator ở trên trái, ba ô SAG/COR/AX có rail dọc xám để scrub slice theo từng series và fit theo aspect ratio gốc, panel phải hiển thị study + ingest pipeline |
+| Sagittal / Coronal / Axial | Hướng được chọn trở thành focused viewer; Layout dropdown có preset `1x1/2x2` và custom grid tối đa `4x4` hiển thị nhiều lát của cùng series |
 | Images / Series | Browser các acquisition/series với lát đại diện và metadata; chọn một series rồi chuyển sang tab hướng để đọc chi tiết |
 | Stack / Series | Một stack cho DICOM chưa xác định hướng; không ép vào ba hướng |
 | MPR — P1 | Chưa hiện tab ở local P0; khi triển khai chọn một volume hợp lệ để tái tạo |
 
 Sidebar dùng tree: Study row → Series row → danh sách ngắn các filename slice khi expand. Mỗi series vẫn có thumbnail/description, hướng, FS, fluid-sensitive, số frame và trạng thái load. Không liệt kê hàng nghìn tên DICOM mặc định; chỉ hiện vài filename đại diện và tổng số slice. Không có badge “AI đang dùng” hoặc score trong phase local; Analyze chỉ là CTA placeholder.
+
+Focused direction hiện có một Layout dropdown: chọn nhanh `1x1`/`2x2`, hoặc rê chuột trên bảng border `4x4` để preview vùng `1x1`–`4x4` rồi click để áp dụng. Mỗi viewport cùng series có rail slice dọc ở mép phải ảnh, zoom/reset/pan riêng và `Sync slices` tùy chọn; footer giữ tên series và chỉ số `current / total` để không che rail. Khi focused view mở series mới, các viewport bắt đầu từ slice 1 và tăng dần theo từng ô, không nhảy mặc định vào slice giữa. Wheel trên viewport active đổi lát (`scroll down = next`, `scroll up = previous`) và chặn scroll lan ra trang; rail là cách kéo chính để scrub, có min ở trên cùng và max ở dưới cùng. Zoom dùng nút trong từng viewport hoặc toolbar của viewport active; mức thấp nhất là fit 100%, không đặt max nhân tạo. Tool được gom vào một dropdown, mặc định Pointer; Pointer dùng để chọn viewport, đổi slice và pan sau khi zoom. Các tool vẽ gồm Length, Rectangle, Ellipse, Freehand và Arrow + note. Length/shape hiện px nếu chưa có calibration, hoặc mm/dimension khi PixelSpacing hợp lệ. Arrow + note mở inline editor sau khi kéo mũi tên. Mark có `Undo mark` và `Clear slice marks`, đồng thời chỉ gắn với slice hiện tại để không trôi sang lát khác. Capture xuất viewport active thành PNG/JPEG với lựa chọn kích thước, include annotations và include slice/orientation metadata.
 
 DICOM ingest dùng full pixel data, rescale và Window Center/Width nếu metadata có; nếu thiếu thì fallback percentile preview có nhãn. Thiếu geometry thì plane/FS/fluid là UNKNOWN, tắt MPR/crosshair vật lý/thước mm. Không thay DICOM full-depth bằng thumbnail. Loader/assets phải được bundle local để không lệ thuộc CDN lúc mở ảnh.
 
@@ -64,18 +66,24 @@ Với nhóm có orientation nhất quán: normal = cross(rowDirection, columnDir
 | Click viewport | Đặt active viewport, viền focus rõ |
 | Click image card trong Overview | Chọn series của card làm active nhưng giữ tab Overview; Slice toolbar sau đó điều khiển stack vừa chọn |
 | Ownership của viewport controls | Chỉ active card/series nhận Slice toolbar, wheel/pinch zoom, pointer pan và Reset view; click card khác chỉ đổi active |
-| Previous / Next Slice | Chỉ lướt stack của active series; click card khác trước để đổi active, không chuyển tab; lần mở đầu lấy lát giữa làm preview đại diện |
-| Wheel / pinch | Zoom viewport từ 100% (fit mặc định) trở lên quanh tâm viewport; không kéo trang; không có max zoom nhân tạo; khi zoom > 100% ảnh không còn bị giới hạn bởi kích thước fit của khung |
-| Kéo pointer/touch trong ảnh | Pan ảnh khi đang zoom; viewport giữ overflow hidden có chủ đích để ảnh di chuyển dưới khung đọc; zoom không tự đổi tâm ảnh |
+| Slice rail dọc | Dùng thanh slider bên phải từng viewport để chọn slice; slider bị khóa trong lúc ảnh kế tiếp đang load; khi rail/viewport active nhận thao tác thì body scroll bị khóa; số ở footer và nhãn rail dùng chỉ số 1-based |
+| Previous / Next Slice | Chỉ lướt stack của viewport được chọn; click card khác trước để đổi active, không chuyển tab; focused view mới bắt đầu từ slice 1 |
+| Wheel trong focused viewport | Đổi slice của viewport active; lướt xuống sang slice kế tiếp, lướt lên về slice trước; không đổi zoom |
+| Zoom controls | Zoom viewport từ 100% (fit mặc định) trở lên quanh tâm viewport; Zoom out không nhỏ hơn fit, Zoom in không có max nhân tạo; Reset đưa về fit |
+| Pointer mặc định | Chọn viewport, wheel/rail để đổi slice; pan ảnh khi đang zoom; viewport giữ overflow hidden có chủ đích để ảnh di chuyển dưới khung đọc |
 | Toolbar Zoom / Pan / W-L + kéo chuột | Công cụ tường minh; keyboard vẫn dùng được |
 | Contrast / Brightness / Invert preview | Điều chỉnh khả năng đọc ảnh trong local UI; reset được; không sửa DICOM |
 | Double-click | Không đổi tab; dùng `Open` để chuyển direction |
 | Open trên image card | Chuyển sang tab Sagittal/Coronal/Axial tương ứng với series của card |
 | Reset view trên card / Reset toolbar | Reset zoom, pan và fit về mặc định trước khi zoom, không đổi input AI |
-| Crosshair MPR | Chọn tọa độ 3D, cập nhật ba mặt phẳng cùng volume |
+| Crosshair MPR | Chỉ bật khi có một volume đã validate và mapping-ready; chọn tọa độ patient 3D rồi cập nhật ba mặt phẳng cùng volume. Study native khác frame không được bật giả |
 | Link toggle | Mặc định tắt giữa các series; chọn sync vị trí/zoom/W-L riêng |
 
-State theo study + series + viewport: SOP/frame, camera, zoom, pan, window/level, inversion và slice position. Footer mỗi image card hiển thị `current / total`; Slice toolbar luôn điều khiển active series. Overview ưu tiên fit theo aspect ratio để so sánh; focused direction ưu tiên fit toàn bộ ảnh rồi cho phép zoom/pan. Click card chọn active mà không đổi tab; `Open` chuyển tab hướng. `Reset view` và toolbar `Reset` đưa camera về fit mặc định. Đổi tab rồi quay lại giữ state trong phiên. Persist layout tuỳ chọn, không cần persist toàn bộ camera trong MVP.
+| Multi-view layout | Mở một Layout dropdown, chọn `1x1`, `2x2` hoặc hover/click vùng trong bảng 4×4 để chọn `1x1`–`4x4`; mỗi viewport có rail dọc và zoom/reset riêng; `Sync slices` đưa các viewport về cùng index |
+| Preview measurement | Dropdown mặc định Pointer, có Length/Rectangle/Ellipse/Freehand/Arrow + note; Length và shape hiện số đo px hoặc mm nếu có PixelSpacing; có Undo mark/Clear slice marks; gắn với viewport + slice hiện tại, không sửa pixel nguồn |
+| Capture | PNG/JPEG, native/1024/2048/custom size; có thể kèm overlay và slice/orientation metadata |
+
+State theo study + series + viewport: SOP/frame, camera, zoom, pan, window/level, inversion và slice position. Footer mỗi image card hiển thị `current / total`; Slice toolbar luôn điều khiển active series/viewport. Overview ưu tiên fit theo aspect ratio để so sánh; focused direction có layout nhiều viewport cùng hướng. Click card chọn active mà không đổi tab; `Open` chuyển tab hướng. `Reset view` và toolbar `Reset` đưa camera về fit mặc định. Đổi tab rồi quay lại giữ state trong phiên. Persist layout/annotation tuỳ chọn, không cần persist toàn bộ camera trong MVP.
 
 ## Window/level và 3D
 
@@ -95,7 +103,7 @@ Model giải phẫu 3D tải sẵn (GLB/glTF) chỉ dùng làm hình minh họa/
 
 Muốn mesh xương/sụn đúng bệnh nhân: cần segmentation MRI → mask → surface mesh; đây là pipeline riêng, ngoài MVP hiện tại. Model phân loại bệnh trên Triton không tự sinh mesh hay segmentation.
 
-Nền renderer cả 3D/2D dùng màu sáng theo design system. Điều này chỉ đổi khoảng nền canvas; không invert ảnh, xóa background tối trong pixel hoặc đổi normalization AI.
+Nền chrome dùng theme sáng theo design system; vùng chứa MRI dùng màu đen để khớp pixel ảnh và giảm cảm giác ảnh bị đặt trong khung trắng. Điều này không invert ảnh, xóa background tối trong pixel hoặc đổi normalization AI.
 
 ## Trạng thái bắt buộc
 

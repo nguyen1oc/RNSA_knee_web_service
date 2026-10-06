@@ -1,7 +1,7 @@
 # 14 — Metrics đánh giá local viewer
 
 > **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; metrics/acceptance local được giữ nguyên.  
+> **Thay đổi gần nhất:** Thêm acceptance cho ZIP DICOM, slider khóa khi ảnh chưa load, viewport-only scroll lock, icon tool và typography số đo.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Cập nhật 05/10/2026. Các metric dưới đây đánh giá service local sau khi build; chúng không đo độ chính xác model, vì inference/Triton chưa nằm trong scope.
@@ -41,8 +41,22 @@ Cập nhật 05/10/2026. Các metric dưới đây đánh giá service local sau
 | UX | Direction tab behavior | Click Overview, Sagittal, Coronal, Axial, Images / Series; kiểm tra Overview fit nhỏ gọn 4 ô, tab hướng viewport lớn fit trọn ảnh, Images / Series hiển thị browser series | 100%; không nhầm series/plane, tab không làm mất active slice |
 | UX | Card selection and slice control | Click vùng ảnh SAG/COR/AX trong Overview, kiểm tra active series, footer `current / total`, Previous/Next Slice, zoom/pan và nút Open | Click card giữ Overview; chỉ card active nhận Slice/zoom/pan/reset; card khác không bị thay đổi; Open chuyển đúng tab hướng |
 | UX | Image centering | Kiểm tra ảnh vuông và ảnh không vuông trong Overview/focused viewport ở các kích thước màn hình | Ảnh căn giữa ngang/dọc, giữ aspect ratio, không bị dồn xuống đáy |
-| UX | Viewport zoom/pan/reset | Chọn lần lượt từng card, wheel hoặc pinch trên ảnh, kiểm tra tâm ảnh trước/sau zoom, thử Zoom out tại 100%, kéo pointer khi zoom, bấm `Reset view` trên card và `Reset` trên toolbar | Chỉ card active thay đổi zoom/pan; không zoom nhỏ hơn fit 100%; không có max nhân tạo; zoom quanh tâm viewport, không tự lùi xuống/đổi tâm; reset đưa ảnh về fit |
+| UX | Viewport zoom/pan/reset | Chọn lần lượt từng card, dùng Zoom controls, thử Zoom out tại 100%, kéo pointer khi zoom, bấm `Reset view` trên card và `Reset` trên toolbar | Chỉ card active thay đổi zoom/pan; không zoom nhỏ hơn fit 100%; không có max nhân tạo; zoom quanh tâm viewport, không tự lùi xuống/đổi tâm; reset đưa ảnh về fit |
 | UX | Overview aspect ratio | So sánh ảnh SAG/COR/AX trong Overview với native dimensions; kiểm tra ảnh không méo và ô đủ lớn để scan nhanh | Ảnh giữ aspect ratio; không bị ép thành cùng width/height hoặc letterbox quá mức |
+| UX | Overview slice rail and scroll lock | Trong Overview dùng slider SAG/COR/AX và lướt trên rail/card active | Rail từng series đổi đúng từng slice; slider khóa trong lúc ảnh đích loading; chỉ rail/card active thay đổi; body scrollbar không di chuyển |
+| UX | Focused multi-view layout | Trong Sagittal/Coronal/Axial mở một Layout dropdown, chọn `1x1`, `2x2`, rê chuột trên bảng 4×4 để preview và click vùng tới `4x4`; kiểm tra cùng series, label viewport và slice position | Đủ viewport, không lẫn series/hướng, ảnh giữ aspect ratio; grid không vượt 16 ô |
+| UX | Focused viewport ownership | Click viewport A/B/C/D, dùng rail slice/zoom/pan/reset và đổi active viewport | Chỉ viewport được chọn nhận thao tác; viewport khác giữ state; mỗi ô có control riêng |
+| UX | Vertical slice rail | Mở direction mới và dùng slider bên phải từng viewport ở layout 1x1/2x2 | Series mới bắt đầu ở `1 / total`; slider đổi đúng ô được chọn và khóa khi ảnh chưa load; wheel trên rail đổi từng slice; các ô khác không đổi khi Sync slices tắt |
+| UX | Pointer default and local zoom | Không chọn tool vẽ, click từng viewport, bấm `+`, kéo ảnh sau zoom và bấm `Reset` tại ô | Tool mặc định là Pointer; zoom/pan/reset hoạt động trên viewport đang chọn; zoom out bị khóa ở fit 100% |
+| UX | Slice synchronization | Bật/tắt `Sync slices`, kéo range hoặc dùng prev/next trong từng viewport, sau đó dùng toolbar | Tắt: chỉ viewport active/viewport được thao tác đổi; bật: các viewport cùng series đổi cùng index |
+| UX | Wheel slice navigation | Chọn Pan, đặt con trỏ trên viewport, lướt xuống/lên ở layout 1x1/2x2 | Xuống tăng slice đúng một bước, lên giảm một bước, không đổi zoom và không scroll trang |
+| UX | Tool affordance and measurement labels | Mở tool picker và tạo Length/Rectangle/Ellipse khi có/không có PixelSpacing | Mỗi tool có icon dễ nhận biết; số đo dùng font dễ đọc và hiển thị px hoặc mm đúng trạng thái calibration |
+| UX | Preview annotation tools | Chọn dropdown Length/Rectangle/Ellipse/Freehand/Arrow + note; vẽ trong viewport; kiểm tra label và editor; đổi slice | Overlay đúng viewport + slice; Length/shape có px hoặc mm khi PixelSpacing hợp lệ; Arrow + note mở editor inline; không đổi DICOM nguồn |
+> Wheel slice test uses the default `Pointer` tool; “Pan” in the older row above is historical wording.
+| UX | Delete preview marks | Vẽ nhiều mark trên cùng slice, bấm `Undo mark`, rồi `Clear slice marks`; đổi slice kiểm tra mark cũ | Undo xóa đúng mark cuối; Clear xóa toàn bộ mark của slice hiện tại; không xóa mark ở slice khác |
+| UX | Image capture | Mở Capture, đổi PNG/JPEG, native/1024/2048/custom, bật/tắt annotation và metadata | Download đúng format/size; overlay theo lựa chọn; filename có hướng và slice |
+| UX | Crosshair gating | Kiểm tra study geometry incompatible/unknown và nút Crosshair | Nút disabled, có lý do `Requires mapped MPR geometry`; không giả reference line khi chưa mapping-ready |
+| UX | Overview layout | Trong Overview chọn `3D four-up`, `3D primary`, `3D main`; kiểm tra locator và ba native direction cards | Bố cục đổi đúng, không thay đổi series/slice state; locator luôn có nhãn orientation-only |
 | UX | Design-board parity | So layout tabs, 4-slot viewer, Study information panel với `design-board.html` ở 1440×900 | Không mất region/chức năng; sai lệch được ghi trong report |
 
 ## 2. Công thức và cách ghi
@@ -64,9 +78,10 @@ Cập nhật 05/10/2026. Các metric dưới đây đánh giá service local sau
 7. Restart Compose giữa index và delete; kiểm tra recovery, seed idempotency và không xóa nhầm.
 8. Restore một bản backup vào volume mới; mở lại sample và một study upload chưa xóa.
 9. Kiểm tra cây Study → Series → slice, Analyze notice, direction tabs và display controls/reset.
-10. Dùng wheel/pinch zoom và pointer drag pan ở Overview lẫn focused direction; kiểm tra ảnh không bị fit constraint khi zoom.
+10. Dùng Zoom controls và pointer drag pan ở Overview lẫn focused direction; trong focused direction dùng wheel đổi slice lên/xuống và kiểm tra ảnh không bị fit constraint khi zoom.
 11. Gọi `GET /api/series/{id}/geometry` và đối chiếu manifest với DICOM header; kiểm tra study summary báo `Incompatible frames` khi các series không cùng FrameOfReferenceUID.
 12. Chạy performance smoke trên cùng fixture, ghi p50/p95 và evidence.
+13. Trong focused tab kiểm tra một Layout dropdown với preset/custom tới 4x4, hover preview, slice slider/prev/next, wheel navigation, Sync slices, dropdown tools/metrics, annotation editor và Capture PNG/JPEG.
 
 ## 4. Release gate
 

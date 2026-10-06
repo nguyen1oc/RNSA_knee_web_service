@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Sửa đường dẫn dependency dev để CI cài đúng `backend/requirements.txt`.  
+> **Thay đổi gần nhất:** Dùng slider sát mép phải kiểu scrollbar browser có trạng thái loading, khóa body scroll khi thao tác viewport, tool picker có icon và cải thiện font số đo.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-06 — Current
@@ -16,6 +16,21 @@
 ### Fixed
 
 - `knee-web/requirements-dev.txt` dùng `-r backend/requirements.txt`, khớp với vị trí thật của production dependencies khi workflow chạy trong `knee-web`.
+
+### Viewer update
+
+- Upload nhận thêm `.zip` không mã hóa; backend đọc các member `.dcm` hợp lệ và không cho phép path traversal.
+- `results.zip` trong thư mục examples được seed thành example read-only khi Compose khởi động; member được flatten tên file để tránh Windows MAX_PATH.
+- Overview có rail slice riêng cho từng series; wheel trên card active đổi slice và chặn scroll lan ra trang.
+- Focused viewport dùng Pointer làm tool mặc định; mỗi ô có rail dọc ở bên phải để scrub slice, footer giữ tên series và chỉ số slice không che controls.
+- Zoom/reset được đặt riêng trong từng viewport; zoom không nhỏ hơn fit 100%, không có max nhân tạo, và focused series mới mở từ slice 1 thay vì slice giữa.
+- Direction tabs có preset layout `1x1`, `2x2` và custom grid tối đa `4x4`; mỗi viewport có slice slider/prev/next, wheel navigation và Sync slices.
+- Layout controls được gom thành một dropdown; custom picker hiển thị bảng 4×4 và preview vùng khi hover trước khi click áp dụng.
+- Gộp Length, Rectangle, Ellipse, Freehand và Arrow + note thành tool dropdown; Pointer là mặc định để chọn viewport, đổi slice và pan khi đã zoom.
+- Length/shape hiển thị px hoặc mm/dimension khi PixelSpacing hợp lệ; Arrow + note mở inline editor thay cho browser prompt.
+- Thêm `Undo mark`/`Clear slice marks`; mark được gắn theo viewport và slice hiện tại để có thể sửa thao tác nhầm.
+- Overview có lựa chọn `3D four-up`, `3D primary`, `3D main`; image stage dùng nền đen để khớp MRI.
+- Crosshair vẫn disabled khi study chưa mapping-ready; MPR/calibrated mm measurement/DICOM SR để phase sau.
 
 ### Changed
 

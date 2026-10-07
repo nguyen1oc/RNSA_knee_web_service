@@ -25,7 +25,7 @@ export function initializeImaging() {
     loaderInit({ maxWebWorkers: 2 })
     await tools.init()
     core.cache.setMaxCacheSize(512 * 1024 * 1024)
-    new Set([...Object.values(toolClasses), tools.ZoomTool, tools.CrosshairsTool]).forEach((Tool) => tools.addTool(Tool))
+    new Set([...Object.values(toolClasses), tools.ZoomTool, tools.CrosshairsTool, tools.TrackballRotateTool]).forEach((Tool) => tools.addTool(Tool))
     const styles = tools.annotation.config.style.getDefaultToolStyles()
     tools.annotation.config.style.setDefaultToolStyles({ ...styles, global: {
       ...styles.global, textBoxFontFamily: 'Arial, sans-serif', textBoxFontSize: '14px',

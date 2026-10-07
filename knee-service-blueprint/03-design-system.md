@@ -1,7 +1,7 @@
 # 03 — Design system: Knee Review
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Bổ sung ZIP DICOM, rail slice sát mép phải kiểu scrollbar browser có trạng thái loading, khóa body scroll khi thao tác viewport, tool picker có icon và typography đo đạc rõ hơn.
+> **Cập nhật gần nhất:** 2026-10-07
+> **Thay đổi gần nhất:** Overview dùng bốn viewport MPR đồng bộ; layout ưu tiên MRI volume và chọn riêng appearance với projection.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Tên làm việc: **Knee Review**. Đây là đề xuất UI cho prototype, không phải thương hiệu đã chốt. Xem [design board](templates/design-board.html) và [CSS tokens](templates/design-tokens.css).
@@ -9,6 +9,8 @@ Tên làm việc: **Knee Review**. Đây là đề xuất UI cho prototype, khô
 Phạm vi 05/10/2026: trang đầu có một sample study card + study upload; không account/login hoặc AI panel. Trong workspace, React phải bám visual contract của `templates/design-board.html`: tabs hướng, viewer 4 ô, panel Study information và ingest pipeline. Nút chính là “Import study”; Analyze có nhãn “Coming soon”, nhưng chưa có score/result/endpoint. MPR/3D để sau; display preview dùng Contrast/Brightness/Invert và Window Center/Width khi DICOM có metadata.
 
 ## Định hướng
+
+Implementation update 2026-10-07: phần scope ban đầu phía trên là lịch sử ở chỗ ghi “MPR/3D để sau”. Viewer hiện tại đã đưa MPR cùng-series và MRI volume 3D lên Overview; cấu trúc hiện hành ở [16](16-native-dicom-and-mpr.md).
 
 Giao diện sáng theo yêu cầu người dùng: nền xám rất nhạt, header/sidebar/panel trắng, chữ xanh đậm, accent xanh y tế. Chrome của viewer dùng nền sáng, còn image stage 2D dùng màu đen để nối liền với pixel MRI và giữ ảnh dễ đọc. Thay theme không đổi pixel hoặc window/level. Khi triển khai WebGL, cấu hình background của renderer theo canvas token, không chỉ đổi CSS của container. Ảnh là trung tâm, text rõ, màu tiết chế. Không gradient trang trí, glow, glassmorphism, ảnh MRI giả hoặc chart không có dữ liệu. Lỗi và trạng thái import có text/icon, không chỉ màu. Panel thông tin thu gọn được để tăng diện tích ảnh.
 
@@ -60,9 +62,9 @@ Badge trạng thái: nền surface/raised, text màu đậm tương ứng. Nút 
 - Header 56–76 px, tabs/toolbar khoảng 44 px. Sidebar 248–286 px, panel Study information 276–304 px; collapse ở màn nhỏ.
 - Active viewport: viền canvas-accent 2 px + nhãn “Đang chọn”. Focus keyboard ngoài canvas: outline accent 2 px với offset 2 px; trong canvas dùng canvas-accent.
 - Sidebar tree: Study → Series → một vài slice filename và tổng số lát; caret để expand/collapse, click label để chọn. Selection có icon/text, không chỉ nền.
-- Viewer tabs: Overview, Sagittal, Coronal, Axial, Images / Series. Overview có preset `3D four-up`, `3D primary`, `3D main`; ảnh fit theo aspect ratio gốc. Tab hướng chuyển acquisition tương ứng thành focused viewer có một Layout dropdown: preset `1x1/2x2` hoặc custom hover grid 4×4; Images / Series là browser chọn acquisition, không lặp lại Overview.
+- Viewer tabs: Overview, Sagittal, Coronal, Axial, Images / Series. Overview `3D four-up` đặt MRI Volume ở ô đầu (trên trái), rồi axial (trên phải), sagittal (dưới trái), coronal (dưới phải); volume được chọn mặc định. Ba MPR đồng bộ từ cùng một volume; có preset `3D primary`, `3D main`. Tab hướng mở acquisition gốc thành focused viewer; Images / Series là browser chọn acquisition, không lặp lại Overview. Model giải phẫu tham khảo chung không được dùng thay volume bệnh nhân.
 - Focused toolbar: layout selector + custom grid picker, Sync slices, một tool dropdown mặc định Pointer gồm Length/Rectangle/Ellipse/Freehand/Arrow + note, disabled Crosshair khi chưa có MPR geometry, local zoom/reset và Capture. Tool chưa calibrated phải ghi rõ px/preview coordinate.
-- Viewport interaction: fit hiển thị trọn ảnh theo đúng tỉ lệ và căn giữa theo cả hai trục; tên series nằm ở footer cùng `current / total`; Overview có rail dọc riêng cho từng series, click card vẫn chỉ chọn active series và không đổi tab; `Open` đổi sang tab hướng. Click viewport khác chỉ đổi selection; mỗi viewport focused có rail dọc bên phải để scrub slice, zoom/reset cục bộ và Pointer là thao tác mặc định. Rail là slider xám đậm, min ở trên và max ở dưới; slider khóa khi ảnh đích chưa load xong; rail hoặc viewport active nhận wheel/drag thì body scroll bị khóa và chỉ viewport đó đổi slice. Ảnh zoomed giữ nguyên fit box làm nền để tránh nhảy/lùi vị trí. Focused view mới bắt đầu ở slice 1; zoom out bị disable ở 100%; Reset đưa zoom/pan về fit. Tool picker hiển thị icon cho Pointer, Length, Rectangle, Ellipse, Freehand và Arrow + note. Nhãn số đo dùng typography nhỏ, tương phản cao và hiển thị px/mm khi có calibration. Overview ưu tiên scan nhanh, focused direction ưu tiên đọc ảnh.
+- Viewport interaction: fit hiển thị trọn ảnh theo đúng tỉ lệ và căn giữa theo cả hai trục. Overview MPR có 4 viewport cùng volume, crosshair và slice được liên kết; camera volume xoay độc lập. Tabs hướng vẫn dùng acquisition gốc và có rail dọc để scrub. Focused view bắt đầu ở slice 1; Reset đưa zoom/pan về fit. MRI Volume có zoom riêng và cho phép zoom out dưới fit đến sàn an toàn 1%. Tool picker hiển thị icon và số đo dùng px/mm theo trạng thái calibration. Overview ưu tiên tương quan không gian; focused direction ưu tiên đọc acquisition gốc.
 - Panel Study information: source, input type, count, UID rút gọn và các stage validate/metadata/group/sort/preview.
 - Progress upload có bytes/total; job dùng stage nếu không có tiến độ thực, không giả phần trăm.
 - Panel thông tin: loại nguồn → số series/ảnh → sort/geometry → cảnh báo. Example còn thiếu source ghi “Chưa có dữ liệu mẫu”.

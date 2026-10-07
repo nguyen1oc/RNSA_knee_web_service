@@ -3,6 +3,10 @@
 .native-card.native-active { border-color: #318fdf; box-shadow: 0 0 0 2px #d9ecff; }
 .native-card-head { min-height: 40px; display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: 11px; flex-wrap: wrap; }
 .native-card-head strong { margin-right: auto; color: #35526c; }
+.mpr-volume-status { color: #72869a; font-size: 10px; white-space: nowrap; }
+.mpr-volume-zoom-controls { display: inline-flex; align-items: center; gap: 4px; margin-left: 3px; }
+.mpr-volume-zoom-controls button { width: 26px; height: 26px; justify-content: center; padding: 4px; }
+.mpr-volume-zoom-controls output { min-width: 42px; color: #526a80; font: 600 10px 'DM Sans'; text-align: center; font-variant-numeric: tabular-nums; }
 .native-card button, .native-menu button { display: inline-flex; align-items: center; gap: 4px; background: #f4f8fc; color: #315b80; border: 1px solid #d9e5ee; border-radius: 4px; padding: 4px 7px; cursor: pointer; font: inherit; }
 .native-card button:disabled { opacity: .4; cursor: default; }
 .native-stage { height: clamp(270px, 32vw, 440px); background: #000; position: relative; overflow: hidden; overscroll-behavior: contain; touch-action: none; }
@@ -36,12 +40,65 @@
 .native-note { position: absolute; z-index: 20; left: 12px; bottom: 12px; right: 25px; background: #fff; padding: 12px; border-radius: 8px; display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; }
 .native-note label { flex: 1; display: grid; gap: 4px; }
 .native-note input { min-width: 120px; border: 1px solid #9db4c8; padding: 7px; }
-.mpr-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.mpr-grid .native-stage { height: min(60vh, 580px); min-height: 340px; }
+.mpr-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.mpr-grid.layout-3d-four-up { grid-template-areas: "volume axial" "sagittal coronal"; }
+.mpr-grid.layout-3d-four-up .mpr-volume-card { grid-area: volume; }
+.mpr-grid.layout-3d-four-up .mpr-plane-axial { grid-area: axial; }
+.mpr-grid.layout-3d-four-up .mpr-plane-sagittal { grid-area: sagittal; }
+.mpr-grid.layout-3d-four-up .mpr-plane-coronal { grid-area: coronal; }
+.mpr-grid .native-stage { height: min(42vh, 420px); min-height: 280px; }
 .mpr-grid .dicom-element { right: 0; }
+.mpr-grid.layout-3d-primary { grid-template-columns: minmax(0, 1.55fr) minmax(240px, 1fr); grid-template-rows: repeat(3, minmax(180px, 1fr)); }
+.mpr-grid.layout-3d-primary .mpr-volume-card { grid-column: 1; grid-row: 1 / 4; }
+.mpr-grid.layout-3d-primary .mpr-volume-card .native-stage { height: auto; min-height: 560px; flex: 1; }
+.mpr-grid.layout-3d-primary .mpr-plane-axial { grid-column: 2; grid-row: 1; }
+.mpr-grid.layout-3d-primary .mpr-plane-sagittal { grid-column: 2; grid-row: 2; }
+.mpr-grid.layout-3d-primary .mpr-plane-coronal { grid-column: 2; grid-row: 3; }
+.mpr-grid.layout-3d-primary .mpr-plane .native-stage { height: auto; min-height: 180px; flex: 1; }
+.mpr-grid.layout-3d-main { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: minmax(300px, 1.25fr) minmax(220px, 1fr); }
+.mpr-grid.layout-3d-main .mpr-volume-card { grid-column: 1 / 4; grid-row: 1; }
+.mpr-grid.layout-3d-main .mpr-volume-card .native-stage { height: auto; min-height: 300px; flex: 1; }
+.mpr-grid.layout-3d-main .mpr-plane-axial { grid-column: 1; grid-row: 2; }
+.mpr-grid.layout-3d-main .mpr-plane-sagittal { grid-column: 2; grid-row: 2; }
+.mpr-grid.layout-3d-main .mpr-plane-coronal { grid-column: 3; grid-row: 2; }
+.mpr-grid.layout-3d-main .mpr-plane .native-stage { height: auto; min-height: 220px; flex: 1; }
+.overview-series-label { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: #71869a; font-size: 10px; }
+.mpr-volume-card.native-active { border-color: #318fdf; box-shadow: 0 0 0 2px #d9ecff; }
+.mpr-volume-card .native-stage .dicom-element,.mpr-volume-card .native-stage .dicom-element canvas { cursor: move !important; }
+.mpr-volume-card .native-stage { cursor: move; }
+.mpr-volume-card .mpr-volume-zoom-controls,.mpr-volume-card button { cursor: pointer; }
+.mpr-slice-plane-overlay { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; overflow: hidden; pointer-events: none; }
+.mpr-slice-plane { pointer-events: visiblePainted; cursor: grab; filter: drop-shadow(0 1px 2px #0009); }
+.mpr-slice-plane:active { cursor: grabbing; }
+.mpr-plane-legend { position: absolute; left: 9px; bottom: 9px; z-index: 3; display: flex; gap: 4px; pointer-events: auto; }
+.mpr-plane-legend button { display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; border: 1px solid #65717e; border-radius: 4px; background: #151b20d9; color: #eef4f8; font: 600 9px 'DM Sans'; cursor: pointer; }
+.mpr-plane-legend button.selected-control { border-color: #fff; background: #283746ee; }
+.mpr-plane-legend i { width: 8px; height: 8px; border-radius: 50%; }
+.mpr-orientation-gizmo { position: absolute; right: 8px; bottom: 8px; z-index: 5; width: 88px; height: 88px; background: #000; border-radius: 50%; touch-action: none; user-select: none; }
+.mpr-orientation-gizmo svg { display: block; width: 100%; height: 100%; }
+.mpr-orbit-ring { cursor: grab; outline: none; }
+.mpr-orbit-ring:active { cursor: grabbing; }
+.mpr-orbit-hit { fill: none; stroke: transparent; stroke-width: 11; pointer-events: stroke; }
+.mpr-orbit-stroke { fill: none; stroke-width: 1.35; opacity: .86; pointer-events: none; vector-effect: non-scaling-stroke; transition: stroke-width .12s ease, opacity .12s ease, filter .12s ease; }
+.mpr-orbit-ring:hover .mpr-orbit-stroke,.mpr-orbit-ring:focus-visible .mpr-orbit-stroke { stroke-width: 2.35; opacity: 1; filter: drop-shadow(0 0 2px currentColor); }
+.mpr-orientation-gizmo:focus-within { box-shadow: 0 0 0 1px #647789; }
+.mpr-volume-preset { display: inline-flex; align-items: center; gap: 6px; color: #49657c; font-size: 11px; }
+.mpr-volume-preset select { min-height: 29px; max-width: 190px; padding: 4px 8px; border: 1px solid #d7e3ed; border-radius: 6px; background: #fff; color: #456278; font: 600 10px 'DM Sans'; }
+.mpr-volume-foot { padding: 7px 10px; border-top: 1px solid #edf1f5; color: #71869a; font-size: 10px; }
+.knee-reference-model.locator-stage { display: block; height: 285px; min-height: 220px; background: #f7fafc; }
+.knee-reference-model.locator-stage::before,.knee-reference-model.locator-stage::after { display: none; }
+.knee-reference-model canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.model-status,.model-hint { position: absolute; z-index: 2; left: 10px; color: #60778b; background: #ffffffd9; border: 1px solid #dce7ef; border-radius: 5px; padding: 4px 7px; font-size: 10px; pointer-events: none; }
+.model-status { top: 10px; }
+.model-hint { bottom: 10px; }
+.model-reset { position: absolute; z-index: 3; top: 10px; right: 10px; width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid #d4e1eb; border-radius: 6px; color: #45647d; background: #fff; cursor: pointer; }
+.model-reset:hover { color: #17679f; border-color: #91bddc; }
+.locator-card .card-foot a { color: #2d78c7; text-decoration: none; }
+.locator-card .card-foot a:hover { text-decoration: underline; }
 .patient-edge { position: absolute; color: #dce7ec; font: 12px Arial, sans-serif; pointer-events: none; text-shadow: 0 1px 3px #000; }
 .patient-edge-0 { top: 8px; left: 50%; transform: translateX(-50%); }
 .patient-edge-1 { right: 23px; top: 50%; transform: translateY(-50%); }
 .patient-edge-2 { bottom: 8px; left: 50%; transform: translateX(-50%); }
 .patient-edge-3 { left: 8px; top: 50%; transform: translateY(-50%); }
-@media (max-width: 1100px) { .mpr-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) { .mpr-grid,.mpr-grid.layout-3d-primary,.mpr-grid.layout-3d-main { grid-template-columns: 1fr; grid-template-rows: auto; } .mpr-grid .native-stage,.mpr-grid.layout-3d-primary .mpr-plane .native-stage,.mpr-grid.layout-3d-main .mpr-plane .native-stage { height: min(52vh, 480px); min-height: 320px; } .mpr-grid.layout-3d-primary .mpr-volume-card,.mpr-grid.layout-3d-main .mpr-volume-card,.mpr-grid.layout-3d-primary .mpr-plane-axial,.mpr-grid.layout-3d-primary .mpr-plane-sagittal,.mpr-grid.layout-3d-primary .mpr-plane-coronal,.mpr-grid.layout-3d-main .mpr-plane-axial,.mpr-grid.layout-3d-main .mpr-plane-sagittal,.mpr-grid.layout-3d-main .mpr-plane-coronal { grid-column: 1; grid-row: auto; } .mpr-grid.layout-3d-primary .mpr-volume-card .native-stage,.mpr-grid.layout-3d-main .mpr-volume-card .native-stage { min-height: 360px; } .overview-series-label { width: 100%; margin-left: 0; } .knee-reference-model.locator-stage { height: 300px; } }
+@media (max-width: 1100px) { .mpr-grid.layout-3d-four-up { grid-template-areas: "volume" "axial" "sagittal" "coronal"; } }

@@ -1,13 +1,11 @@
 import { Info } from 'lucide-react'
 
-export default function LocatorCard({ activeSeries, studyGeometry }) {
-  const mappingReady = Boolean(studyGeometry?.mapping_ready)
-
+export default function LocatorCard({ activeSeries }) {
   return (
     <article className="viewer-card locator-card">
       <div className="card-head">
         <div><span className="card-kicker">Orientation</span><h3>3D locator</h3></div>
-        <span className="planned-badge">P1</span>
+        <span className="planned-badge">Placeholder</span>
       </div>
       <div className="locator-stage">
         <div className="locator-cube">
@@ -23,7 +21,7 @@ export default function LocatorCard({ activeSeries, studyGeometry }) {
         <span className="locator-caption">{activeSeries ? `${activeSeries.plane} series selected` : 'Select a series'}</span>
       </div>
       <div className="card-foot">
-        <span><Info size={13} /> {mappingReady ? 'Geometry validated · patient mapping ready' : 'Orientation locator only · geometry mapping unavailable'}</span>
+        <span><Info size={13} /> Orientation illustration only · use MPR for linked patient planes</span>
       </div>
     </article>
   )

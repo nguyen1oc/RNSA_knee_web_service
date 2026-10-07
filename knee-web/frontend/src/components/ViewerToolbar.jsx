@@ -11,6 +11,7 @@ export default function ViewerToolbar({
   changeZoom,
   resetView,
   showZoom = true,
+  showSlices = true,
 }) {
   const maxSliceIndex = Math.max(slices.length - 1, 0)
 
@@ -23,12 +24,12 @@ export default function ViewerToolbar({
         </select>
       </div>
 
-      <div className="toolbar-group compact">
+      {showSlices && <div className="toolbar-group compact">
         <label>Slice</label>
         <button className="icon-button" aria-label="Previous slice" onClick={() => setSliceIndex(Math.max(0, currentIndex - 1))}><ChevronLeft size={16} /></button>
         <span className="slice-count">{slices.length ? `${currentIndex + 1} / ${slices.length}` : '—'}</span>
         <button className="icon-button" aria-label="Next slice" onClick={() => setSliceIndex(Math.min(maxSliceIndex, currentIndex + 1))}><ChevronRight size={16} /></button>
-      </div>
+      </div>}
 
       <div className="toolbar-spacer" />
 

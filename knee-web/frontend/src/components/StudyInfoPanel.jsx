@@ -16,7 +16,8 @@ export default function StudyInfoPanel({ study }) {
         <div><span>Series</span><b>{study.series.length}</b></div>
         <div><span>Images</span><b>{study.total_slices}</b></div>
         <div><span>Geometry</span><b>{validGeometry} / {geometries.length} valid</b></div>
-        <div><span>3D mapping</span><b>{mappingSummary}</b></div>
+        <div><span>Cross-series geometry</span><b>{mappingSummary}</b></div>
+        <div><span>MPR</span><b>Checked per series in MPR tab</b></div>
         <div><span>Study UID</span><b title={study.study_uid}>…{study.study_uid.slice(-12)}</b></div>
       </div>
       <div className="info-divider" />

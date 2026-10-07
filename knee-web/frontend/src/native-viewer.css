@@ -1,0 +1,47 @@
+.native-card { min-width: 0; overflow: hidden; border: 1px solid #d6e2ec; background: #fff; }
+.native-card:hover { border-color: #8db9dc; }
+.native-card.native-active { border-color: #318fdf; box-shadow: 0 0 0 2px #d9ecff; }
+.native-card-head { min-height: 40px; display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: 11px; flex-wrap: wrap; }
+.native-card-head strong { margin-right: auto; color: #35526c; }
+.native-card button, .native-menu button { display: inline-flex; align-items: center; gap: 4px; background: #f4f8fc; color: #315b80; border: 1px solid #d9e5ee; border-radius: 4px; padding: 4px 7px; cursor: pointer; font: inherit; }
+.native-card button:disabled { opacity: .4; cursor: default; }
+.native-stage { height: clamp(270px, 32vw, 440px); background: #000; position: relative; overflow: hidden; overscroll-behavior: contain; touch-action: none; }
+.dicom-element { position: absolute; inset: 0 14px 0 0; overflow: hidden; background: #000; touch-action: none; }
+.dicom-element canvas { max-width: none; max-height: none; object-fit: initial; }
+.native-status { position: absolute; left: 10px; top: 10px; color: #f1f5f9; background: #162232d9; padding: 6px 9px; font-size: 12px; pointer-events: none; max-width: 90%; }
+.native-rail { position: absolute; right: 0; top: 0; width: 14px; height: 100%; margin: 0; padding: 0; writing-mode: vertical-lr; direction: ltr; appearance: none; background: #191919; border: 0; border-radius: 0; cursor: ns-resize; }
+.native-rail::-webkit-slider-runnable-track { width: 14px; height: 100%; background: #191919; border: 0; }
+.native-rail::-webkit-slider-thumb { appearance: none; width: 10px; height: 46px; margin-left: 2px; border: none; border-radius: 2px; background: #686868; }
+.native-rail::-moz-range-track { width: 14px; height: 100%; background: #191919; }
+.native-rail::-moz-range-thumb { width: 10px; height: 46px; border: none; border-radius: 2px; background: #686868; }
+.native-rail:disabled { opacity: .5; }
+.native-voi { display: flex; align-items: center; gap: 10px; padding: 5px 10px; font-size: 11px; color: #49657c; background: #f8fafc; }
+.native-card .card-foot { display: flex; gap: 10px; padding: 8px 10px; min-width: 0; }
+.native-card .card-foot span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.native-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 0; }
+.native-tools > span { font-size: 11px; color: #61758a; }
+.native-dropdown { position: relative; }
+.native-menu { position: absolute; top: calc(100% + 5px); left: 0; z-index: 50; background: #fff; border: 1px solid #cad9e8; border-radius: 8px; padding: 8px; box-shadow: 0 8px 28px #14345730; min-width: 180px; display: grid; gap: 5px; }
+.native-menu button { padding: 8px; text-align: left; white-space: nowrap; }
+.native-layout-menu { display: flex; min-width: 280px; gap: 12px; }
+.native-layout-menu > div:first-child { display: grid; gap: 4px; font-size: 12px; }
+.native-layout-cells { display: grid; grid-template-columns: repeat(4, 24px); gap: 3px; }
+.native-layout-cells button { width: 24px; height: 24px; padding: 0; border-radius: 2px; }
+.native-layout-cells button.chosen { background: #75baff; }
+.native-focus-grid { display: grid; gap: 10px; }
+.native-single .native-stage { height: min(68vh, 780px); min-height: 420px; }
+.native-help { font-size: 12px; color: #60778b; line-height: 1.6; margin: 10px 0; }
+.native-warning { padding: 12px; background: #fff6dd; border: 1px solid #ebd393; border-radius: 6px; font-size: 13px; }
+.native-empty { display: grid; place-content: center; background: #070b10; color: #91a6b8; min-height: 320px; padding: 20px; }
+.native-note { position: absolute; z-index: 20; left: 12px; bottom: 12px; right: 25px; background: #fff; padding: 12px; border-radius: 8px; display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; }
+.native-note label { flex: 1; display: grid; gap: 4px; }
+.native-note input { min-width: 120px; border: 1px solid #9db4c8; padding: 7px; }
+.mpr-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.mpr-grid .native-stage { height: min(60vh, 580px); min-height: 340px; }
+.mpr-grid .dicom-element { right: 0; }
+.patient-edge { position: absolute; color: #dce7ec; font: 12px Arial, sans-serif; pointer-events: none; text-shadow: 0 1px 3px #000; }
+.patient-edge-0 { top: 8px; left: 50%; transform: translateX(-50%); }
+.patient-edge-1 { right: 23px; top: 50%; transform: translateY(-50%); }
+.patient-edge-2 { bottom: 8px; left: 50%; transform: translateX(-50%); }
+.patient-edge-3 { left: 8px; top: 50%; transform: translateY(-50%); }
+@media (max-width: 1100px) { .mpr-grid { grid-template-columns: 1fr; } }

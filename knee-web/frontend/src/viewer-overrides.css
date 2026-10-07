@@ -21,3 +21,46 @@ html.slice-rail-dragging,body.slice-rail-dragging{overflow:hidden!important;over
 
 .annotation-overlay text{fill:#f6fbff;font:600 3.2px 'DM Sans',sans-serif;letter-spacing:.08px;paint-order:stroke;stroke:#10202f;stroke-width:.8px}
 .annotation-overlay .measurement-label{fill:#e9f7ff;font:700 3.4px 'DM Sans',sans-serif}
+
+/* Keep all three native acquisitions inside the 3D-primary overview layout. */
+.overview-grid.overview-layout-3d-primary{grid-template-columns:minmax(0,1.35fr) minmax(300px,1fr);grid-template-rows:repeat(3,minmax(0,1fr));align-items:stretch}
+.overview-grid.overview-layout-3d-primary .locator-card{grid-column:1;grid-row:1 / span 3;display:flex;flex-direction:column}
+.overview-grid.overview-layout-3d-primary .locator-stage{height:auto;min-height:420px;flex:1}
+.overview-grid.overview-layout-3d-primary .native-card-head{min-height:34px;padding:3px 6px;gap:4px;flex-wrap:nowrap;font-size:9px}
+.overview-grid.overview-layout-3d-primary .native-card-head strong{min-width:0;max-width:82px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:0;flex:1 1 auto}
+.overview-grid.overview-layout-3d-primary .native-card-head button{padding:3px 4px;font-size:9px;white-space:nowrap}
+.overview-grid.overview-layout-3d-primary .native-stage{height:clamp(110px,14vh,145px)}
+.overview-grid.overview-layout-3d-primary .native-voi{padding:3px 6px;gap:5px;font-size:9px}
+.overview-grid.overview-layout-3d-primary .native-card .card-foot{min-height:26px;padding:5px 6px;font-size:9px}
+
+.info-rows>div{align-items:flex-start}
+.info-rows b{max-width:60%;overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere}
+.info-row-geometry{flex-wrap:wrap}
+.info-row-geometry small{flex:0 0 100%;margin-top:2px;color:#8a99a7;font-size:9px;line-height:1.4}
+.info-row-geometry small{text-align:left;justify-self:start;width:100%}
+.info-row-geometry small,.info-row-geometry b{text-align:left}
+.info-row-study-uid{display:grid!important;grid-template-columns:1fr;gap:5px!important}
+.info-row-study-uid b{max-width:100%;text-align:left;word-break:break-all}
+.capture-modal{width:min(940px,100%);max-height:calc(100vh - 40px);overflow:auto}
+.capture-body{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(250px,.8fr);gap:18px;align-items:start}
+.capture-preview-frame{min-height:280px;max-height:52vh;display:grid;place-items:center;overflow:hidden;border:1px solid #d8e2eb;border-radius:8px;background:#07131e}
+.capture-preview-frame img{display:block;max-width:100%;max-height:52vh;object-fit:contain}
+.capture-preview-message{padding:20px;color:#d2dfeb;font-size:12px;text-align:center}
+.capture-preview-message.error{color:#ffc3bb}
+.capture-preview-meta{display:flex;justify-content:space-between;gap:8px;padding-top:7px;color:#7c8f9f;font-size:10px}
+.capture-form{align-content:start}
+.capture-size-help{margin-top:-8px;color:#8293a3;font-size:10px;line-height:1.4}
+.head-actions{gap:12px;flex-wrap:wrap;justify-content:flex-end}
+.head-actions .analyze-button{margin-right:2px}
+.erase-tool.selected-control{background:#e7f3fc;border-color:#78afd5;color:#185f94;box-shadow:0 0 0 2px #d7ebf9}
+.mark-actions-menu{position:relative}
+.mark-actions-trigger{width:32px;padding:5px!important}
+.mark-actions-popover{position:absolute;z-index:16;top:calc(100% + 6px);left:0;min-width:235px;padding:9px;background:#fff;border:1px solid #d2e0e9;border-radius:8px;box-shadow:0 10px 28px #102b4530;color:#526c82;font-size:11px}
+.mark-actions-popover>button{width:100%;display:flex;align-items:center;gap:7px;padding:7px;border:0;border-radius:5px;background:#fff;color:#526c82;font:600 11px 'DM Sans';text-align:left;cursor:pointer}
+.mark-actions-popover>button:hover{background:#f3f8fc;color:#215f8e}
+.mark-actions-popover>span{display:block;padding:3px 2px 9px;line-height:1.4}
+.mark-actions-popover>div{display:flex;justify-content:flex-end;gap:6px}
+.mark-actions-popover>div button{padding:5px 8px;border:1px solid #d6e1e9;border-radius:5px;background:#fff;color:#526c82;font:600 10px 'DM Sans';cursor:pointer}
+.mark-actions-popover>div .confirm-clear{border-color:#b85454;background:#b85454;color:#fff}
+@media(max-width:620px){.head-actions{flex-direction:column;align-items:stretch}.head-actions .button{width:100%}}
+@media(max-width:720px){.capture-body{grid-template-columns:1fr}.capture-preview-frame{min-height:180px;max-height:38vh}.capture-preview-frame img{max-height:38vh}}

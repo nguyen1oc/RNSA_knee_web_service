@@ -1,7 +1,7 @@
 # Knee Review — local DICOM workspace
 
 > **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** MRI Volume zoom out được dưới fit ban đầu đến sàn an toàn 1%; zoom in không giới hạn hữu hạn.
+> **Thay đổi gần nhất:** Study UID/geometry metadata hiển thị đầy đủ; thông báo Analyze nằm trong workspace. MRI Volume zoom in/out đã được cập nhật.
 > **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
 
 This is the first local vertical slice for the knee diagnostic web service. Upload accepts individual `.dcm` files, folders, and unencrypted `.zip` archives containing DICOM files.

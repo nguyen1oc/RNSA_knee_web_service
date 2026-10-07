@@ -1,12 +1,13 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** Sửa linked crosshair MPR; thêm chiến lược branch main/dev cho CI và deployment.
+> **Thay đổi gần nhất:** Chốt feature branch → PR vào dev; merge dev vào main chỉ khi deploy.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-07 — Branch strategy and MPR interaction
 
 - `dev` là nhánh tích hợp và chạy CI mỗi lần push; `main` là nhánh deploy sau khi review/merge. CI cũng chạy cho Pull Request.
+- Feature mới bắt đầu từ `dev`, được push trên branch riêng và review qua PR vào `dev`; chỉ đưa `dev` vào `main` khi deploy.
 - Cho phép drag reference line để nhảy giao điểm crosshair trên MPR; click line / crosshair liên kết ba mặt phẳng.
 
 ## 2026-10-06 — Current

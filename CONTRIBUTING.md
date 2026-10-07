@@ -1,7 +1,7 @@
 # Contributing — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** Chuyển sang main deploy, dev tích hợp và chạy CI; PR vào dev/main cần pass checks.
+> **Thay đổi gần nhất:** Feature mới tạo branch từ dev và PR vào dev; chỉ merge dev vào main khi deploy.
 > **Lịch sử:** [knee-service-blueprint/CHANGELOG.md](knee-service-blueprint/CHANGELOG.md)
 
 ## 1. Branch và cách push
@@ -16,7 +16,7 @@ main (deploy source; protected)
        └── docs/dev-main-flow
 ```
 
-Không push trực tiếp vào `main`. Có thể push commit đã kiểm tra lên `dev` để CI chạy; với feature lớn, tạo branch ngắn từ dev rồi PR vào dev. Bật branch protection: require CI, review và disallow force-push cho dev/main.
+Với feature mới, luôn tạo branch từ `dev`, push branch đó và mở PR vào `dev`; không push feature trực tiếp vào `dev` hoặc `main`. Chỉ merge `dev → main` khi chuẩn bị deploy. Bật branch protection: require CI, review và disallow force-push cho hai nhánh dài hạn.
 
 ```powershell
 git switch dev
@@ -28,7 +28,7 @@ git commit -m "feat(viewer): add native MPR"
 git push -u origin feat/short-description
 ```
 
-Review/merge feature PR vào `dev`; sau smoke test, tạo PR `dev → main`. Push/merge vào `main` là tín hiệu cho deployment workflow khi registry và môi trường deploy đã cấu hình.
+Review/merge feature PR vào `dev`; sau smoke test, tạo PR `dev → main` khi cần deploy. Merge vào `main` là tín hiệu cho deployment workflow khi registry và môi trường deploy đã cấu hình.
 
 `gf` không phải tên một loại commit. Nếu đang nói tới **Git Flow**, đó là một branch strategy có `feature/*`, `release/*` và `hotfix/*`. Với service này, `main`/`dev` cùng feature branches giữ luồng review gọn; chỉ thêm `release/*` khi quản lý staging/production riêng.
 

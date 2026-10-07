@@ -1,10 +1,25 @@
 # Changelog — Knee Review
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Dùng slider sát mép phải kiểu scrollbar browser có trạng thái loading, khóa body scroll khi thao tác viewport, tool picker có icon và cải thiện font số đo.
+> **Cập nhật gần nhất:** 2026-10-07
+> **Thay đổi gần nhất:** Sửa linked crosshair MPR; thêm chiến lược branch main/dev cho CI và deployment.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
+## 2026-10-07 — Branch strategy and MPR interaction
+
+- `dev` là nhánh tích hợp và chạy CI mỗi lần push; `main` là nhánh deploy sau khi review/merge. CI cũng chạy cho Pull Request.
+- Cho phép drag reference line để nhảy giao điểm crosshair trên MPR; click line / crosshair liên kết ba mặt phẳng.
+
 ## 2026-10-06 — Current
+
+### P1 — Native DICOM và single-series MPR
+
+- Thay PNG/CSS trong reading view bằng Cornerstone3D 5.11.5; giữ PNG cho inventory thumbnails. W/L thật, native tool geometry, fit-minimum zoom, per-cell slice/camera, inline arrow notes, eraser và viewport capture.
+- Thêm tab MPR: một acquisition → ba orthographic views + linked crosshair. Backend từ chối thiếu/không đều geometry, duplicate position, mixed frames/dimensions/pixel formats và volume vượt budget; không ghép acquisition khác nhau.
+- Thêm endpoint raw DICOM byte-exact và volume eligibility; 24 pytest cases tổng cộng cùng Ruff/Mypy.
+- Tách runtime, volume preload, capture, orientation labels, tool/layout pickers thành module nhỏ. Series selection giữ acquisition đang chọn khi có nhiều series cùng hướng.
+- Docker và frontend CI dùng Node 24; lockfile gồm peer dependencies để npm ci chạy sạch.
+- Cập nhật README, API spec, viewer spec, CI plan và design-board.html; thêm [16 — Native DICOM/MPR](16-native-dicom-and-mpr.md).
+- Giới hạn: chưa patient-specific 3D, persisted annotations, DICOM SR hay clinical validation; transitive npm advisories cần xử lý trước public deployment. Mục P0 bên dưới là lịch sử, không còn mô tả renderer hiện tại.
 
 ### Added
 
@@ -16,6 +31,7 @@
 ### Fixed
 
 - `knee-web/requirements-dev.txt` dùng `-r backend/requirements.txt`, khớp với vị trí thật của production dependencies khi workflow chạy trong `knee-web`.
+- Thêm `knee-web/tests/test_api.py` với 6 backend contract tests; CI chạy pytest cho ZIP upload, seed idempotency, read-only example và cleanup study upload.
 
 ### Viewer update
 

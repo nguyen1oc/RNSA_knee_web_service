@@ -1,10 +1,10 @@
 # 02 — Viewer và DICOM
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Bật upload ZIP DICOM, thêm rail slice sát mép phải kiểu scrollbar browser cho Overview/focused view, chờ ảnh load trước khi scrub, khóa body scroll khi kéo/wheel và đổi từng slice; MPR vẫn deferred.
+> **Cập nhật gần nhất:** 2026-10-07
+> **Thay đổi gần nhất:** P1 native DICOM/WL/tools và single-series MPR. Chi tiết hiện hành trong [16](16-native-dicom-and-mpr.md).
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-> Phạm vi 05/10/2026: chỉ DICOM `.dcm` cho local viewer. Nút Analyze có mặt để giữ workflow nhưng chỉ báo “coming soon”; chưa có AI panel/model. Các đoạn mô tả MPR/3D bên dưới là P1 sau P0, không bắt buộc sprint này. Seed và input theo [13](13-input-formats-and-example-studies.md).
+> Phạm vi 05/10/2026: chỉ DICOM `.dcm` cho local viewer. Nút Analyze có mặt để giữ workflow nhưng chỉ báo “coming soon”; chưa có AI panel/model. Các đoạn mô tả MPR bên dưới đã có implementation P1; patient-specific 3D vẫn deferred. Các mô tả PNG/CSS bên dưới giữ làm lịch sử P0 và không thay thế doc 16. Seed và input theo [13](13-input-formats-and-example-studies.md).
 
 ## Mô hình thông tin
 

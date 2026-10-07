@@ -1,12 +1,12 @@
 # 15 — CI trước, CD sau
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Bổ sung quy ước ghi changelog và Conventional Commits; CI baseline vẫn là gate hiện tại.  
+> **Cập nhật gần nhất:** 2026-10-07
+> **Thay đổi gần nhất:** Quy ước main là deploy source, dev là integration branch chạy CI; checks trên push và PR.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Mục tiêu hiện tại
 
-Local viewer chưa có test DICOM fixture đầy đủ, nên CI chỉ cần bảo đảm code có thể kiểm tra tĩnh và đóng gói được. Chưa tự deploy mỗi lần push; deploy tự động chỉ nên bật sau khi có môi trường staging và health check rõ ràng.
+`dev` nhận feature đã review và chạy CI ở mỗi lần push. `main` là source branch để deploy sau review/merge từ dev. Chưa cấu hình deploy tự động vì repository chưa có registry, staging runtime và secrets.
 
 ## Pipeline CI hiện tại
 
@@ -15,9 +15,9 @@ Workflow: `.github/workflows/ci.yml`
 Quy ước commit, branch và push nằm ở [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ```text
-push / pull request
+push dev / main; pull request vào dev / main
         │
-        ├── Backend: install → Ruff → Mypy → compileall
+        ├── Backend: install → Ruff → Mypy → pytest → compileall
         ├── Frontend: npm ci → Vite production build
         └── Docker: build production image
                     │
@@ -41,10 +41,10 @@ CI trả lời: “commit này có build được và không phá các check cơ
 
 | Giai đoạn | Thêm vào pipeline | Điều kiện qua |
 |---|---|---|
-| Hiện tại | Ruff, Mypy, compile, frontend build, Docker build | Merge vào `main` |
-| Trước staging | `pytest` API với fixture DICOM nhỏ, upload/list/delete, image response, geometry edge cases | Test pass + coverage tối thiểu do team chốt |
-| Staging | Push image SHA lên registry, deploy staging, gọi health/readiness và smoke test | Staging healthy |
+| Mỗi push/PR | Ruff, Mypy, pytest, compile, frontend build, Docker build | Green checks trên `dev`/PR |
+| Integration | Merge reviewed PR vào `dev`; smoke test example study | Green checks, native stack loads, ineligible MPR gives reason |
+| Main/deploy | PR `dev → main`; deploy immutable SHA after infra is configured | Health/readiness and smoke test |
 | Production | Manual approval hoặc tag release, deploy immutable SHA, rollback | Có release note và rollback plan |
 | Phase AI | Preprocess parity/model contract/Triton readiness/evaluation gate | Không dùng CI viewer để kết luận model lâm sàng |
 
-Hiện tại `mypy` và Ruff là static checks, không thay thế test hành vi. Khi có fixture DICOM ổn định, ưu tiên thêm pytest trước khi nối autodeploy.
+Ruff/Mypy là static checks; pytest còn kiểm tra API và hình học. Bật autodeploy trên `main` khi registry, target runtime, secrets, health check và rollback sẵn sàng.

@@ -1,34 +1,36 @@
 # Contributing — Knee Review
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Thêm quy ước commit, branch, push, Pull Request và quan hệ CI/CD.  
+> **Cập nhật gần nhất:** 2026-10-07
+> **Thay đổi gần nhất:** Chuyển sang main deploy, dev tích hợp và chạy CI; PR vào dev/main cần pass checks.
 > **Lịch sử:** [knee-service-blueprint/CHANGELOG.md](knee-service-blueprint/CHANGELOG.md)
 
 ## 1. Branch và cách push
 
-Trong giai đoạn hiện tại dùng GitHub Flow đơn giản:
+Dùng hai nhánh dài hạn: `main` là nhánh deploy; `dev` là nhánh tích hợp, nhận các feature/fix đã review và chạy CI trên mỗi lần push. Nhánh công việc ngắn được tạo từ `dev`, rồi PR vào `dev`. Sau khi kiểm thử tích hợp, review và merge `dev` vào `main` để deploy.
 
 ```text
-main (PR target; nên bật branch protection)
-  └── feat/viewer-selection
-  └── fix/dicom-window-level
-  └── docs/ci-cd-guide
-  └── ci/add-backend-checks
+main (deploy source; protected)
+  └── dev (integration + CI on push; protected)
+       ├── feat/native-dicom-mpr
+       ├── test/volume-geometry
+       └── docs/dev-main-flow
 ```
 
-Không push trực tiếp vào `main` khi đã làm việc theo nhóm. Tạo branch ngắn, mở Pull Request, chờ CI pass và người còn lại review rồi mới merge.
+Không push trực tiếp vào `main`. Có thể push commit đã kiểm tra lên `dev` để CI chạy; với feature lớn, tạo branch ngắn từ dev rồi PR vào dev. Bật branch protection: require CI, review và disallow force-push cho dev/main.
 
 ```powershell
-git switch main
+git switch dev
 git pull --ff-only
 git switch -c feat/short-description
 
 git add <files>
-git commit -m "feat(viewer): add selected-card slice navigation"
+git commit -m "feat(viewer): add native MPR"
 git push -u origin feat/short-description
 ```
 
-`gf` không phải tên một loại commit. Nếu đang nói tới **Git Flow**, đó là một branch strategy có `feature/*`, `release/*` và `hotfix/*`. Với service local hiện tại, GitHub Flow ở trên đủ đơn giản; chỉ thêm `release/*` khi bắt đầu quản lý staging/production riêng.
+Review/merge feature PR vào `dev`; sau smoke test, tạo PR `dev → main`. Push/merge vào `main` là tín hiệu cho deployment workflow khi registry và môi trường deploy đã cấu hình.
+
+`gf` không phải tên một loại commit. Nếu đang nói tới **Git Flow**, đó là một branch strategy có `feature/*`, `release/*` và `hotfix/*`. Với service này, `main`/`dev` cùng feature branches giữ luồng review gọn; chỉ thêm `release/*` khi quản lý staging/production riêng.
 
 ## 2. Conventional Commits
 
@@ -57,20 +59,14 @@ Nên dùng scope ngắn như `viewer`, `dicom`, `api`, `frontend`, `docker`, `ci
 
 ## 3. CI hiện tại
 
-Workflow ở [.github/workflows/ci.yml](.github/workflows/ci.yml) chạy trên Pull Request và push vào `main`:
-
-- backend: Ruff, Mypy, `compileall`;
-- frontend: `npm ci` và `npm run build`;
-- Docker: build production image.
-
-CI không cần DICOM thật, GPU, Triton, GCP hoặc secrets. Mypy/Ruff là static checks, chưa thay thế test hành vi. Khi fixture DICOM ổn định, thêm `pytest` cho upload, grouping, geometry, slice ordering, delete và PNG rendering.
+Workflow ở [.github/workflows/ci.yml](.github/workflows/ci.yml) chạy CI khi push lên `dev`/ `main` và trên PR. Pull Request chạy đủ checks backend (Ruff, Mypy, pytest, compileall), frontend (`npm ci`, build) và Docker build. Bật ruleset yêu cầu CI xanh trước merge.
 
 ## 4. CD/autodeploy sau này
 
-Chưa autodeploy từ `main` ở giai đoạn local. Trình tự nên là:
+`main` là nguồn deploy đã thống nhất. Repo local hiện chưa có registry, target runtime hoặc secrets nên workflow chỉ chạy CI; deployment được kích hoạt sau khi cấu hình environment. Trình tự là:
 
-1. CI pass trên Pull Request;
-2. merge vào `main`;
+1. CI pass trên PR vào `dev`, merge và smoke test integration;
+2. CI pass cho PR `dev → main`, review và merge vào `main`;
 3. build image immutable theo commit SHA;
 4. push image vào registry;
 5. deploy staging;

@@ -1,12 +1,20 @@
 # 05 — API v0.2: local upload và viewer
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; API contract hiện hành được giữ nguyên.  
+> **Cập nhật gần nhất:** 2026-10-07
+> **Thay đổi gần nhất:** Thêm contract native DICOM và volume eligibility thực tế (P1).
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Đề xuất 05/10/2026, thay v0.1 có auth/inference. Base `/api/v1`, JSON snake_case, thời gian UTC, ID UUID; examples dùng stable slug. Không login/logout/identity, token, owner filter hoặc model endpoint. API/React cùng origin qua web proxy.
 
-## Endpoints P0
+## API P1 đang implement (base /api)
+
+- GET /api/series/{id}/slices: thêm dicom_url; image_url giữ cho thumbnails.
+- GET /api/instances/{id}/dicom: application/dicom nguyên bản, lookup bằng ID index; 404 khi ID/file không tồn tại. Dữ liệu chứa toàn bộ tags gốc nên chỉ dùng localhost với study đã khử định danh.
+- GET /api/series/{id}/volume: eligible, reasons, dicom_urls (rỗng nếu không hợp lệ); khi đủ geometry có slice_count, slice_spacing_mm, pixel_spacing_mm, anisotropic. 404 nếu series không tồn tại.
+- Không cần DICOMweb server cho phase này: Cornerstone wadouri loader tải file qua cùng origin. Đây không phải triển khai WADO-RS/QIDO-RS đầy đủ.
+
+## Endpoints P0 đề xuất (historical; không phải contract implementation)
+
 
 | Method + path | Kết quả |
 |---|---|

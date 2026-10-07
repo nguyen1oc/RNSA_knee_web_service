@@ -82,6 +82,7 @@
 </head>
 <body>
 <main>
+  <section class="kr-panel entry"><h2>P1 native DICOM · Updated 2026-10-06</h2><p>Overview = independent original acquisitions. Direction tabs = native stack + multi-layout. MPR = three linked reconstructed planes from one eligible series.</p><p>Tools: Pointer / pan · Window / Level · Length · Rectangle / Ellipse / Freehand ROI · Arrow + note · Eraser · Capture. Wheel = slices; Ctrl+wheel / right-drag = zoom; Reset = fit and default VOI.</p><p>3D locator is an illustration, not patient anatomy. See <a href="../16-native-dicom-and-mpr.md">P1 specification and limitations</a>. Historical P0 layouts remain below.</p></section>
   <div class="intro">
     <div class="eyebrow">Local viewer · Light theme · October 2026</div>
     <h1>Knee Review</h1>
@@ -112,7 +113,7 @@
   </section>
 
   <h2>Workspace sau khi chọn một study · S03</h2>
-  <p class="kr-muted" style="margin-bottom:16px">Bố cục minh họa một study giả định có ba hướng, không phải inventory DEMO-001. Trái: cây Study → Series → slice files. Giữa: 3D locator và ảnh. Phải: thông tin nguồn. Patient-specific 3D/MPR để giai đoạn sau.</p>
+  <p class="kr-muted" style="margin-bottom:16px">Bố cục minh họa một study giả định có ba hướng, không phải inventory DEMO-001. Trái: cây Study → Series → slice files. Giữa: 3D locator và ảnh. Phải: thông tin nguồn. Single-series MPR có trong P1; patient-specific 3D vẫn để giai đoạn sau.</p>
   <section id="workspace-preview" class="workspace" aria-label="Bố cục viewer đề xuất">
     <header class="appbar">
       <div><span class="brand">Knee Review</span><span class="kr-muted"> / Study minh họa bố cục</span></div>
@@ -136,7 +137,7 @@
         <p class="small kr-muted" style="margin-top:12px">Một hướng có thể có nhiều series. FS/fluid-sensitive có thể là UNKNOWN.</p>
       </aside>
       <div class="viewer">
-        <div class="tabs" aria-label="Tab minh họa"><span class="tab active">Overview</span><span class="tab">Sagittal</span><span class="tab">Coronal</span><span class="tab">Axial</span><span class="tab">Images / Series</span></div>
+        <div class="tabs" aria-label="Tab minh họa"><span class="tab active">Overview</span><span class="tab">Sagittal</span><span class="tab">Coronal</span><span class="tab">Axial</span><span class="tab">MPR</span><span class="tab">Images / Series</span></div>
         <div class="row toolbar"><span class="kr-button">Drag / Pan</span><span class="kr-button">Wheel / Pinch zoom</span><span class="kr-button">Slice 16 / 32</span><span class="kr-button">Fit / Reset</span></div>
         <p class="small kr-muted">Overview keeps four readable slots for comparison, preserving each image aspect ratio. Click an image card to make its series active without changing tabs; only that active card receives Slice, zoom, pan and Reset controls. Open moves to the direction-focused tab. Sagittal, Coronal and Axial fit the full image; zoom starts at 100% fit, scales around the viewport center without an artificial max, pan remains explicit, and each card plus the toolbar expose Reset view. Images / Series is the acquisition browser, not another 4-up copy.</p>
         <div class="viewgrid">

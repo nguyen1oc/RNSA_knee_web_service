@@ -1,7 +1,7 @@
 # Knee Review — kế hoạch local Docker
 
 > **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Thêm index cho CI/CD, changelog và quy ước đóng góp.  
+> **Thay đổi gần nhất:** Thêm P1 native DICOM và single-series MPR; doc 16 là contract viewer hiện hành.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Cập nhật **05/10/2026** theo phạm vi mới: local web, upload DICOM `.dcm`, một example study gồm `series_1` và `series_2`, **không auth và chưa làm model/GCP**. App vertical slice chạy tại `../knee-web`; bộ docs mô tả scope và các bước mở rộng tiếp theo.
@@ -28,6 +28,7 @@ Bắt đầu bằng [12 — Các bước build local](12-local-docker-build-step
 | [13 Input/examples](13-input-formats-and-example-studies.md) | Format, grouping, seed và storage | Hiện hành |
 | [14 Metrics](14-local-metrics-and-acceptance.md) | Đánh giá đúng dữ liệu, xóa, restart, hiệu năng và UX | Hiện hành |
 | [15 CI/CD](15-ci-cd-plan.md) | CI baseline và lộ trình staging/autodeploy | CI hiện hành; CD để sau |
+| [16 Native DICOM/MPR](16-native-dicom-and-mpr.md) | P1 controls, geometry gate, runtime và giới hạn kiểm định | Viewer implementation hiện hành |
 | [CHANGELOG](CHANGELOG.md) | Lịch sử thay đổi đáng chú ý | Hiện hành |
 | [CONTRIBUTING](../CONTRIBUTING.md) | Commit, branch, push, review và CI/CD | Hiện hành |
 | [15 CI/CD](15-ci-cd-plan.md) | CI baseline và lộ trình staging/autodeploy | CI hiện hành; CD để sau |

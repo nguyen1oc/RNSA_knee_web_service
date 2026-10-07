@@ -1,7 +1,7 @@
 # 14 — Metrics đánh giá local viewer
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Thêm acceptance cho ZIP DICOM, slider khóa khi ảnh chưa load, viewport-only scroll lock, icon tool và typography số đo.
+> **Cập nhật gần nhất:** 2026-10-07
+> **Thay đổi gần nhất:** Thêm acceptance cho native DICOM và single-series MPR; xem viewer spec 16.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Cập nhật 05/10/2026. Các metric dưới đây đánh giá service local sau khi build; chúng không đo độ chính xác model, vì inference/Triton chưa nằm trong scope.
@@ -69,19 +69,20 @@ Cập nhật 05/10/2026. Các metric dưới đây đánh giá service local sau
 
 ## 3. Bộ test chạy trước bàn giao
 
-1. Seed sample: xác nhận một `study_id`, hai `series_id`, 64 assets; mở cả `series_1` và `series_2`.
-2. Upload folder chứa 64 file `.dcm`; so catalog, order và ảnh với sample.
+1. Seed `results.zip`: xác nhận một `study_id`, 5 series và 284 assets; mở cây Study → Series → DICOM.
+2. Upload lại một ZIP làm study user; so catalog, order và số ảnh với example.
 3. Upload nhiều file `.dcm`; kiểm tra grouping không phụ thuộc thứ tự file được chọn.
 4. Thử ZIP/PNG/JPG và file `.dcm` hỏng; kiểm tra bị từ chối hoặc report rõ, không silent skip.
 5. Xóa study upload; refresh trang, gọi lại catalog, kiểm tra raw path và DB không còn asset của study đó.
-6. Thử xóa sample và xóa study đang index; kiểm tra bị từ chối với lý do rõ.
-7. Restart Compose giữa index và delete; kiểm tra recovery, seed idempotency và không xóa nhầm.
+6. Thử xóa sample; kiểm tra bị từ chối với HTTP 409 và example vẫn còn.
+7. Restart Compose; kiểm tra recovery, seed idempotency và không xóa nhầm.
 8. Restore một bản backup vào volume mới; mở lại sample và một study upload chưa xóa.
 9. Kiểm tra cây Study → Series → slice, Analyze notice, direction tabs và display controls/reset.
 10. Dùng Zoom controls và pointer drag pan ở Overview lẫn focused direction; trong focused direction dùng wheel đổi slice lên/xuống và kiểm tra ảnh không bị fit constraint khi zoom.
 11. Gọi `GET /api/series/{id}/geometry` và đối chiếu manifest với DICOM header; kiểm tra study summary báo `Incompatible frames` khi các series không cùng FrameOfReferenceUID.
 12. Chạy performance smoke trên cùng fixture, ghi p50/p95 và evidence.
 13. Trong focused tab kiểm tra một Layout dropdown với preset/custom tới 4x4, hover preview, slice slider/prev/next, wheel navigation, Sync slices, dropdown tools/metrics, annotation editor và Capture PNG/JPEG.
+14. Chạy `python -m pytest -q`; tất cả test ZIP, seed, read-only delete và cleanup phải pass.
 
 ## 4. Release gate
 

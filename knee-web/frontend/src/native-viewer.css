@@ -59,6 +59,9 @@
 .mpr-grid.layout-3d-main .mpr-plane .native-stage { height: auto; min-height: 220px; flex: 1; }
 .overview-series-label { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: #71869a; font-size: 10px; }
 .mpr-volume-card.native-active { border-color: #318fdf; box-shadow: 0 0 0 2px #d9ecff; }
+.mpr-volume-card .native-stage .dicom-element,.mpr-volume-card .native-stage .dicom-element canvas { cursor: move !important; }
+.mpr-volume-card .native-stage { cursor: move; }
+.mpr-volume-card .mpr-volume-zoom-controls,.mpr-volume-card button { cursor: pointer; }
 .mpr-slice-plane-overlay { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; overflow: hidden; pointer-events: none; }
 .mpr-slice-plane { pointer-events: visiblePainted; cursor: grab; filter: drop-shadow(0 1px 2px #0009); }
 .mpr-slice-plane:active { cursor: grabbing; }

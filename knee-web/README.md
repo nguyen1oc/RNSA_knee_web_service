@@ -1,7 +1,7 @@
 # Knee Review — local DICOM workspace
 
 > **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** MRI Volume có nút zoom ± riêng; zoom out dừng ở fit 100%, zoom in không giới hạn hữu hạn.
+> **Thay đổi gần nhất:** MRI Volume zoom out được dưới fit ban đầu đến sàn an toàn 1%; zoom in không giới hạn hữu hạn.
 > **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
 
 This is the first local vertical slice for the knee diagnostic web service. Upload accepts individual `.dcm` files, folders, and unencrypted `.zip` archives containing DICOM files.
@@ -12,7 +12,7 @@ The UI is in English and currently supports:
 - grouping by `StudyInstanceUID` and `SeriesInstanceUID`;
 - browsing series and slices with sagittal/coronal/axial labels when DICOM geometry is available;
 - native DICOM rendering with Cornerstone3D, real Window/Level, slice navigation, center zoom/pan and Reset; PNG remains only for inventory thumbnails;
-- zoom starts at the initial fit size (100%); Zoom out cannot go below fit, while Zoom in has no artificial maximum;
+- zoom starts at the initial fit size (100%); Zoom out can go below fit to a 1% safety floor, while Zoom in has no artificial maximum;
 - Overview's `MPR source` selector chooses one acquisition for the 3D volume and all three synchronized MPR planes; changing source reloads them together. Initial selection prefers valid geometry metadata, then sagittal orientation and more slices, but the volume eligibility gate remains authoritative;
 - newly opened focused series start on slice 1 instead of an arbitrary middle slice; the user can browse the full stack with the vertical rail or wheel;
 - a collapsible Study → Series → slice-file tree in the workspace;
@@ -22,7 +22,7 @@ The UI is in English and currently supports:
 - focused direction tools are grouped into one selector: Pointer (default), Length, Rectangle, Ellipse, Freehand, and Arrow + note; native geometry-based measurements use spacing metadata where available (calibration must be independently verified);
 - Arrow + note opens an inline editor after drawing; the Eraser button removes one clicked mark; `Clear all marks` is a secondary action with confirmation. Capture previews the configured export before downloading PNG/JPEG at 512×512, 256×256 or 128×128; the image is fit without cropping or stretching, with optional annotations and slice/orientation metadata;
 - volume appearance offers `Standard MR` and `Angio-style (experimental)`; projection separately selects `Composite` or true maximum-intensity projection (MIP). Angio-style is only a display mapping and does not create angiographic information;
-- Overview's 3D volume is intensity rendering from patient DICOM voxels, not a generic anatomy model, surface mesh, segmentation or diagnosis; colored planes follow the current MPR slice positions. A compact black mini-orbit gizmo with three thin rings appears only at the lower-right of MRI Volume: red/axial rotates left-right, yellow/sagittal rotates up-down, and green/coronal rotates obliquely. Drag a ring to rotate around its axis or drag the volume background to rotate freely; the volume header has dedicated −/+ zoom controls, a live percentage, a 100% fit floor and no practical upper cap; camera rotation/zoom does not reorient MPR slices;
+- Overview's 3D volume is intensity rendering from patient DICOM voxels, not a generic anatomy model, surface mesh, segmentation or diagnosis; colored planes follow the current MPR slice positions. A compact black mini-orbit gizmo with three thin rings appears only at the lower-right of MRI Volume: red/axial rotates left-right, yellow/sagittal rotates up-down, and green/coronal rotates obliquely. Drag a ring to rotate around its axis; drag anywhere on the black MRI Volume viewport background to rotate freely (four-way move cursor indicates the draggable area). The volume header has dedicated −/+ zoom controls, a live percentage, a 1% safety floor (so zoom-out can go below initial fit), and no practical upper cap; camera rotation/zoom does not reorient MPR slices;
 - In Overview, grabbing an MPR plane moves only that series' slice; drag mapping follows the plane normal from its own viewport and uses its strongest on-screen axis at the current 3D camera angle;
 - an explicit local ingest pipeline: DICOM validation, metadata extraction, UID grouping, geometry-aware sorting, and on-demand preview rendering;
 - real Window / Level drag tool (window width adjusts contrast range; window level shifts the grayscale brightness center), W/L values, Invert and Reset per native viewport;

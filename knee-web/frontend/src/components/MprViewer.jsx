@@ -64,7 +64,7 @@ export default function MprViewer({ series }) {
       group.addTool(tools.WindowLevelTool.toolName)
       group.addTool(tools.ZoomTool.toolName, { zoomToCenter: true, minZoomScale: 1, maxZoomScale: Number.MAX_VALUE })
       rotateGroup.addTool(tools.TrackballRotateTool.toolName)
-      rotateGroup.addTool(tools.ZoomTool.toolName, { zoomToCenter: true, minZoomScale: 1, maxZoomScale: Number.MAX_VALUE })
+      rotateGroup.addTool(tools.ZoomTool.toolName, { zoomToCenter: true, minZoomScale: 0.01, maxZoomScale: Number.MAX_VALUE })
       const ids = [...planes.map((plane) => `${id}-${plane}`), `${id}-VOLUME-3D`]
       engine.setViewports([
         ...planes.map((plane, index) => ({ viewportId: ids[index], element: elements.current[index],
@@ -120,7 +120,6 @@ export default function MprViewer({ series }) {
         }
         const update = () => {
           const info = core.utilities.getVolumeViewportScrollInfo(viewport, result.id)
-          if (viewport.getZoom() < 0.999) { viewport.setZoom(1); viewport.render() }
           if (index === 3) setVolumeZoom(viewport.getZoom())
           setSteps((previous) => { const next = [...previous]; next[index] = info; return next })
           setLabels((previous) => { const next = [...previous]; next[index] = orientationLabels(viewport, element); return next })
@@ -197,7 +196,7 @@ export default function MprViewer({ series }) {
   const zoomVolume = (factor) => {
     const viewport = runtime.current?.engine.getViewport(runtime.current.ids[3])
     if (!viewport) return
-    const nextZoom = Math.min(Number.MAX_VALUE, Math.max(1, viewport.getZoom() * factor))
+    const nextZoom = Math.min(Number.MAX_VALUE, Math.max(0.01, viewport.getZoom() * factor))
     viewport.setZoom(nextZoom)
     viewport.render()
     setVolumeZoom(nextZoom)
@@ -268,7 +267,7 @@ export default function MprViewer({ series }) {
       <label className="mpr-volume-preset"><span>Projection</span><select aria-label="Volume projection mode" disabled={!ready} value={projection} onChange={(event) => setProjection(event.target.value)}><option value="composite">Composite</option><option value="mip">Maximum intensity (MIP)</option></select></label>
       <button className="tool-button" disabled={!ready} onClick={resetViewports}><RotateCcw size={15} /> Reset</button>
     </div>
-    <p className="native-help">The selected <strong>MPR source</strong> supplies one volume for the linked axial, coronal and sagittal planes; changing it reloads all four views together. The direction tabs remain the original acquired stacks. Colored planes track the current slice positions. Drag a plane to move through its slices. Drag one of the three colored orbit rings in the MRI Volume to rotate around that anatomical axis; drag the volume background for free rotation. Camera controls affect only the volume, while Crosshair links all three MPR views.</p>
+    <p className="native-help">The selected <strong>MPR source</strong> supplies one volume for the linked axial, coronal and sagittal planes; changing it reloads all four views together. The direction tabs remain the original acquired stacks. Colored planes track the current slice positions. Drag a plane to move through its slices. Drag the black MRI Volume viewport background to rotate freely; drag a colored orbit ring to rotate around its axis. Camera controls affect only the volume, while Crosshair links all three MPR views.</p>
     {anisotropic && ready && <p className="native-warning">Thick / anisotropic slices: reconstructed planes have lower through-plane detail. Interpolation does not recover missing anatomy.</p>}
     {status && <p className="native-warning" role="status">{status} Original acquisition views remain available.</p>}
     <div className={`mpr-grid layout-${layout}`}>{planes.map((plane, index) => <article key={plane} className={`viewer-card native-card mpr-plane mpr-plane-${plane.toLowerCase()} ${active === index ? 'native-active' : ''}`} onPointerDownCapture={() => setActive(index)}>
@@ -277,7 +276,7 @@ export default function MprViewer({ series }) {
     </article>)}<article className={`viewer-card native-card mpr-volume-card ${active === 3 ? 'native-active' : ''}`} onPointerDownCapture={() => setActive(3)}>
       <div className="native-card-head"><strong>3D · MRI volume</strong><span className="mpr-volume-status">{ready ? `${planes[selectedPlane]} plane` : '—'}</span>
         <div className="mpr-volume-zoom-controls" role="group" aria-label="MRI volume zoom">
-          <button aria-label="Zoom MRI volume out" title="Zoom out" disabled={!ready || volumeZoom <= 1.001} onClick={() => zoomVolume(1 / 1.25)}><Minus size={14} /></button>
+          <button aria-label="Zoom MRI volume out" title="Zoom out" disabled={!ready || volumeZoom <= 0.0101} onClick={() => zoomVolume(1 / 1.25)}><Minus size={14} /></button>
           <output aria-live="polite">{Math.round(volumeZoom * 100)}%</output>
           <button aria-label="Zoom MRI volume in" title="Zoom in" disabled={!ready} onClick={() => zoomVolume(1.25)}><Plus size={14} /></button>
         </div>

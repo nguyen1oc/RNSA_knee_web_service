@@ -1,10 +1,10 @@
 # 12 — Build local từng bước: upload, viewer, 1 example study, Docker
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; bổ sung liên kết quy ước commit/CI/CD.  
+> **Cập nhật gần nhất:** 2026-10-07
+> **Thay đổi gần nhất:** Ghi chú implementation mới: Overview hiện là MPR 4-up cùng-series; các step P0 dưới đây giữ vai trò kế hoạch/lịch sử.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-Ngày chốt phạm vi: **05/10/2026**. Kế hoạch này đã có vertical slice đầu tiên tại `../knee-web`: FastAPI + SQLite + React build tĩnh, Docker Compose, sample study và upload/view DICOM. Upload hiện nhận file/thư mục `.dcm` và archive `.zip` không mã hóa; MPR/3D thật, worker indexing và AI/cloud vẫn là phần tiếp theo. Tài liệu này cùng file 13 thay thế lịch AI/cloud ở file 07 và phiên bản file 11 ngày 30/09.
+Ngày chốt scope ban đầu: **05/10/2026**. Local vertical slice tại `../knee-web` đã tiến xa hơn kế hoạch ban đầu: FastAPI + SQLite + React + Docker Compose, import/view native DICOM và Overview MPR/3D từ cùng series khi geometry đạt gate. Các bước P0 còn lại tiếp tục hữu ích như checklist; model/AI, Triton và GCP vẫn ngoài phạm vi.
 
 ## 1. Kết quả cần có
 
@@ -45,7 +45,7 @@ Mở `http://localhost:8080` → thấy một sample study gồm hai series và 
 
 Step 3 là mốc đầu tiên: **upload thật → một stack thật**. Không cần chờ dựng xong mọi màn hình. Sau đó seed, tree/display controls, ZIP ingest và delete có thể làm song song khi contract ổn định.
 
-MPR/crosshair/khung 3D là P1 sau step 9; không là điều kiện nghiệm thu local. Ô trên trái của overview hiện 3D locator/khung định hướng, không hiển thị khối giả như dữ liệu bệnh nhân và chưa mapping click → patient slice.
+Historical note: kế hoạch gốc từng xếp MPR/crosshair/khung 3D sau step 9 và mô tả locator chung ở Overview. Implementation hiện tại đã chuyển sang Overview MPR cùng-series; không dùng locator chung thay MRI volume của bệnh nhân.
 
 ## 4. Cấu trúc app dự kiến và trạng thái hiện tại
 

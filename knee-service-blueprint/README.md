@@ -1,7 +1,7 @@
 # Knee Review — kế hoạch local Docker
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Thêm P1 native DICOM và single-series MPR; doc 16 là contract viewer hiện hành.
+> **Cập nhật gần nhất:** 2026-10-07
+> **Thay đổi gần nhất:** Overview là MPR/volume MRI đồng bộ; doc 16 mô tả viewer hiện hành.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Cập nhật **05/10/2026** theo phạm vi mới: local web, upload DICOM `.dcm`, một example study gồm `series_1` và `series_2`, **không auth và chưa làm model/GCP**. App vertical slice chạy tại `../knee-web`; bộ docs mô tả scope và các bước mở rộng tiếp theo.
@@ -14,7 +14,7 @@ Bắt đầu bằng [12 — Các bước build local](12-local-docker-build-step
 |---|---|---|
 | [00 Workflow](00-user-workflow-features.md) | Trang đầu, upload và xem ảnh | Local hiện hành |
 | [01 Scope](01-product-scope.md) | P0/P1, định nghĩa hoàn thành | Local hiện hành |
-| [02 Viewer](02-viewer-dicom-spec.md) | DICOM, series/FS/fluid, 4 ô và hướng | Hiện hành; MPR/3D có đánh dấu giai đoạn sau |
+| [02 Viewer](02-viewer-dicom-spec.md) | DICOM, series/FS/fluid, Overview MPR và hướng | Hiện hành |
 | [03 Design](03-design-system.md) | Theme sáng, font, controls, tree và Analyze placeholder | Hiện hành; panel AI để sau |
 | [04 Architecture](04-architecture-data.md) | Docker, SQLite, storage, index worker | Local hiện hành |
 | [05 API v0.2](05-api-contract.md) | Upload, examples, studies, image manifest | Local hiện hành |
@@ -42,7 +42,7 @@ Bắt đầu bằng [12 — Các bước build local](12-local-docker-build-step
 - SQLite và raw uploads trong named volume. Examples từ thư mục host mount read-only; không COPY MRI vào image.
 - Runtime không cần GPU NVIDIA, CUDA, checkpoint hoặc tài khoản GCP.
 - UI sáng theo design tokens; vùng tối bên trong ảnh vẫn theo pixel gốc.
-- 3D/MPR sau P0; chỉ dựng khi DICOM có geometry phù hợp.
+- Overview dựng MRI volume/MPR từ một series khi geometry hợp lệ; khi không hợp lệ, báo rõ và vẫn cho mở acquisition gốc.
 
 ## Dữ liệu sẵn có và phần còn thiếu
 

@@ -18,6 +18,7 @@
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "three": "^0.186.1",
     "vite": "latest"
   }
 }

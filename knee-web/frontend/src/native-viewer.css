@@ -3,6 +3,10 @@
 .native-card.native-active { border-color: #318fdf; box-shadow: 0 0 0 2px #d9ecff; }
 .native-card-head { min-height: 40px; display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: 11px; flex-wrap: wrap; }
 .native-card-head strong { margin-right: auto; color: #35526c; }
+.mpr-volume-status { color: #72869a; font-size: 10px; white-space: nowrap; }
+.mpr-volume-zoom-controls { display: inline-flex; align-items: center; gap: 4px; margin-left: 3px; }
+.mpr-volume-zoom-controls button { width: 26px; height: 26px; justify-content: center; padding: 4px; }
+.mpr-volume-zoom-controls output { min-width: 42px; color: #526a80; font: 600 10px 'DM Sans'; text-align: center; font-variant-numeric: tabular-nums; }
 .native-card button, .native-menu button { display: inline-flex; align-items: center; gap: 4px; background: #f4f8fc; color: #315b80; border: 1px solid #d9e5ee; border-radius: 4px; padding: 4px 7px; cursor: pointer; font: inherit; }
 .native-card button:disabled { opacity: .4; cursor: default; }
 .native-stage { height: clamp(270px, 32vw, 440px); background: #000; position: relative; overflow: hidden; overscroll-behavior: contain; touch-action: none; }

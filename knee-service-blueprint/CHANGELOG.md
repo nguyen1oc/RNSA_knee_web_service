@@ -1,8 +1,16 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** Overview chọn rõ `MPR source`; gizmo MRI Volume dùng ba vòng orbit mảnh để xoay theo trục.
+> **Thay đổi gần nhất:** MRI Volume có nút zoom ± riêng; zoom out dừng ở fit 100%, zoom in không có trần thực tế.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
+
+## 2026-10-07 — MRI volume zoom controls
+
+### Changed
+
+- Thêm nút zoom out / in và phần trăm ngay trong header của `3D · MRI volume`; thao tác qua nút tránh phụ thuộc vào right-drag khó nhận biết.
+- Zoom out có mức sàn là camera fit ban đầu (100%); zoom in không đặt giới hạn hữu hạn. Reset Overview đưa camera volume về fit ban đầu.
+- Giữ chuột phải-drag như thao tác phụ; wheel trên volume vẫn cuộn lát MPR đang chọn. Cập nhật viewer spec, acceptance, README và design board HTML.
 
 ## 2026-10-07 — MPR source selector and mini-orbit gizmo
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Box, Crosshair, Contrast, MousePointer2, RotateCcw } from 'lucide-react'
+import { Box, Crosshair, Contrast, Minus, MousePointer2, Plus, RotateCcw } from 'lucide-react'
 import { Quaternion, Vector3 } from 'three'
 import { core, tools, uniqueId } from '../imaging/runtime'
 import { loadVolume } from '../imaging/volume'
@@ -32,6 +32,7 @@ export default function MprViewer({ series }) {
   const [slicePlanes, setSlicePlanes] = useState([])
   const [selectedPlane, setSelectedPlane] = useState(0)
   const [volumePreset, setVolumePreset] = useState('MR-Default')
+  const [volumeZoom, setVolumeZoom] = useState(1)
   const [projection, setProjection] = useState('composite')
   const [layout, setLayout] = useState('3d-four-up')
   const activeRef = useRef(0)
@@ -120,6 +121,7 @@ export default function MprViewer({ series }) {
         const update = () => {
           const info = core.utilities.getVolumeViewportScrollInfo(viewport, result.id)
           if (viewport.getZoom() < 0.999) { viewport.setZoom(1); viewport.render() }
+          if (index === 3) setVolumeZoom(viewport.getZoom())
           setSteps((previous) => { const next = [...previous]; next[index] = info; return next })
           setLabels((previous) => { const next = [...previous]; next[index] = orientationLabels(viewport, element); return next })
         }
@@ -127,6 +129,7 @@ export default function MprViewer({ series }) {
         element.parentElement.addEventListener('wheel', wheel, { passive: false, capture: true })
         element.addEventListener('contextmenu', preventMenu)
         element.addEventListener(core.Enums.Events.IMAGE_RENDERED, update)
+        if (index === 3) element.addEventListener(core.Enums.Events.CAMERA_MODIFIED, update)
         if (index === 3) element.addEventListener(core.Enums.Events.CAMERA_MODIFIED, updateSlicePlanes)
         else element.addEventListener(core.Enums.Events.IMAGE_RENDERED, updateSlicePlanes)
         const observer = new ResizeObserver(() => engine.resize(true, true))
@@ -136,6 +139,7 @@ export default function MprViewer({ series }) {
           element.parentElement.removeEventListener('wheel', wheel, true)
           element.removeEventListener('contextmenu', preventMenu)
           element.removeEventListener(core.Enums.Events.IMAGE_RENDERED, update)
+          if (index === 3) element.removeEventListener(core.Enums.Events.CAMERA_MODIFIED, update)
           element.removeEventListener(index === 3 ? core.Enums.Events.CAMERA_MODIFIED : core.Enums.Events.IMAGE_RENDERED, updateSlicePlanes)
         })
       })
@@ -189,6 +193,14 @@ export default function MprViewer({ series }) {
     const viewPlaneNormal = focal.clone().sub(position).normalize()
     viewport.setCamera({ focalPoint: focal.toArray(), position: position.toArray(), viewUp: viewUp.toArray(), viewPlaneNormal: viewPlaneNormal.toArray() })
     viewport.render()
+  }
+  const zoomVolume = (factor) => {
+    const viewport = runtime.current?.engine.getViewport(runtime.current.ids[3])
+    if (!viewport) return
+    const nextZoom = Math.min(Number.MAX_VALUE, Math.max(1, viewport.getZoom() * factor))
+    viewport.setZoom(nextZoom)
+    viewport.render()
+    setVolumeZoom(nextZoom)
   }
   const planePointerDown = (event, index) => {
     event.preventDefault()
@@ -263,7 +275,13 @@ export default function MprViewer({ series }) {
       <div className="native-card-head"><strong>{plane} · MPR</strong><span>{ready && steps[index] ? `${steps[index].currentStepIndex + 1} / ${steps[index].numScrollSteps + 1}` : '—'}</span></div>
       <div className="native-stage"><div ref={(element) => { elements.current[index] = element }} className="dicom-element" aria-label={`${plane} MPR viewport`} /><OrientationLabels labels={labels[index]} /></div>
     </article>)}<article className={`viewer-card native-card mpr-volume-card ${active === 3 ? 'native-active' : ''}`} onPointerDownCapture={() => setActive(3)}>
-      <div className="native-card-head"><strong>3D · MRI volume</strong><span>{ready ? `${planes[selectedPlane]} plane selected · drag background to rotate` : '—'}</span></div>
+      <div className="native-card-head"><strong>3D · MRI volume</strong><span className="mpr-volume-status">{ready ? `${planes[selectedPlane]} plane` : '—'}</span>
+        <div className="mpr-volume-zoom-controls" role="group" aria-label="MRI volume zoom">
+          <button aria-label="Zoom MRI volume out" title="Zoom out" disabled={!ready || volumeZoom <= 1.001} onClick={() => zoomVolume(1 / 1.25)}><Minus size={14} /></button>
+          <output aria-live="polite">{Math.round(volumeZoom * 100)}%</output>
+          <button aria-label="Zoom MRI volume in" title="Zoom in" disabled={!ready} onClick={() => zoomVolume(1.25)}><Plus size={14} /></button>
+        </div>
+      </div>
       <div className="native-stage"><div ref={(element) => { elements.current[3] = element }} className="dicom-element" aria-label="Rotatable 3D MRI volume" />
         <svg className="mpr-slice-plane-overlay" viewBox={`0 0 ${slicePlanes[0]?.viewWidth || 1} ${slicePlanes[0]?.viewHeight || 1}`} preserveAspectRatio="none" aria-label="Current MPR slice planes" role="img">
           {slicePlanes.map((plane, index) => <polygon key={plane.id} points={plane.points.map((point) => point.join(',')).join(' ')} fill={plane.color} fillOpacity={selectedPlane === index ? 0.2 : 0.08} stroke={plane.color} strokeWidth={selectedPlane === index ? 2 : 1} vectorEffect="non-scaling-stroke" className="mpr-slice-plane" role="button" aria-label={`Select ${plane.label} slice plane`} onClick={() => { setSelectedPlane(index); setActive(3) }} onPointerDown={(event) => planePointerDown(event, index)} />)}

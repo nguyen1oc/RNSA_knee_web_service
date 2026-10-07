@@ -1,7 +1,7 @@
 # 14 — Metrics đánh giá local viewer
 
 > **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** Acceptance kiểm tra đổi MPR source và kéo ba orbit ring xoay MRI Volume.
+> **Thay đổi gần nhất:** Acceptance kiểm tra nút zoom ± trong MRI Volume và mức tối thiểu fit 100%.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Cập nhật 05/10/2026. Các metric dưới đây đánh giá service local sau khi build; chúng không đo độ chính xác model, vì inference/Triton chưa nằm trong scope.
@@ -57,7 +57,7 @@ Cập nhật 05/10/2026. Các metric dưới đây đánh giá service local sau
 | UX | Image capture | Mở Capture, đổi PNG/JPEG, 512×512/256×256/128×128, bật/tắt annotation và metadata | Preview khớp output; download đúng format và kích thước vuông; ảnh không crop/stretch; overlay theo lựa chọn |
 | UX | Crosshair geometry gating | Chọn series MPR không đạt geometry gate và series đạt gate | Series lỗi hiện lý do, control bị khóa; series hợp lệ bật crosshair theo tọa độ volume, không dựa vào geometry study-wide |
 | UX | Linked MPR + 3D volume | Ở Overview với series hợp lệ; so volume nguồn; xoay 3D, đổi preset/projection, thao tác crosshair và scroll các mặt phẳng | Cả bốn viewport cùng một volume; 3D xoay/reset hoạt động; MIP dùng maximum-intensity blend; crosshair/slice ba mặt khớp; không nạp ảnh PNG thay volume |
-| UX | Overview layout and volume controls | Chọn `3D four-up`, `3D primary`, `3D main`; đổi MPR source; kéo lần lượt vòng đỏ, vàng, xanh lá; kéo nền volume; kiểm tra vòng chỉ xuất hiện ở MRI Volume và màu khớp axial/sagittal/coronal; kéo các plane ở nhiều góc; reset; đổi Standard MR/Angio-style và Composite/MIP | Đổi nguồn reload cùng một volume cho cả ba MPR; vòng tương ứng xoay đúng trục và không đổi slice; camera chỉ đổi ở MRI Volume; kéo plane theo chiều chuột; MIP bật maximum-intensity projection thật; appearance không bị mô tả là FS/AI |
+| UX | Overview layout and volume controls | Chọn `3D four-up`, `3D primary`, `3D main`; đổi MPR source; kéo vòng đỏ/vàng/xanh lá; thử nút zoom −/+ trong header volume và Reset; kiểm tra vòng chỉ xuất hiện ở MRI Volume; kéo nền volume và các plane; đổi Standard MR/Angio-style và Composite/MIP | Zoom − không xuống dưới fit 100%, zoom + tăng liên tục và phần trăm cập nhật; Reset trả volume về fit; zoom chỉ ảnh hưởng camera volume, không đổi slice; vòng đúng màu/trục; MIP bật maximum-intensity projection thật |
 | UX | MPR geometry fallback | Chọn series geometry thiếu/không hợp lệ | Overview nêu rõ lý do; không giả tạo 3D; acquisition gốc vẫn mở được ở direction tabs/Images / Series |
 | UX | Design-board parity | So Overview MPR 4-slot, tabs, Study information panel với `design-board.html` ở 1440×900 | Không mất region/chức năng; sai lệch được ghi trong report |
 

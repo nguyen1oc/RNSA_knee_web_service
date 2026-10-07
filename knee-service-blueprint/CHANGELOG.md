@@ -1,8 +1,14 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** MRI Volume có thể zoom out dưới fit ban đầu; sàn an toàn 1% tránh camera suy biến.
+> **Thay đổi gần nhất:** HTML design board bỏ thanh Contrast/Brightness giả; Overview toolbar và tabs khớp với app.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
+
+## 2026-10-07 — Overview order and design-board parity
+
+- Đặt MRI Volume ở ô đầu/trên trái của `3D four-up` và chọn nó mặc định; các MPR theo thứ tự axial, sagittal, coronal.
+- Đồng bộ thứ tự và thanh công cụ Overview trong `templates/design-board.html` với giao diện app hiện tại; cập nhật spec và acceptance.
+- Bỏ các thanh Contrast/Brightness/Invert minh họa không có trong Overview; giữ Window / Level như tool tương tác đúng với app.
 
 ## 2026-10-07 — MRI volume zoom controls
 

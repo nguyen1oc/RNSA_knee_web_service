@@ -16,6 +16,28 @@ knee-web/data/
 **/*.sqlite3
 **/*.db
 **/*.log
+**/.ipynb_checkpoints/
+
+# ML checkpoints and exported inference engines (store outside Git)
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.safetensors
+*.engine
+*.plan
+*.h5
+*.keras
+
+# Terraform local state (commit .terraform.lock.hcl, never state)
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Local agent/build scratch output
+.chart-data-*/
+.codex-build/
+.codex-finalizer/
 
 # Local configuration and secrets
 .env

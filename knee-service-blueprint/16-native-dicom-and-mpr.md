@@ -1,7 +1,7 @@
 # 16 — P1: Native DICOM và MPR
 
 > **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** Cho phép drag crosshair và cập nhật branch workflow dev/main.  
+> **Thay đổi gần nhất:** Cho phép drag crosshair và cập nhật branch workflow dev/main.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Phạm vi

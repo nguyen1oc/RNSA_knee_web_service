@@ -1,7 +1,7 @@
 # Knee Review — local DICOM workspace
 
 > **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** Study UID/geometry metadata hiển thị đầy đủ; thông báo Analyze nằm trong workspace. MRI Volume zoom in/out đã được cập nhật.
+> **Thay đổi gần nhất:** Overview đặt MRI Volume ở ô đầu; Study metadata và thông báo Analyze được căn chỉnh trong workspace.
 > **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
 
 This is the first local vertical slice for the knee diagnostic web service. Upload accepts individual `.dcm` files, folders, and unencrypted `.zip` archives containing DICOM files.
@@ -13,7 +13,7 @@ The UI is in English and currently supports:
 - browsing series and slices with sagittal/coronal/axial labels when DICOM geometry is available;
 - native DICOM rendering with Cornerstone3D, real Window/Level, slice navigation, center zoom/pan and Reset; PNG remains only for inventory thumbnails;
 - zoom starts at the initial fit size (100%); Zoom out can go below fit to a 1% safety floor, while Zoom in has no artificial maximum;
-- Overview's `MPR source` selector chooses one acquisition for the 3D volume and all three synchronized MPR planes; changing source reloads them together. Initial selection prefers valid geometry metadata, then sagittal orientation and more slices, but the volume eligibility gate remains authoritative;
+- Overview's `MPR source` selector chooses one acquisition for the 3D volume and all three synchronized MPR planes; changing source reloads them together. In `3D four-up`, MRI Volume is first/top-left and selected by default, followed by axial top-right, sagittal bottom-left and coronal bottom-right. Initial selection prefers valid geometry metadata, then sagittal orientation and more slices, but the volume eligibility gate remains authoritative;
 - newly opened focused series start on slice 1 instead of an arbitrary middle slice; the user can browse the full stack with the vertical rail or wheel;
 - a collapsible Study → Series → slice-file tree in the workspace;
 - tabs for Overview, Sagittal, Coronal, Axial, and Images / Series, plus a Study information panel; Overview is the patient-specific 3D MRI + three linked MPR views with `3D four-up`, `3D primary`, and `3D main` layouts; direction tabs show original acquisitions, and Images / Series is the acquisition browser;

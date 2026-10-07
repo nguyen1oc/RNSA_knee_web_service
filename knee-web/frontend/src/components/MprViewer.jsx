@@ -26,7 +26,7 @@ export default function MprViewer({ series }) {
   const [ready, setReady] = useState(false)
   const [anisotropic, setAnisotropic] = useState(false)
   const [mode, setMode] = useState('crosshair')
-  const [active, setActive] = useState(0)
+  const [active, setActive] = useState(3)
   const [steps, setSteps] = useState([])
   const [labels, setLabels] = useState([])
   const [slicePlanes, setSlicePlanes] = useState([])

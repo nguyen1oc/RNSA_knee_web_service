@@ -41,6 +41,11 @@
 .native-note label { flex: 1; display: grid; gap: 4px; }
 .native-note input { min-width: 120px; border: 1px solid #9db4c8; padding: 7px; }
 .mpr-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.mpr-grid.layout-3d-four-up { grid-template-areas: "volume axial" "sagittal coronal"; }
+.mpr-grid.layout-3d-four-up .mpr-volume-card { grid-area: volume; }
+.mpr-grid.layout-3d-four-up .mpr-plane-axial { grid-area: axial; }
+.mpr-grid.layout-3d-four-up .mpr-plane-sagittal { grid-area: sagittal; }
+.mpr-grid.layout-3d-four-up .mpr-plane-coronal { grid-area: coronal; }
 .mpr-grid .native-stage { height: min(42vh, 420px); min-height: 280px; }
 .mpr-grid .dicom-element { right: 0; }
 .mpr-grid.layout-3d-primary { grid-template-columns: minmax(0, 1.55fr) minmax(240px, 1fr); grid-template-rows: repeat(3, minmax(180px, 1fr)); }
@@ -96,3 +101,4 @@
 .patient-edge-2 { bottom: 8px; left: 50%; transform: translateX(-50%); }
 .patient-edge-3 { left: 8px; top: 50%; transform: translateY(-50%); }
 @media (max-width: 1100px) { .mpr-grid,.mpr-grid.layout-3d-primary,.mpr-grid.layout-3d-main { grid-template-columns: 1fr; grid-template-rows: auto; } .mpr-grid .native-stage,.mpr-grid.layout-3d-primary .mpr-plane .native-stage,.mpr-grid.layout-3d-main .mpr-plane .native-stage { height: min(52vh, 480px); min-height: 320px; } .mpr-grid.layout-3d-primary .mpr-volume-card,.mpr-grid.layout-3d-main .mpr-volume-card,.mpr-grid.layout-3d-primary .mpr-plane-axial,.mpr-grid.layout-3d-primary .mpr-plane-sagittal,.mpr-grid.layout-3d-primary .mpr-plane-coronal,.mpr-grid.layout-3d-main .mpr-plane-axial,.mpr-grid.layout-3d-main .mpr-plane-sagittal,.mpr-grid.layout-3d-main .mpr-plane-coronal { grid-column: 1; grid-row: auto; } .mpr-grid.layout-3d-primary .mpr-volume-card .native-stage,.mpr-grid.layout-3d-main .mpr-volume-card .native-stage { min-height: 360px; } .overview-series-label { width: 100%; margin-left: 0; } .knee-reference-model.locator-stage { height: 300px; } }
+@media (max-width: 1100px) { .mpr-grid.layout-3d-four-up { grid-template-areas: "volume" "axial" "sagittal" "coronal"; } }

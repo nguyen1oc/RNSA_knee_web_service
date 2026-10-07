@@ -15,9 +15,11 @@ from typing import Any
 import numpy as np
 import pydicom
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
+
+from backend.volume_geometry import volume_eligibility
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.getenv("DATA_DIR", ROOT / "data"))
@@ -682,9 +684,37 @@ def list_slices(series_id: str) -> list[dict[str, Any]]:
             "instance_number": row["instance_number"],
             "position": row["position"],
             "image_url": f"/api/instances/{row['id']}/image",
+            "dicom_url": f"/api/instances/{row['id']}/dicom",
         }
         for index, row in enumerate(rows)
     ]
+
+
+@app.get("/api/series/{series_id}/volume")
+def series_volume(series_id: str) -> dict[str, Any]:
+    with db() as connection:
+        rows = connection.execute(
+            "SELECT id, path FROM instances WHERE series_id = ? ORDER BY position IS NULL, position, instance_number, filename",
+            (series_id,),
+        ).fetchall()
+    if not rows:
+        raise HTTPException(404, "Series not found")
+    try:
+        headers = [pydicom.dcmread(row["path"], stop_before_pixels=True) for row in rows]
+        result = volume_eligibility(headers)
+    except (OSError, pydicom.errors.InvalidDicomError):
+        result = {"eligible": False, "reasons": ["One or more DICOM files are unavailable."]}
+    return {"series_id": series_id, **result,
+            "dicom_urls": [f"/api/instances/{row['id']}/dicom" for row in rows] if result["eligible"] else []}
+
+
+@app.get("/api/instances/{instance_id}/dicom")
+def instance_dicom(instance_id: str) -> FileResponse:
+    with db() as connection:
+        row = connection.execute("SELECT path FROM instances WHERE id = ?", (instance_id,)).fetchone()
+    if not row or not Path(row["path"]).is_file():
+        raise HTTPException(404, "DICOM file not found")
+    return FileResponse(row["path"], media_type="application/dicom", headers={"Cache-Control": "private, max-age=3600"})
 
 
 @app.get("/api/instances/{instance_id}/image")

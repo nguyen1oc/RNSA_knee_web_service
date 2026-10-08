@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AlertCircle, ArrowLeft, Image as ImageIcon, Info, Sparkles, Trash2, UploadCloud, X } from 'lucide-react'
 import './styles.css'
+import './upload-progress.css'
 import './viewer-overrides.css'
 
 import MprViewer from './components/MprViewer'
@@ -14,6 +15,7 @@ import StudyInfoPanel from './components/StudyInfoPanel'
 import StudySidebar from './components/StudySidebar'
 import ViewerTabs from './components/ViewerTabs'
 import ViewerToolbar from './components/ViewerToolbar'
+import { uploadStudy } from './uploadStudy'
 
 const api = async (path, options) => {
   const response = await fetch(path, options)
@@ -45,6 +47,7 @@ function App() {
   const [viewerTab, setViewerTab] = useState('Overview')
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(null)
   const [notice, setNotice] = useState(null)
   const [expandedStudies, setExpandedStudies] = useState(new Set())
   const [expandedSeries, setExpandedSeries] = useState(new Set())
@@ -125,11 +128,16 @@ function App() {
     event.target.value = ''
     if (!files.length) return
     setUploading(true)
-    setNotice({ type: 'info', text: `Validating and indexing ${files.length} DICOM file or ZIP archive${files.length === 1 ? '' : 's'}…` })
+    setNotice(null)
+    const totalBytes = files.reduce((sum, file) => sum + file.size, 0)
+    const startedAt = Date.now()
+    setUploadProgress({ phase: 'uploading', fileCount: files.length, loaded: 0, total: totalBytes, percent: 0, eta: null })
     const form = new FormData()
     files.forEach((file) => form.append('files', file, file.name))
     try {
-      const result = await api('/api/studies/upload', { method: 'POST', body: form })
+      const result = await uploadStudy(form, (progress) => {
+        setUploadProgress({ ...progress, fileCount: files.length })
+      }, startedAt)
       const rejectedText = result.rejected?.length ? ` ${result.rejected.length} file(s) skipped.` : ''
       setNotice({ type: 'success', text: `DICOM ingest complete: ${result.accepted_files} file(s) indexed.${rejectedText}` })
       await refresh(result.study_ids[0])
@@ -137,6 +145,7 @@ function App() {
       setNotice({ type: 'error', text: error.message })
     } finally {
       setUploading(false)
+      setUploadProgress(null)
     }
   }
 
@@ -232,6 +241,7 @@ function App() {
           expandedStudies={expandedStudies}
           expandedSeries={expandedSeries}
           uploading={uploading}
+          uploadProgress={uploadProgress}
           onRefresh={() => refresh()}
           onImport={() => fileInput.current?.click()}
           onImportFolder={() => folderInput.current?.click()}

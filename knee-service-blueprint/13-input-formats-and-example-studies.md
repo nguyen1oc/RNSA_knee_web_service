@@ -1,10 +1,12 @@
 # 13 — Input DICOM và lưu một example study
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Bật upload `.zip` không mã hóa chứa DICOM; vẫn từ chối nested/encrypted archive.
+> **Cập nhật gần nhất:** 2026-10-08
+> **Thay đổi gần nhất:** Làm rõ nút chọn folder riêng; upload hiển thị tiến độ truyền và ETA ước lượng, còn thời gian indexing báo riêng vì phụ thuộc dữ liệu.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Áp dụng cho giai đoạn local ngày 05/10/2026. “Study” DICOM là nhóm theo StudyInstanceUID; một thư mục chỉ là cách chọn nhiều file, không tự quyết định số study. ZIP không mã hóa được mở ở staging và các member `.dcm` được group theo UID.
+
+Trong UI, **Import DICOM files / ZIP** mở file picker cho phép chọn một hoặc nhiều `.dcm`/`.zip`; **Choose a folder of DICOM files** mở folder picker. Progress/ETA đo giai đoạn truyền file qua mạng tới VM; sau đó backend báo riêng giai đoạn validating/indexing vì chưa có telemetry đủ để dự đoán thời gian xử lý chính xác. Import folder không nén có thể chậm hơn ZIP lớn do gửi nhiều file riêng lẻ; thời gian thực tế phụ thuộc số file, dung lượng, mạng và IAP tunnel.
 
 ## 1. Supported matrix giai đoạn đầu
 

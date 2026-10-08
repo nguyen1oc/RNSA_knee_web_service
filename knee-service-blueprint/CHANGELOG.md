@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
-> **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** Chốt feature branch → PR vào dev; merge dev vào main chỉ khi deploy.
+> **Cập nhật gần nhất:** 2026-10-08
+> **Thay đổi gần nhất:** Thêm folder picker dễ thấy, byte-level upload progress/transfer ETA và chuyển trạng thái upload khỏi banner workspace.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-07 — Branch strategy and MPR interaction
@@ -9,6 +9,15 @@
 - `dev` là nhánh tích hợp và chạy CI mỗi lần push; `main` là nhánh deploy sau khi review/merge. CI cũng chạy cho Pull Request.
 - Feature mới bắt đầu từ `dev`, được push trên branch riêng và review qua PR vào `dev`; chỉ đưa `dev` vào `main` khi deploy.
 - Cho phép drag reference line để nhảy giao điểm crosshair trên MPR; click line / crosshair liên kết ba mặt phẳng.
+
+## 2026-10-08 — Folder import and upload progress
+
+### Changed
+
+- Tách rõ picker chọn nhiều `.dcm`/`.zip` với nút `Choose a folder of DICOM files` hiển thị ngay dưới nút import; không còn quảng cáo folder trong nút mở file picker.
+- Thay trạng thái ingest full-width bằng progress card trong sidebar, hiển thị phần trăm/dung lượng và ETA ước lượng cho giai đoạn truyền dữ liệu.
+- Khi file đã tới VM, UI báo đang validating/indexing và không bịa ETA cho thời gian xử lý backend chưa đo được.
+- Cập nhật app README và [13 — Input formats](13-input-formats-and-example-studies.md).
 
 ## 2026-10-06 — Current
 

@@ -1,7 +1,7 @@
 # 17 — GCP nhập môn cho Knee Review
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Giải thích staging hiện tại qua IAP, chưa có URL public; `dev` deploy staging và `main` dành cho production.
+> **Cập nhật gần nhất:** 2026-10-10
+> **Thay đổi gần nhất:** Ghi chú GCS bucket, Firestore Native `(default)` và IAM service identity đã provision để chuẩn bị Cloud Run.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Mục tiêu
@@ -148,5 +148,6 @@ Chi tiết triển khai theo từng bước nằm ở [09 — GCP runbook](09-gc
 4. Đã xong theo kiểm tra: outbound, Docker/Compose, clone `dev`, chuyển sample, chạy Compose và gọi health endpoint. Tiếp theo là kiểm thử giao diện qua IAP tunnel và thao tác persistence an toàn.
 5. Cloud SQL để sau khi cần nhiều backend instance/DB managed; cần migration từ SQLite trước khi tạo kết nối production. Cloud SQL có phí compute/storage/backup.
 6. VM hiện tại không có GPU. Chưa tạo GPU VM/quota; chờ model/preprocessing benchmark rồi quyết định GPU, zone và ngân sách.
+7. Đã tạo `gs://rsna-knee-dicom-preview-511004` và Firestore Native `(default)` tại `asia-southeast1`; service account `knee-review-api` có quyền datastore và object trên bucket. Chi tiết và phần còn lại ở [19 — Public preview deployment](19-public-preview-deployment.md).
 
 Các trạng thái provisioning (VM/NAT/IAM) ở trên dựa theo thông tin Console do người dùng cung cấp; Docker, clone source, checksum, app health và seed đã được kiểm tra từ VM trong phiên làm việc. Không lưu số thẻ hoặc thông tin thanh toán vào tài liệu.

@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Thêm quota upload/finalize Firestore, OIDC cleanup endpoint và runbook Cloud Scheduler/Firestore TTL; daily IP cap vẫn cần trusted edge.
+> **Cập nhật gần nhất:** 2026-10-10
+> **Thay đổi gần nhất:** Ghi nhận GCP bucket, Firestore Native database và service-account IAM đã provision.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-09 — Cloud Run backend direction
@@ -21,6 +21,14 @@
 - Bổ sung dependency `google-auth`, env mẫu, TTL `rate_limits.expires_at`, Cloud Scheduler runbook mỗi 15 phút và cập nhật hướng dẫn bucket.
 - Session creation IP quota chưa được giả lập bằng XFF: cấu hình Vercel WAF 10/10 phút ở edge; 30/ngày chưa được thực thi tới khi có shared trusted-edge counter.
 - Thêm unit tests cho fixed-window limiter và adapter counter; kiểm tra lại Ruff/Mypy/pytest/build trước push.
+
+## 2026-10-10 — GCP storage, Firestore and service identity provisioned
+
+- Người dùng đã tạo bucket `rsna-knee-dicom-preview-511004` ở `asia-southeast1`, Standard, Uniform bucket-level access và Public access prevention enforced.
+- Đã áp dụng CORS cho Vercel origin và lifecycle xóa prefix `incoming/` sau 1 ngày. Bucket hiện giữ soft-deleted objects 7 ngày theo policy mặc định; ghi nhận khả năng khôi phục/phí lưu trữ, chưa đổi policy.
+- Đã bật Firestore API và tạo database `(default)` Native mode ở `asia-southeast1`; backend dùng database mặc định.
+- Đã tạo `knee-review-api@rsna-knee-511004.iam.gserviceaccount.com`; cấp `roles/datastore.user` cấp project, `roles/storage.objectAdmin` ở bucket, và `roles/iam.serviceAccountUser` cho deployer trên service account.
+- Chưa deploy Cloud Run, chưa cấu hình Scheduler/TTL, chưa chạy integration smoke test. Không tạo hoặc tải service-account key JSON.
 
 ## 2026-10-09 — Anonymous review session replaces demo account
 

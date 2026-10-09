@@ -1,14 +1,14 @@
 # 19 — Public preview: Vercel + Cloud Run + GCP storage
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Bổ sung quota upload/finalize bằng Firestore, endpoint cleanup OIDC, xác nhận upload hoàn tất và bảo đảm lỗi xóa GCS không làm mất metadata; cấu hình GCP vẫn cần bạn thực hiện.
+> **Cập nhật gần nhất:** 2026-10-10
+> **Thay đổi gần nhất:** Ghi nhận bucket, Firestore `(default)`, service account và IAM đã provision; Cloud Run, Scheduler và TTL chưa triển khai.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Trạng thái
 
 - Frontend đã có URL Vercel `https://rnsa-knee-web-service.vercel.app/`; Vercel chỉ host React, không tự host FastAPI.
 - Backend cloud path đã được code: Firestore repository, private GCS adapter, temporary sessions, upload trực tiếp resumable, finalize/index, đọc/xóa theo quyền sở hữu; quota upload/finalize phân tán và endpoint cleanup có xác minh OIDC. Cần chạy lại CI sau thay đổi; adapter tests dùng fake, chưa phải integration test với GCP thật.
-- Chưa xác minh bucket/Firestore/service account, chưa deploy Cloud Run, chưa cấu hình Scheduler/TTL hoặc test end-to-end trên URL.
+- Bucket, Firestore `(default)` và quyền service account đã được xác nhận qua output `gcloud` do người dùng chạy ngày 2026-10-10; Cloud Run chưa deploy, Scheduler/TTL chưa cấu hình và chưa có end-to-end test.
 - Hướng đích: Vercel → FastAPI Cloud Run → Firestore (session/study metadata) + private Cloud Storage (DICOM). VM hiện có không tham gia web request; để dành cho GPU/Triton khi có model.
 - Local Docker tiếp tục dùng SQLite và filesystem để giữ workflow phát triển hiện có.
 
@@ -19,6 +19,20 @@
 - Không đăng nhập. Mỗi browser có opaque temporary session; mọi API phải authorize owner theo session. Session idle 60 phút, tối đa 4 giờ; Clear xóa metadata và object.
 - VM `knee-review-staging-01` giữ nguyên/off khi không dùng. Không deploy FastAPI vào VM này; GPU VM sẽ chạy Triton sau này. Không cần GPU cho ingest/viewer hiện tại.
 
+## GCP resources đã tạo (2026-10-10)
+
+Đã xác nhận từ các lệnh CLI người dùng chạy trong project `rsna-knee-511004`:
+
+- **Cloud Storage:** bucket `gs://rsna-knee-dicom-preview-511004`, region `ASIA-SOUTHEAST1`, Standard; Uniform bucket-level access bật, Public access prevention `enforced`.
+- **CORS:** chỉ cho origin `https://rnsa-knee-web-service.vercel.app`; method PUT/POST; cho phép `Content-Range`, expose `Range` cùng các header upload cần thiết.
+- **Lifecycle:** chỉ xóa object có prefix `incoming/` từ 1 ngày tuổi; không áp dụng cho dữ liệu study đang hoạt động.
+- **Soft delete:** bucket hiện có retention mặc định 7 ngày. Xóa khỏi app là xóa khỏi vùng object đang hoạt động, nhưng vẫn có thể khôi phục trong thời gian retention và storage của bản đã xóa có thể bị tính phí. Chưa thay đổi policy này.
+- **Firestore:** database `(default)`, `FIRESTORE_NATIVE`, region `asia-southeast1`, free tier báo bật. Backend client mặc định dùng database này; không cần chọn DB trong từng request.
+- **Service identity:** `knee-review-api@rsna-knee-511004.iam.gserviceaccount.com`; đã cấp `roles/datastore.user` trên project và `roles/storage.objectAdmin` trên đúng bucket.
+- **Deployer:** tài khoản `gcloud` hiện tại đã có `roles/iam.serviceAccountUser` trên service account để có thể gắn nó khi deploy Cloud Run.
+- Không tạo/tải service-account key JSON. Cloud Run sẽ lấy credential từ service identity/ADC.
+- **Chưa làm:** deploy Cloud Run, gắn env vars, Scheduler service account/job, Firestore TTL, Vercel trỏ API production/review, upload smoke test. VM GPU/Triton không liên quan tới bước này.
+
 ## Vì sao cần đổi upload protocol
 
 Study ZIP mẫu khoảng 431 MiB. Vercel Functions giới hạn request/response body 4.5 MiB; Vercel external rewrites giới hạn proxy duration; Cloud Run HTTP/1 giới hạn request 32 MiB. Vì vậy không gửi ZIP lớn qua Vercel hoặc Cloud Run multipart.
@@ -27,7 +41,7 @@ Luồng code: trình duyệt xin API tạo resumable upload session → upload b
 
 Nguồn giới hạn: [Vercel Functions](https://vercel.com/docs/functions/limitations), [Cloud Run quotas](https://docs.cloud.google.com/run/quotas), [Cloud Storage resumable uploads](https://docs.cloud.google.com/storage/docs/resumable-uploads).
 
-## Tạo bucket — chỉ làm khi code cloud branch sẵn sàng
+## Cấu hình bucket (đã hoàn tất)
 
 Chọn region `asia-southeast1` (Singapore), Standard storage, bật **Uniform bucket-level access** và **Public access prevention**. Tên bucket phải global-unique; gợi ý `rsna-knee-dicom-preview-511004` rồi kiểm tra tên trước khi tạo. Không cấp `allUsers` hoặc `allAuthenticatedUsers`. CORS chỉ allow `https://rnsa-knee-web-service.vercel.app`; template gồm `Content-Range` cho upload chunk và `Range` để frontend đọc vị trí đã nhận. Configure lifecycle chỉ cho prefix `incoming/` (ZIP/DICOM upload chưa finalize), không áp dụng rule xóa theo tuổi lên `sessions/` vì đó là study đang hoạt động. Study được xóa khi user Clear session hoặc hết TTL.
 

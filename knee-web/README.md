@@ -1,7 +1,7 @@
 # Knee Review — local DICOM workspace
 
 > **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Capture hỗ trợ preview vuông và preset 64×64, 128×128, 512×512.
+> **Thay đổi gần nhất:** Backend có adapter Cloud Run + Firestore/GCS resumable upload; triển khai GCP và hardening public vẫn là các bước riêng.
 > **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
 
 This is the first local vertical slice for the knee diagnostic web service. Upload accepts individual `.dcm` files, folders, and unencrypted `.zip` archives containing DICOM files.
@@ -47,7 +47,7 @@ The Dockerfile builds the React frontend in a multi-stage image, so `frontend/di
 
 See [anonymous session and upload-limit plan](../knee-service-blueprint/18-anonymous-session-and-upload-limits.md). There is no login/signup. The backend issues an HttpOnly cookie, scopes every study/data route to that temporary session, and deletes the session's uploads on reset/expiry. `SESSION_COOKIE_SECURE=true` is required behind HTTPS; local HTTP defaults to false.
 
-Current SQLite and local DICOM storage are suitable for local/single-VM staging only. Before public Cloud Run, move DICOM to temporary Cloud Storage and session/study metadata to a shared store; add ingress rate limits and cleanup. Pipeline stages are feature PR → `dev` staging deploy/test → reviewed `dev` to `main` → production; the GitHub workflow currently runs CI only, no auto-deploy.
+Local Docker continues to use SQLite/filesystem. The Cloud Run backend path uses Firestore metadata and a private GCS bucket with browser-to-GCS resumable upload; configure `METADATA_BACKEND=firestore` only in Cloud Run. Cloud adapters are unit-tested with fakes, but not yet integration-tested against a GCP project. Before making the URL broadly public, add distributed rate limits and scheduled TTL cleanup, create GCP resources, deploy, and run two-session isolation/upload/delete smoke tests. See [deployment guide](../knee-service-blueprint/19-public-preview-deployment.md). Pipeline stages remain feature PR → `dev` staging test → reviewed `dev` to `main` → production; GitHub currently runs CI only.
 
 ## CI baseline
 
@@ -57,7 +57,7 @@ GitHub Actions runs on pushes to `dev`/`main` and on pull requests. The current 
 - frontend: clean `npm ci` followed by `npm run build`;
 - Docker: build the production image from a clean checkout.
 
-The backend fixture suite covers ZIP upload, invalid archives, idempotent example seeding, read-only example protection, cleanup, anonymous session isolation/expiry and upload caps. Run it locally with `python -m pytest -q` from `knee-web`.
+The backend suite covers ZIP upload, invalid archives, idempotent example seeding, read-only example protection, cleanup, anonymous session isolation/expiry, upload caps and fake Firestore/GCS adapter behavior. Run it locally with `python -m pytest -q` from `knee-web`.
 
 Open <http://localhost:8080>.
 

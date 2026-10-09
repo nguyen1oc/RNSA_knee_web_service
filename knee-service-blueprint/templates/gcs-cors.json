@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["https://rnsa-knee-web-service.vercel.app"],
+    "method": ["PUT", "POST"],
+    "responseHeader": ["Content-Type", "Content-Range", "Range", "x-goog-resumable"],
+    "maxAgeSeconds": 3600
+  }
+]

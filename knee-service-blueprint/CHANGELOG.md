@@ -1,8 +1,18 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Chốt anonymous temporary sessions; loại bỏ kế hoạch tài khoản demo và đặt capture preset 64/128/512.
+> **Thay đổi gần nhất:** Hoàn tất code backend cloud path; thêm đề xuất ngưỡng rate limit và lịch cleanup để review trước khi implement.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
+
+## 2026-10-09 — Cloud Run backend direction
+
+- Chọn Firestore Native mode cho temporary session/study metadata và private Cloud Storage cho DICOM; Cloud SQL chưa cần ở MVP.
+- Thêm cloud implementation: Firestore metadata repository, private GCS object store, direct resumable upload/finalize, session owner checks, read/delete DICOM through GCS, and cache for DICOM access.
+- Thêm fake-client adapter tests; 31 pytest, Ruff và Mypy pass. Đây chưa phải GCP integration test.
+- Sửa bucket CORS template để cho phép `Content-Range`; ghi rõ lifecycle chỉ dọn prefix `incoming/` để không xóa study đang hoạt động.
+- Chưa deploy Cloud Run và chưa tạo bucket/database/service account; rate limiting, scheduled TTL cleanup, cloud sample seeding và public smoke test còn là gates.
+- Tách vai trò VM: để dành GPU/Triton về sau, không host web/API; cập nhật runbook GCP và trách nhiệm cấu hình người dùng.
+- Thêm bản đề xuất (chưa implement): session 10/10 phút + 30/ngày/IP tin cậy; upload init 5/phút, 30/giờ/session, tối đa 3 pending; cleanup OIDC/Cloud Scheduler mỗi 15 phút; GCS incoming lifecycle 1 ngày.
 
 ## 2026-10-09 — Anonymous review session replaces demo account
 

@@ -18,10 +18,11 @@ import StudySidebar from './components/StudySidebar'
 import ViewerTabs from './components/ViewerTabs'
 import ViewerToolbar from './components/ViewerToolbar'
 import { uploadStudy } from './uploadStudy'
+import { apiFetch } from './api'
 
 const api = async (path, options) => {
   const sessionHeaders = await getSessionHeaders()
-  const response = await fetch(path, { ...options, headers: { ...sessionHeaders, ...(options?.headers || {}) } })
+  const response = await apiFetch(path, { ...options, headers: { ...sessionHeaders, ...(options?.headers || {}) } })
   if (!response.ok) {
     let message = response.statusText
     try { message = (await response.json()).detail || message } catch { /* no-op */ }

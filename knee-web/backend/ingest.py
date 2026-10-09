@@ -42,7 +42,7 @@ def copy_upload_stream(source: Any, destination: Path, limit: int) -> int:
     return written
 
 
-async def stage_and_validate_uploads(
+def stage_and_validate_uploads(
     files: list[UploadFile],
     upload_root: Path,
     parse_metadata_path: Callable[[Path], dict[str, Any]],

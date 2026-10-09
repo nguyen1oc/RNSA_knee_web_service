@@ -1,8 +1,9 @@
 import { core, imageId, initializeImaging, uniqueId } from './runtime'
+import { apiFetch } from '../api'
 
 // Bounded decoding keeps the UI responsive and lets a tab change cancel the remaining work.
 export async function loadVolume(seriesId, signal, progress) {
-  const response = await fetch(`/api/series/${seriesId}/volume`, { signal })
+  const response = await apiFetch(`/api/series/${seriesId}/volume`, { signal })
   if (!response.ok) throw new Error('Unable to inspect volume geometry.')
   const geometry = await response.json()
   if (!geometry.eligible) throw new Error(geometry.reasons.join(' '))

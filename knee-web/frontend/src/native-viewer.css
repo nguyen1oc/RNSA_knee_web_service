@@ -81,7 +81,7 @@
 .mpr-orbit-hit { fill: none; stroke: transparent; stroke-width: 11; pointer-events: stroke; }
 .mpr-orbit-stroke { fill: none; stroke-width: 1.25; stroke-dasharray: 3 2; opacity: .9; pointer-events: none; vector-effect: non-scaling-stroke; transition: stroke-width .12s ease, opacity .12s ease, filter .12s ease; }
 .mpr-orbit-direction { fill: none; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; vector-effect: non-scaling-stroke; }
-.mpr-orbit-pivot { fill: #e3edf4; stroke: #34495a; stroke-width: .8; vector-effect: non-scaling-stroke; }
+.mpr-orbit-pivot { fill: #fff; stroke: #fff; stroke-width: .8; vector-effect: non-scaling-stroke; }
 .mpr-orbit-ring:hover .mpr-orbit-stroke,.mpr-orbit-ring:focus-visible .mpr-orbit-stroke { stroke-width: 2; opacity: 1; filter: drop-shadow(0 0 2px currentColor); }
 .mpr-orbit-ring:hover .mpr-orbit-direction,.mpr-orbit-ring:focus-visible .mpr-orbit-direction { stroke-width: 2; }
 .mpr-orientation-gizmo:focus-within { outline: 1px solid #647789; outline-offset: 2px; border-radius: 2px; }

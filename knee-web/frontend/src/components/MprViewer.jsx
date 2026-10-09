@@ -19,6 +19,38 @@ const layouts = [
   { value: '3d-primary', label: '3D primary' },
   { value: '3d-main', label: '3D main' },
 ]
+const DEFAULT_VOLUME_ZOOM = 0.8
+const DEFAULT_VOLUME_OBLIQUE_ANGLE = Math.PI / 4
+
+function centerVolumeCamera(viewport) {
+  viewport.setOrientation(core.Enums.OrientationAxis.SAGITTAL)
+  const camera = viewport.getCamera()
+  const bounds = viewport.getBounds()
+  const boundsAreValid = bounds?.length === 6 && bounds.every(Number.isFinite)
+  const center = boundsAreValid
+    ? new Vector3((bounds[0] + bounds[1]) / 2, (bounds[2] + bounds[3]) / 2, (bounds[4] + bounds[5]) / 2)
+    : new Vector3(...camera.focalPoint)
+  const previousFocus = new Vector3(...camera.focalPoint)
+  const positionOffset = new Vector3(...camera.position).sub(previousFocus)
+  const position = center.clone().add(positionOffset)
+  const up = new Vector3(...camera.viewUp).normalize()
+  const oblique = new Quaternion().setFromAxisAngle(up, DEFAULT_VOLUME_OBLIQUE_ANGLE)
+  const obliquePosition = position.clone().sub(center).applyQuaternion(oblique).add(center)
+  const obliqueUp = up.applyQuaternion(oblique).normalize()
+  const viewPlaneNormal = center.clone().sub(obliquePosition).normalize()
+
+  viewport.setCamera({
+    ...camera,
+    focalPoint: center.toArray(),
+    position: obliquePosition.toArray(),
+    viewUp: obliqueUp.toArray(),
+    viewPlaneNormal: viewPlaneNormal.toArray(),
+  }, true)
+  viewport.setZoom(DEFAULT_VOLUME_ZOOM, true)
+  viewport.render()
+  return center.toArray()
+}
+
 export default function MprViewer({ series }) {
   const elements = useRef([])
   const runtime = useRef(null)
@@ -102,7 +134,8 @@ export default function MprViewer({ series }) {
       const volumeViewport = engine.getViewport(ids[3])
       volumeViewport.setProperties({ preset: volumePreset })
       volumeViewport.setBlendMode(core.Enums.BlendModes.COMPOSITE)
-      volumeViewport.resetCamera()
+      state.rotationCenter = centerVolumeCamera(volumeViewport)
+      setVolumeZoom(DEFAULT_VOLUME_ZOOM)
       ids.forEach((viewportId, index) => {
         const viewport = engine.getViewport(viewportId)
         const element = elements.current[index]
@@ -182,11 +215,16 @@ export default function MprViewer({ series }) {
     group.setToolActive(Tool.toolName, { bindings: [{ mouseButton: 1 }] })
   }
   const rotateVolumeCamera = (axis, angle) => {
-    const viewport = runtime.current?.engine.getViewport(runtime.current.ids[3])
+    const state = runtime.current
+    const viewport = state?.engine.getViewport(state.ids[3])
     const camera = viewport?.getCamera()
     if (!viewport || !camera?.focalPoint || !camera.position || !camera.viewUp) return
-    const focal = new Vector3(...camera.focalPoint)
-    const rotation = new Quaternion().setFromAxisAngle(new Vector3(...axis).normalize(), angle)
+    const focal = new Vector3(...(state.rotationCenter || camera.focalPoint))
+    const forward = focal.clone().sub(new Vector3(...camera.position)).normalize()
+    const cameraUp = new Vector3(...camera.viewUp).normalize()
+    const viewRight = forward.clone().cross(cameraUp).normalize()
+    const rotationAxis = axis === 'horizontal' ? cameraUp : axis === 'vertical' ? viewRight : forward
+    const rotation = new Quaternion().setFromAxisAngle(rotationAxis, angle)
     const position = new Vector3(...camera.position).sub(focal).applyQuaternion(rotation).add(focal)
     const viewUp = new Vector3(...camera.viewUp).applyQuaternion(rotation).normalize()
     const viewPlaneNormal = focal.clone().sub(position).normalize()
@@ -246,11 +284,15 @@ export default function MprViewer({ series }) {
   }
   const resetViewports = () => runtime.current.ids.forEach((id, index) => {
     const viewport = runtime.current.engine.getViewport(id)
-    viewport.resetCamera()
-    if (index < 3) viewport.resetProperties()
+    if (index < 3) {
+      viewport.resetCamera()
+      viewport.resetProperties()
+    }
     else {
       viewport.setProperties({ preset: volumePreset })
       viewport.setBlendMode(projection === 'mip' ? core.Enums.BlendModes.MAXIMUM_INTENSITY_BLEND : core.Enums.BlendModes.COMPOSITE)
+      runtime.current.rotationCenter = centerVolumeCamera(viewport)
+      setVolumeZoom(DEFAULT_VOLUME_ZOOM)
     }
     viewport.render()
   })
@@ -267,7 +309,7 @@ export default function MprViewer({ series }) {
       <label className="mpr-volume-preset"><span>Projection</span><select aria-label="Volume projection mode" disabled={!ready} value={projection} onChange={(event) => setProjection(event.target.value)}><option value="composite">Composite</option><option value="mip">Maximum intensity (MIP)</option></select></label>
       <button className="tool-button" disabled={!ready} onClick={resetViewports}><RotateCcw size={15} /> Reset</button>
     </div>
-    <p className="native-help">The selected <strong>MPR source</strong> supplies one volume for the linked axial, coronal and sagittal planes; changing it reloads all four views together. The direction tabs remain the original acquired stacks. Colored planes track the current slice positions. Drag a plane to move through its slices. Drag the black MRI Volume viewport background to rotate freely; drag a colored orbit ring to rotate around its axis. Camera controls affect only the volume, while Crosshair links all three MPR views.</p>
+    <p className="native-help">The selected <strong>MPR source</strong> supplies one volume for the linked axial, coronal and sagittal planes; changing it reloads all four views together. The direction tabs remain the original acquired stacks. Colored planes track the current slice positions. Drag a plane to move through its slices. Drag the black MRI Volume viewport background to rotate freely; drag a white orbit ring to rotate around its axis. Camera controls affect only the volume, while Crosshair links all three MPR views.</p>
     {anisotropic && ready && <p className="native-warning">Thick / anisotropic slices: reconstructed planes have lower through-plane detail. Interpolation does not recover missing anatomy.</p>}
     {status && <p className="native-warning" role="status">{status} Original acquisition views remain available.</p>}
     <div className={`mpr-grid layout-${layout}`}>{planes.map((plane, index) => <article key={plane} className={`viewer-card native-card mpr-plane mpr-plane-${plane.toLowerCase()} ${active === index ? 'native-active' : ''}`} onPointerDownCapture={() => setActive(index)}>

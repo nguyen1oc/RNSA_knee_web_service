@@ -1,9 +1,9 @@
 import { useRef } from 'react'
 
 const orbitRings = [
-  { id: 'horizontal', label: 'Horizontal orbit · rotate left / right', axis: [0, 1, 0], color: '#f4d35e', rx: 28, ry: 10, rotation: -32, arrowAngle: 5.1 },
-  { id: 'vertical', label: 'Vertical orbit · rotate up / down', axis: [1, 0, 0], color: '#ff7777', rx: 11, ry: 28, rotation: -32, arrowAngle: 5.1 },
-  { id: 'diagonal', label: 'Diagonal orbit · rotate obliquely', axis: [0, 0, 1], color: '#6fd69b', rx: 23, ry: 16, rotation: 48, arrowAngle: 5.1 },
+  { id: 'horizontal', label: 'Horizontal orbit · rotate left / right', axis: 'horizontal', direction: 1, rx: 28, ry: 9, rotation: 0, arrowAngle: 5.1 },
+  { id: 'vertical', label: 'Vertical orbit · roll around the view axis', axis: 'diagonal', direction: 1, rx: 9, ry: 28, rotation: 0, arrowAngle: 5.1 },
+  { id: 'diagonal', label: 'Diagonal orbit · rotate up / down', axis: 'vertical', direction: -1, rx: 23, ry: 16, rotation: 48, arrowAngle: 5.1 },
 ]
 
 function orbitPath(rx, ry) {
@@ -42,7 +42,7 @@ export default function VolumeOrientationGizmo({ onRotate }) {
     if (delta > Math.PI) delta -= Math.PI * 2
     if (delta < -Math.PI) delta += Math.PI * 2
     active.angle = angle
-    if (Math.abs(delta) > 0.001) onRotate(active.ring.axis, delta)
+    if (Math.abs(delta) > 0.001) onRotate(active.ring.axis, delta * active.ring.direction)
   }
 
   const finishDrag = (event) => {
@@ -55,17 +55,17 @@ export default function VolumeOrientationGizmo({ onRotate }) {
       {orbitRings.map((ring) => <g key={ring.id} className={`mpr-orbit-ring mpr-orbit-${ring.id}`} role="button" tabIndex="0" aria-label={`Drag to ${ring.label.toLowerCase()}`} onPointerDown={(event) => startDrag(event, ring)} onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
-          onRotate(ring.axis, Math.PI / 12)
+          onRotate(ring.axis, Math.PI / 12 * ring.direction)
         }
         }}>
         <g transform={`rotate(${ring.rotation} 42 42)`}>
           <path className="mpr-orbit-hit" d={orbitPath(ring.rx, ring.ry)} />
-          <path className="mpr-orbit-stroke" d={orbitPath(ring.rx, ring.ry)} stroke={ring.color} />
+          <path className="mpr-orbit-stroke" d={orbitPath(ring.rx, ring.ry)} stroke="#fff" />
           <path
             className="mpr-orbit-direction"
             d="M -2.7 -2.4 L 1.4 0 L -2.7 2.4"
             transform={`translate(${42 + ring.rx * Math.cos(ring.arrowAngle)} ${42 + ring.ry * Math.sin(ring.arrowAngle)}) rotate(${Math.atan2(ring.ry * Math.cos(ring.arrowAngle), -ring.rx * Math.sin(ring.arrowAngle)) * 180 / Math.PI})`}
-            stroke={ring.color}
+            stroke="#fff"
           />
         </g>
         <title>{`Orbit path: drag to ${ring.label}. This is a rotation guide, not an image slice.`}</title>

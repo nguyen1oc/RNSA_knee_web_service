@@ -1,16 +1,23 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Ghi nhận Artifact Registry `knee-review` đã tạo; cập nhật trạng thái chuẩn bị Cloud Run staging/production CD.
+> **Thay đổi gần nhất:** Dùng Google `mirror.gcr.io` cho base images sau khi custom remote repository gặp upstream auth timeout.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
-## 2026-10-10 — Provision Artifact Registry for Cloud Run CD
+## 2026-10-10 — Use Google mirror for Docker base images
 
 ### Changed
 
-- Recorded Docker repository `knee-review` in `asia-southeast1` at `asia-southeast1-docker.pkg.dev/rsna-knee-511004/knee-review`.
-- Repository is currently empty (0 MB), uses Google-managed encryption, and has vulnerability scanning disabled because `containerscanning.googleapis.com` is not enabled. The separate `cloud-run-source-deploy` repository is not the CD target.
-- Clarified that WIF/deployer identities, GitHub Environment configuration, and production resources remain outstanding; no container image has been pushed by this setup step.
+- Dockerfile now uses `mirror.gcr.io/library/node:24-alpine` and `mirror.gcr.io/library/python:3.12-slim`; both were pulled successfully during local verification.
+- Cloud Run workflow no longer requires `AR_DOCKERHUB_REMOTE_REPOSITORY`; it builds with the Dockerfile defaults and publishes the app image to the standard `knee-review` repository.
+- The custom `dockerhub-cache` remote repository remains provisioned but deferred: its upstream validation timed out at `auth.docker.io/token`. Documented this state and the mirror cache eviction limitation.
+- Removed direct Docker Hub login and the separate PR Docker build job. PR CI remains source-level tests/build; after merge, the deployment build validates the container before deploy.
+
+## 2026-10-10 — Authenticate Docker Hub pulls in CI/CD
+
+### Fixed / Changed
+
+- Historical: direct Docker Hub login was tried after anonymous pull-limit errors (HTTP 429), but auth endpoint timeouts continued. Followed by an Artifact Registry remote repo attempt; currently using Google mirror due upstream auth timeout.
 
 ## 2026-10-10 — Clarify MRI volume orbit gizmo
 

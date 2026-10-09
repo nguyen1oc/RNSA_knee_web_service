@@ -1,7 +1,7 @@
 # 15 — CI/CD: dev staging → main production
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Thêm Cloud Run CD qua GitHub Environments và ghi nhận Artifact Registry đã provision; `dev`→staging, `main`→production, WIF/deployer còn cần cấu hình.
+> **Thay đổi gần nhất:** Chuyển base image sang Google `mirror.gcr.io` sau khi Artifact Registry remote repo gặp upstream auth timeout.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Mục tiêu và ý nghĩa môi trường
@@ -23,7 +23,17 @@ feature/* → PR dev → CI → merge dev
                          Vercel Production → Cloud Run production
 ```
 
-CI ở PR chạy Ruff, Mypy, pytest, Python compile, frontend tests/build và Docker build. CD chạy chỉ khi push trực tiếp do merge vào `dev` hoặc `main`; không deploy từ feature branches hay pull request.
+CI trên PR chạy Ruff, Mypy, pytest, Python compile, frontend tests/build. Docker image được build trong deploy job sau khi merge/push vào `dev` hoặc `main`; nếu build thất bại thì deploy dừng và revision đang phục vụ giữ nguyên. Như vậy PR không cần credential GCP/Docker Hub, còn image đúng với commit được deploy.
+
+Dockerfile currently uses `mirror.gcr.io/library/node:24-alpine` and `mirror.gcr.io/library/python:3.12-slim` for the Node/Python base images. Both images were successfully pulled from the Google mirror locally on 2026-10-10. This avoids the direct Docker Hub login/token call that was timing out. Google mirror only retains frequently requested images and can evict them; it does not guarantee every tag remains available. If a future build reports a mirror miss, retry later or move to another trusted upstream.
+
+**Remote repository attempt:** `dockerhub-cache` was created in Artifact Registry and configured with Secret Manager secret `dockerhub-upstream-token`; staging deployer Reader and Artifact Registry service-agent Secret Accessor were granted. However, pulls returned `504 Gateway Timeout`, and repository updates failed while validating `https://auth.docker.io/token`. Therefore the workflow does not use this remote repository or require a GitHub variable for it right now. Do not reuse this Docker Hub credential as `KNEE_STAGING_GATE_TOKEN`.
+
+Artifact Registry standard repository `knee-review` chứa image ứng dụng `knee-review-api:<commit-sha>` để Cloud Run chạy. Các base images hiện lấy từ Google-managed mirror `mirror.gcr.io`, nên workflow chỉ cần deployer quyền Writer trên `knee-review`; không cần remote-repository Environment variable hay Reader role trên `dockerhub-cache` cho CI.
+
+### Remote repository — deferred
+
+The custom remote repository is currently retained but unused. Its first upstream fetch is timing out at Docker Hub's token endpoint; platform-log configuration also fails because Artifact Registry validates the upstream during the update. Do not add `AR_DOCKERHUB_REMOTE_REPOSITORY` to GitHub Environments. If this route is revisited, check current upstream connectivity first; see Google's [remote repository troubleshooting](https://cloud.google.com/artifact-registry/docs/troubleshoot-remote).
 
 Cloud Run deploy dùng image tag bất biến theo commit SHA, tạo revision với `--no-traffic`, rồi gọi `/api/health` qua URL candidate. Chỉ khi JSON health hợp lệ thì workflow mới chuyển traffic sang revision mới. Nếu build/deploy/smoke test lỗi, revision cũ tiếp tục nhận traffic. Đây là promote gate tự động; không phải Cloud Run tự phát hiện mọi lỗi sau phát hành hay tự rollback sau khi đã chuyển traffic. Rollback hậu triển khai vẫn là thao tác thủ công tới revision cũ.
 

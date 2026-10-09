@@ -74,18 +74,6 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-  docker:
-    name: Docker image build
-    needs: [backend, frontend]
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Build image
-        run: docker build --tag knee-review:ci ./knee-web
-
   deploy-cloud-run:
     name: Deploy Cloud Run (${{ github.ref_name }})
     needs: [backend, frontend]

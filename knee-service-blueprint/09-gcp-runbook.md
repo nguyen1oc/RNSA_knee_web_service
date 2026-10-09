@@ -1,23 +1,23 @@
 # 09 — GCP runbook: staging, public app và AI runtime
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Chốt Vercel host frontend, Cloud Run host API, Cloud Storage nhận DICOM lớn trực tiếp; VM hiện tại không phải web host và dành cho GPU/Triton về sau.
+> **Cập nhật gần nhất:** 2026-10-10
+> **Thay đổi gần nhất:** Tách mục tiêu Cloud Run staging/production; `dev` là QA nội bộ, `main` là production; CI/CD dùng GitHub Actions + WIF, VM vẫn dành cho GPU/Triton về sau.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-App dùng anonymous temporary session, không có tài khoản/mật khẩu. URL `rnsa-knee-web-service.vercel.app` là frontend; Vercel tự cấp HTTPS cho URL đó nhưng không tự chạy FastAPI. Frontend hiện gọi `/api` cùng origin, nên import trên Vercel sẽ lỗi cho tới khi API được deploy và nối vào.
+App dùng anonymous temporary session, không có tài khoản/mật khẩu. URL `rnsa-knee-web-service.vercel.app` là frontend; Vercel tự cấp HTTPS cho URL đó nhưng không tự chạy FastAPI. Vercel Preview dùng API staging, Vercel Production dùng API production thông qua same-origin `/api` rewrite.
 
-VM `knee-review-staging-01` là staging private qua IAP; mục tiêu dài hạn của VM này là GPU/Triton, không host website/backend. CI chỉ test/build; CD chưa tự động. Xem [18 — Anonymous session và giới hạn upload](18-anonymous-session-and-upload-limits.md) và [19 — Public preview deployment plan](19-public-preview-deployment.md).
+Staging là môi trường Cloud Run riêng để nhóm QA/manual test nội bộ; production là Cloud Run phục vụ frontend public. VM `knee-review-staging-01` không còn là staging web: giữ private/off và dành GPU/Triton về sau. CD workflow được định nghĩa trong [15 — CI/CD](15-ci-cd-plan.md); cần cấu hình IAM/WIF, GitHub Environments, bucket/database và Vercel env trước khi workflow chạy thành công. Xem [18 — Anonymous session và giới hạn upload](18-anonymous-session-and-upload-limits.md) và [19 — Public preview deployment](19-public-preview-deployment.md).
 
 ## Môi trường và pipeline
 
 ```text
 feature branch → PR dev (CI) → merge dev
-                   ├─ Vercel preview / frontend deployment (HTTPS)
-                   └─ Cloud Run API (HTTPS) → Cloud Storage resumable DICOM upload
+                   ├─ Vercel Preview → Cloud Run staging (manual QA)
+                   └─ GCS resumable DICOM upload
                                                 ├─ shared session/study metadata store
                                                 ├─ rate limits + cleanup
                                                 └─ private GPU VM → Triton (later)
-main ← reviewed PR dev→main ← staging accepted
+main ← reviewed/approved PR dev→main ← staging accepted → Cloud Run production
 ```
 
 - Vercel frontend hiện có URL HTTPS công khai; không cần mua custom domain để test phần frontend. Cloud Run cấp URL HTTPS `run.app` cho API sau khi service được deploy.

@@ -1,16 +1,20 @@
 # 19 — Public preview: Vercel + Cloud Run + GCP storage
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Cloud Run đã deploy; Preview `/api/health` và tạo temporary session đã kiểm tra; ghi rõ Vercel upload flag và folder batching.
+> **Thay đổi gần nhất:** Chốt tách Cloud Run staging/production; GitHub Actions deploy `dev`/`main` qua candidate smoke-test; Vercel routing tách theo deployment environment. Tài nguyên production và WIF/GitHub Environment vẫn cần provision.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Trạng thái
 
 - Frontend production là `https://rnsa-knee-web-service.vercel.app/`; branch feature có Preview `https://rnsa-knee-web-service-git-fe-7a5d7b-locntmasterc-5002s-projects.vercel.app/`. Vercel chỉ host React, không tự host FastAPI.
+- **Staging = QA preview nội bộ**, phục vụ deploy từ `dev`; **production = backend public cho người dùng**, phục vụ deploy từ `main` sau review. VM không còn là web staging.
 - Backend cloud path đã được code: Firestore repository, private GCS adapter, temporary sessions, upload trực tiếp resumable, finalize/index, đọc/xóa theo quyền sở hữu; quota upload/finalize phân tán và endpoint cleanup có xác minh OIDC. Cần chạy lại CI sau thay đổi; adapter tests dùng fake, chưa phải integration test với GCP thật.
 - Bucket, Firestore `(default)` và quyền service account đã được xác nhận qua output `gcloud` do người dùng chạy ngày 2026-10-10. Cloud Run `knee-review-api` đã deploy ở `asia-southeast1`; `/api/health` trả `ok`; Preview gọi `POST /api/sessions` trả HTTP 200. Scheduler/TTL và upload end-to-end chưa xác nhận.
+- Source đã có workflow CD tách service `knee-review-api-staging` / `knee-review-api-production`, staging gate qua Secret Manager, nhưng chưa provisioned/chạy: GitHub Environments, WIF/deployer identities, staging gate secret, production bucket + Firestore DB + runtime SA và Vercel Preview/Production variables cần cấu hình thủ công. Service `knee-review-api` đang chạy hiện tại không bị workflow mới ghi đè.
 - Hướng đích: Vercel → FastAPI Cloud Run → Firestore (session/study metadata) + private Cloud Storage (DICOM). VM hiện có không tham gia web request; để dành cho GPU/Triton khi có model.
 - Local Docker tiếp tục dùng SQLite và filesystem để giữ workflow phát triển hiện có.
+
+Xem cấu hình đầy đủ và checklist thực hiện tại [15 — CI/CD: dev staging → main production](15-ci-cd-plan.md). Các lệnh deploy thủ công phía dưới là hướng dẫn lịch sử/khẩn cấp; không chạy chúng để provision production mới.
 
 ## Đã chọn
 
@@ -31,7 +35,8 @@
 - **Service identity:** `knee-review-api@rsna-knee-511004.iam.gserviceaccount.com`; đã cấp `roles/datastore.user` trên project và `roles/storage.objectAdmin` trên đúng bucket.
 - **Deployer:** tài khoản `gcloud` hiện tại đã có `roles/iam.serviceAccountUser` trên service account để có thể gắn nó khi deploy Cloud Run.
 - Không tạo/tải service-account key JSON. Cloud Run sẽ lấy credential từ service identity/ADC.
-- **Chưa làm:** deploy Cloud Run, gắn env vars, Scheduler service account/job, Firestore TTL, Vercel trỏ API production/review, upload smoke test. VM GPU/Triton không liên quan tới bước này.
+- **Đã xác nhận:** Cloud Run service `knee-review-api` hiện có, health và session endpoint chạy; đây chưa phải cặp staging/production tự deploy.
+- **Còn làm:** cấu hình CD theo [15 — CI/CD](15-ci-cd-plan.md), tạo production bucket/DB/runtime identity, WIF/deployer identities, GitHub Environments, Vercel Preview/Production API origin; Scheduler/TTL và upload integration test cũng chưa xác nhận. VM GPU/Triton không liên quan.
 
 ## Vì sao cần đổi upload protocol
 
@@ -149,7 +154,7 @@ VM không phải nơi deploy backend web trong topology này. Có thể giữ VM
 
 ## Chưa hoàn tất
 
-Cloud Run deployment/CD, trusted-edge session-creation protection, Cloud Scheduler/Firestore TTL setup, Vercel API env/routing, optional sample-study cloud seeding và public smoke test. Bucket, Firestore database và runtime service-account IAM đã được provision; xem trạng thái xác nhận ở đầu tài liệu. Không gửi study định danh bệnh nhân lên URL công khai; dự án là research demo, không phải thiết bị chẩn đoán lâm sàng.
+Hoàn tất one-time setup để chạy CD staging/production (WIF/IAM, GitHub Environments, production resources, Vercel env), trusted-edge session-creation protection, Cloud Scheduler/Firestore TTL, optional sample-study cloud seeding và end-to-end public smoke test. Bucket/Firestore staging và service `knee-review-api` hiện tại đã được provision; xem trạng thái đầu tài liệu. Không gửi study định danh bệnh nhân lên URL công khai; dự án là research demo, không phải thiết bị chẩn đoán lâm sàng.
 
 ### Tài liệu GCP tham khảo
 

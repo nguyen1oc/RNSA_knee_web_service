@@ -4,6 +4,7 @@ frontend/dist/
 *.pyc
 __pycache__/
 .git/
+gha-creds-*.json
 .env
 .env.*
 !.env.example

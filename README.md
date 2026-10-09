@@ -1,7 +1,7 @@
 # Knee Review
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Bổ sung quy ước commit/branch và liên kết CI/CD.  
+> **Cập nhật gần nhất:** 2026-10-10
+> **Thay đổi gần nhất:** Ghi rõ CI/CD tách Cloud Run staging (`dev`) và production (`main`), cần cấu hình WIF/GitHub Environments trước lần deploy đầu.
 > **Lịch sử:** [knee-service-blueprint/CHANGELOG.md](knee-service-blueprint/CHANGELOG.md)
 
 [![CI](https://github.com/nguyen1oc/RNSA_knee_web_service/actions/workflows/ci.yml/badge.svg)](https://github.com/nguyen1oc/RNSA_knee_web_service/actions/workflows/ci.yml)

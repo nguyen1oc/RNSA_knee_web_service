@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { AlertCircle, Image as ImageIcon, Info, Sparkles, Trash2, X } from 'lucide-react'
+import { Image as ImageIcon, Info, Sparkles, Trash2, X } from 'lucide-react'
 import './styles.css'
 import './upload-progress.css'
 import './viewer-overrides.css'
 import { clearTemporarySession, getSessionHeaders, initializeSession } from './session'
 import SessionControls from './components/SessionControls'
 import ConfirmationDialog from './components/ConfirmationDialog'
+import ToastNotice from './components/ToastNotice'
 
 import MprViewer from './components/MprViewer'
 import './native-viewer.css'
@@ -299,7 +300,7 @@ function App() {
         <div className="top-actions"><SessionControls onClear={clearWorkspace} disabled={clearingSession || uploading} /><ImportStudyMenu onFiles={() => fileInput.current?.click()} onFolder={() => folderInput.current?.click()} disabled={uploading} compact /><input ref={fileInput} hidden type="file" accept=".dcm,.zip,application/dicom,application/zip" multiple onChange={upload} /><input ref={folderInput} hidden type="file" webkitdirectory="true" multiple onChange={upload} /></div>
       </header>
 
-      {notice && notice.type !== 'analyze' && <div className={`notice ${notice.type}`} role={notice.type === 'error' ? 'alert' : 'status'} aria-live="polite"><span>{notice.type === 'error' ? <AlertCircle size={16} /> : <Info size={16} />}{notice.text || (notice.type === 'error' ? 'Something went wrong. Please try again.' : 'Done.')}</span><button aria-label="Dismiss notice" onClick={() => setNotice(null)}><X size={15} /></button></div>}
+      <ToastNotice notice={notice} onDismiss={() => setNotice(null)} />
 
       <div className="body-layout">
         <StudySidebar

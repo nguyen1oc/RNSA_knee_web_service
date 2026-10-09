@@ -1,3 +1,5 @@
+import { createDicomArchive } from './dicomArchive'
+
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB']
@@ -16,6 +18,9 @@ function formatDuration(seconds) {
 
 function errorMessage(payload, fallback) {
   const detail = payload?.detail
+  if (detail === 'Use the resumable Cloud Storage upload flow for cloud studies') {
+    return 'Cloud uploads are not enabled for this Vercel build. Set VITE_DIRECT_GCS_UPLOAD=true in the Vercel Preview environment, leave VITE_API_BASE_URL empty, then redeploy.'
+  }
   if (typeof detail === 'string') return detail
   if (detail?.message) return detail.message
   if (detail) return JSON.stringify(detail)
@@ -23,9 +28,43 @@ function errorMessage(payload, fallback) {
 }
 
 function uploadDirectToCloudStorage(form, onProgress, startedAt) {
-  const files = form.getAll('files')
-  if (!files.length) return Promise.reject(new Error('Choose at least one .dcm file or ZIP archive.'))
-  const total = files.reduce((sum, file) => sum + file.size, 0)
+  const selectedFiles = form.getAll('files')
+  if (!selectedFiles.length) return Promise.reject(new Error('Choose at least one .dcm file or ZIP archive.'))
+
+  const dicomFiles = selectedFiles.filter((file) => file.name.toLowerCase().endsWith('.dcm'))
+  const archiveFiles = selectedFiles.filter((file) => file.name.toLowerCase().endsWith('.zip'))
+  if (dicomFiles.length + archiveFiles.length !== selectedFiles.length) {
+    return Promise.reject(new Error('Only .dcm files or ZIP archives are supported.'))
+  }
+
+  const prepareFiles = async () => {
+    const files = [...archiveFiles]
+    if (dicomFiles.length > 1) {
+      const archive = await createDicomArchive(dicomFiles, onProgress)
+      files.push(archive)
+    } else if (dicomFiles.length === 1) {
+      if (dicomFiles[0].size > 200 * 1024 * 1024) {
+        throw new Error(`${dicomFiles[0].name} exceeds the 200 MiB per-DICOM limit.`)
+      }
+      files.push(dicomFiles[0])
+    }
+    if (files.some((file) => file.size > 600 * 1024 * 1024)) {
+      throw new Error('Each upload must be 600 MiB or smaller. Split the study into smaller ZIP archives.')
+    }
+    const totalBytes = files.reduce((sum, file) => sum + file.size, 0)
+    if (totalBytes > 800 * 1024 * 1024) {
+      throw new Error('This upload exceeds the 800 MiB temporary-session limit.')
+    }
+    return { files, totalBytes }
+  }
+
+  return (async () => {
+    const { files, totalBytes } = await prepareFiles()
+    return uploadPreparedFiles(files, totalBytes, onProgress, startedAt)
+  })()
+}
+
+function uploadPreparedFiles(files, total, onProgress, startedAt) {
   let loadedBeforeCurrent = 0
 
   const updateProgress = (loaded) => {

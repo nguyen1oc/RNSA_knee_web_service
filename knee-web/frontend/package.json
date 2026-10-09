@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "test": "node --test"
   },
   "dependencies": {
     "@cornerstonejs/core": "5.11.5",

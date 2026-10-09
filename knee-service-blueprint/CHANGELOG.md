@@ -1,8 +1,16 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Giữ một nút Import study với lựa chọn Files / ZIP hoặc Folder; success toast tự tắt sau 3 giây.
+> **Thay đổi gần nhất:** Bổ sung Docker Hub authentication cho CI/CD để xử lý giới hạn pull image nền.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
+
+## 2026-10-10 — Authenticate Docker Hub pulls in CI/CD
+
+### Fixed / Changed
+
+- Added Docker Hub login before both the PR Docker build and Cloud Run image build/push to avoid anonymous shared-runner pull-limit errors (HTTP 429).
+- Documented repository-level Actions variable `DOCKERHUB_USERNAME` and secret `DOCKERHUB_TOKEN`; do not put these in the staging environment or commit credentials.
+- Skip the Docker build job for fork pull requests, where GitHub does not expose repository secrets; backend and frontend checks still run.
 
 ## 2026-10-10 — Clarify MRI volume orbit gizmo
 

@@ -1,7 +1,7 @@
 # 15 — CI/CD: dev staging → main production
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Thêm CD Cloud Run theo GitHub Environments; `dev` deploy staging, `main` deploy production, smoke-test revision trước khi chuyển traffic; Vercel API rewrite chọn URL theo Preview/Production.
+> **Thay đổi gần nhất:** Thêm Docker Hub login cho các bước build để tránh pull-limit 429; cần Actions variable `DOCKERHUB_USERNAME` và repository secret `DOCKERHUB_TOKEN`.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Mục tiêu và ý nghĩa môi trường
@@ -24,6 +24,8 @@ feature/* → PR dev → CI → merge dev
 ```
 
 CI ở PR chạy Ruff, Mypy, pytest, Python compile, frontend tests/build và Docker build. CD chạy chỉ khi push trực tiếp do merge vào `dev` hoặc `main`; không deploy từ feature branches hay pull request.
+
+Các job Docker cần tải base image công khai từ Docker Hub. Để tránh runner dùng chung bị giới hạn pull ẩn danh (HTTP 429), cấu hình `DOCKERHUB_USERNAME` dưới **repository Actions variables** và `DOCKERHUB_TOKEN` dưới **repository Actions secrets**. Workflow đăng nhập Docker Hub trước cả Docker PR build và Cloud Run build/push. Docker image job được bỏ qua cho PR từ fork vì GitHub không cấp repository secrets cho fork; lint, test và frontend build vẫn chạy. Đây không phải WIF credential và cũng không thay thế quyền Artifact Registry.
 
 Cloud Run deploy dùng image tag bất biến theo commit SHA, tạo revision với `--no-traffic`, rồi gọi `/api/health` qua URL candidate. Chỉ khi JSON health hợp lệ thì workflow mới chuyển traffic sang revision mới. Nếu build/deploy/smoke test lỗi, revision cũ tiếp tục nhận traffic. Đây là promote gate tự động; không phải Cloud Run tự phát hiện mọi lỗi sau phát hành hay tự rollback sau khi đã chuyển traffic. Rollback hậu triển khai vẫn là thao tác thủ công tới revision cũ.
 

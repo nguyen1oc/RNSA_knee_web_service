@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+import types
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -170,6 +172,31 @@ def test_firestore_metadata_session_owner_queries_and_delete() -> None:
     assert repository.get_study("study-a") is None
     assert repository.list_series("study-a") == []
     assert repository.get_instance("instance-a") is None
+
+
+def test_firestore_metadata_uses_configured_database(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_client(**kwargs: Any) -> FakeFirestore:
+        captured.update(kwargs)
+        return FakeFirestore()
+
+    fake_google = types.ModuleType("google")
+    fake_google.__path__ = []
+    fake_cloud = types.ModuleType("google.cloud")
+    fake_firestore = types.ModuleType("google.cloud.firestore")
+    fake_firestore.Client = fake_client
+    fake_cloud.firestore = fake_firestore
+    monkeypatch.setitem(sys.modules, "google", fake_google)
+    monkeypatch.setitem(sys.modules, "google.cloud", fake_cloud)
+    monkeypatch.setitem(sys.modules, "google.cloud.firestore", fake_firestore)
+
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+    monkeypatch.setenv("FIRESTORE_DATABASE", "knee-review-staging")
+
+    FirestoreMetadata()
+
+    assert captured == {"project": "test-project", "database": "knee-review-staging"}
 
 
 def test_firestore_fixed_window_counter_uses_atomic_store_contract() -> None:

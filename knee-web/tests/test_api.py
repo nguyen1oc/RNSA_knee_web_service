@@ -78,6 +78,20 @@ def client(main_module: Any) -> TestClient:
         yield test_client
 
 
+def test_staging_gate_blocks_api_without_token_but_keeps_health_public(
+    main_module: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STAGING_GATE_TOKEN", "test-staging-secret")
+    with TestClient(main_module.app) as test_client:
+        assert test_client.get("/api/health").status_code == 200
+        assert test_client.post("/api/sessions").status_code == 403
+        assert test_client.post(
+            "/api/sessions",
+            headers={"x-knee-staging-gate": "test-staging-secret"},
+        ).status_code == 200
+
+
 def upload_zip(
     client: TestClient,
     raw_zip: bytes,

@@ -88,7 +88,7 @@
     <h1>Knee Review</h1>
     <p class="kr-muted">Workspace tông sáng; các viewport DICOM và MRI Volume dùng nền đen để ảnh và volume đồng nhất. Thông báo upload nằm trong cột nội dung, không phủ ngang sidebar.</p>
   </div>
-    <div class="note">Design board là visual source of truth cho vertical slice Docker tại <code>knee-web/</code>. App thật phải giữ tabs, viewer 4 ô, focused direction viewport, cây Study → Series, panel Study information, ingest pipeline và nút Analyze placeholder. Trong study header, Analyze và Delete study là hai action riêng, có khoảng cách rõ và không dính liền. Delete study và Clear session xác nhận qua modal trong app, không qua hộp thoại browser. Sau khi xóa study đang mở, mở study còn lại đầu tiên hoặc hiển thị workspace rỗng. Capture modal có preview vuông cập nhật theo lựa chọn và preset PNG/JPEG 64×64, 128×128, 512×512 (mặc định 512×512).</div>
+    <div class="note">Design board là visual source of truth cho vertical slice Docker tại <code>knee-web/</code>. App thật phải giữ tabs, viewer 4 ô, focused direction viewport, cây Study → Series, panel Study information, ingest pipeline và nút Analyze placeholder. Một nút Import study mở hai lựa chọn Files / ZIP hoặc Folder để dùng đúng native picker của browser. Toast ingest thành công nằm góc dưới-phải và tự đóng sau 3 giây. Trong study header, Analyze và Delete study là hai action riêng, có khoảng cách rõ và không dính liền. Delete study và Clear session xác nhận qua modal trong app, không qua hộp thoại browser. Sau khi xóa study đang mở, mở study còn lại đầu tiên hoặc hiển thị workspace rỗng. Capture modal có preview vuông cập nhật theo lựa chọn và preset PNG/JPEG 64×64, 128×128, 512×512 (mặc định 512×512).</div>
 
   <section class="kr-panel entry" aria-labelledby="journey-title">
     <div class="eyebrow">User journey · Bắt đầu từ đây</div>
@@ -100,7 +100,7 @@
 
   <section class="kr-panel entry" aria-labelledby="study-list-title">
     <div class="eyebrow">Màn hình đầu · S02 · Example sources</div>
-    <div class="entry-heading"><h2 id="study-list-title" style="margin:8px 0">Danh sách study</h2><span class="kr-button kr-button-primary">+ Nhập study · mẫu</span></div>
+    <div class="entry-heading"><h2 id="study-list-title" style="margin:8px 0">Danh sách study</h2><span class="kr-button kr-button-primary">↑ Import study ▾</span></div>
     <p class="kr-muted">Một sample study gồm hai series sẽ mở ảnh đã seed. Nhập thêm folder `.dcm` hoặc nhiều file `.dcm`; ZIP và AI chưa thuộc vertical slice hiện tại.</p>
     <div class="study-table-wrap"><table class="study-table">
       <thead><tr><th scope="col">Study mẫu</th><th scope="col">Series</th><th scope="col">Dữ liệu nguồn</th><th scope="col">Loại</th><th scope="col">Hành động</th></tr></thead>
@@ -117,7 +117,7 @@
   <section id="workspace-preview" class="workspace" aria-label="Bố cục viewer đề xuất">
     <header class="appbar">
       <div><span class="brand">Knee Review</span><span class="kr-muted"> / Study minh họa bố cục</span></div>
-      <div class="row"><span class="kr-badge">Local prototype</span><span class="kr-button analyze">Analyze · Coming soon</span><span class="kr-button">Import study</span></div>
+      <div class="row"><span class="kr-badge">Local prototype</span><span class="kr-button analyze">Analyze · Coming soon</span><span class="kr-button">Import study ▾</span></div>
     </header>
     <div class="shell">
       <aside class="sidebar" aria-label="Danh sách series minh họa">

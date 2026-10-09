@@ -13,7 +13,10 @@ class FirestoreMetadata:
         if client is None:
             from google.cloud import firestore
 
-            client = firestore.Client(project=os.getenv("GOOGLE_CLOUD_PROJECT") or None)
+            client = firestore.Client(
+                project=os.getenv("GOOGLE_CLOUD_PROJECT") or None,
+                database=os.getenv("FIRESTORE_DATABASE", "(default)").strip() or "(default)",
+            )
         self.client = client
         self.sessions = self.client.collection("anonymous_sessions")
         self.studies = self.client.collection("studies")

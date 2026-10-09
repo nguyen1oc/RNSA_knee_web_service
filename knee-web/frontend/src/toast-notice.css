@@ -1,8 +1,8 @@
 .toast-notice {
   position: fixed;
   z-index: 1000;
-  top: 92px;
   right: 24px;
+  bottom: 24px;
   display: grid;
   grid-template-columns: 19px minmax(0, 1fr) 24px;
   align-items: start;
@@ -40,10 +40,10 @@
 .content { padding-bottom: 31px; }
 
 @keyframes toast-enter {
-  from { opacity: 0; transform: translateY(-6px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @media (max-width: 620px) {
-  .toast-notice { top: 84px; right: 12px; }
+  .toast-notice { right: 12px; bottom: 12px; }
 }

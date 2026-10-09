@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Cập nhật Cloud Run/Vercel Preview smoke test, cloud folder upload flow và UI toast/layout.
+> **Thay đổi gần nhất:** Giữ một nút Import study với lựa chọn Files / ZIP hoặc Folder; success toast tự tắt sau 3 giây.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-10 — Clarify MRI volume orbit gizmo
@@ -20,6 +20,14 @@
 - Added frontend tests for ZIP packaging and CI execution. User-facing errors now explain when the Vercel build lacks `VITE_DIRECT_GCS_UPLOAD=true`.
 - Changed ingest notifications from a full-width page banner to a dismissible toast; aligned workspace bottom padding with top padding.
 - Documented current Cloud Run/Preview smoke tests, Vercel Preview environment variable, CORS, and archive limits.
+
+## 2026-10-10 — Single import action and success toast
+
+### Changed
+
+- Giữ một nút **Import study**; click mở hai lựa chọn **Files / ZIP** và **Folder**, mỗi lựa chọn gọi native picker phù hợp của browser.
+- Toast ingest thành công chuyển xuống góc phải dưới và tự dismiss sau 3 giây; toast lỗi vẫn cần dismiss thủ công.
+- Đồng bộ hướng dẫn input, README và design-board HTML.
 
 ## 2026-10-09 — Cloud Run backend direction
 

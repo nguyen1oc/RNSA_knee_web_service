@@ -46,6 +46,7 @@ knee-web/data/
 **/.env
 **/.env.*
 !**/.env.example
+gha-creds-*.json
 
 # Local data accidentally copied into the blueprint
 knee-service-blueprint/train.csv

@@ -1,14 +1,15 @@
-import { FileArchive, UploadCloud } from 'lucide-react'
+import { Info, UploadCloud } from 'lucide-react'
+import ImportStudyMenu from './ImportStudyMenu'
 
-export default function EmptyWorkspace({ onImport }) {
+export default function EmptyWorkspace({ onImportFiles, onImportFolder, disabled = false }) {
   return (
     <div className="empty-workspace">
       <div className="empty-illustration"><UploadCloud size={34} /></div>
-      <p className="eyebrow">Local DICOM workspace</p>
+      <p className="eyebrow">Temporary DICOM workspace</p>
       <h2>Start a knee image review</h2>
-      <p>Import a study to browse its series and slices. Files stay on this machine; no account or AI service is required.</p>
-      <button className="button primary" onClick={onImport}><UploadCloud size={16} /> Import DICOM study</button>
-      <div className="empty-note"><FileArchive size={15} /> Supports individual <b>.dcm</b> files and folders. ZIP import will be added later.</div>
+      <p>Import a study to browse its series and slices. No account or AI analysis is required.</p>
+      <ImportStudyMenu onFiles={onImportFiles} onFolder={onImportFolder} disabled={disabled} />
+      <div className="empty-note"><Info size={15} /> Choose individual <b>.dcm</b> files, a ZIP archive, or a folder.</div>
     </div>
   )
 }

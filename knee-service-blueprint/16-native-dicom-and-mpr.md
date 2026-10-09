@@ -1,7 +1,7 @@
 # 16 — P1: Native DICOM và MPR
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Capture modal preview và export vuông 64×64/128×128/512×512, mặc định 512×512.
+> **Cập nhật gần nhất:** 2026-10-10
+> **Thay đổi gần nhất:** Làm gizmo MRI Volume nền trong suốt; ba cung orbit hở, gạch nét, có mũi chỉ hướng ngang/dọc/xiên để không nhầm với MPR slice planes.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Phạm vi
@@ -13,7 +13,7 @@ UI tiếng Anh, theme sáng, viewport đen. Không có login/account, AI, Triton
 | Overview | Patient-specific MRI Volume + ba mặt phẳng axial/sagittal/coronal dựng đồng bộ từ **một MPR source** đủ geometry. Có layout `3D four-up`, `3D primary`, `3D main`; source chọn ở toolbar. |
 | Sagittal / Coronal / Axial | Stack gốc của acquisition đang chọn; Layout 1×1, 2×2 hoặc custom tối đa 4×4. Mỗi card giữ slice/camera riêng. |
 | Images / Series | Inventory acquisition và metadata; thumbnail PNG vẫn chỉ là preview. |
-| MRI Volume | Ray-cast từ voxel DICOM của MPR source, không phải model giải phẫu/segmentation. Ba mặt phẳng màu biểu diễn slice vị trí hiện tại; gizmo ba vòng màu chỉ nằm trong viewport volume. |
+| MRI Volume | Ray-cast từ voxel DICOM của MPR source, không phải model giải phẫu/segmentation. Ba mặt phẳng màu biểu diễn slice vị trí hiện tại; gizmo orbit nền trong suốt chỉ nằm trong viewport volume và biểu diễn hướng xoay camera, không phải lát cắt. |
 
 Không cần ba acquisition gốc cùng FrameOfReferenceUID để tạo MPR. Điều kiện cùng FrameOfReferenceUID áp dụng giữa các lát **trong series được dựng volume**. FS/fluid/fat vẫn là đặc điểm acquisition, không phải hiệu ứng bật/tắt để biến đổi một sequence sang sequence khác.
 
@@ -28,7 +28,7 @@ Không cần ba acquisition gốc cùng FrameOfReferenceUID để tạo MPR. Đi
 - Arrow + note: vẽ rồi nhập text inline, double-click sửa text. Eraser xóa một mark; Clear slice marks xóa các mark trên slice hiện tại. Annotation là state browser-session, không persist server hay DICOM SR.
 - Capture trong tab hướng: preview theo lựa chọn PNG/JPEG, vuông 64×64/128×128/512×512 (mặc định 512×512), tùy chọn annotation/metadata. Chụp viewport đã render nên giữ W/L, pan, zoom; không thay pixel DICOM gốc. 64/128 chỉ phù hợp xuất ảnh nhỏ, không phải độ phân giải chẩn đoán.
 - Overview: chọn `MPR source` → chờ geometry/volume load → Crosshair. Tương tác một MPR plane cập nhật giao điểm các plane còn lại; scroll từng plane đi qua lát. Volume hiển thị ba cutting planes; kéo plane để thay đổi vị trí slice.
-- MRI Volume: left-drag nền đen xoay tự do; kéo vòng gizmo đỏ/vàng/xanh lá xoay quanh trục tương ứng; nút +/− zoom riêng volume. Chọn plane trong legend rồi wheel trên volume để scroll plane đó. Camera không làm xoay các plane.
+- MRI Volume: left-drag nền đen xoay tự do; kéo ba cung orbit hở có mũi chỉ hướng ngang/dọc/xiên để xoay camera theo đường tương ứng. Gizmo không có backing circle; cung dashed + arrowhead là quỹ đạo chuyển động của model, không phải slice planes. Ba slice planes vẫn được thể hiện riêng trong volume bằng overlay màu. Nút +/− zoom riêng volume. Chọn plane trong legend rồi wheel trên volume để scroll plane đó. Camera không làm xoay các plane.
 - MPR tools: Crosshair, Window / Level, Pan và Reset; right-drag zoom. Chưa có slab-thickness control.
 
 ## Luồng kỹ thuật

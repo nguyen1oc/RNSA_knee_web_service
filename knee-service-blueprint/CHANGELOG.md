@@ -4,6 +4,14 @@
 > **Thay đổi gần nhất:** Cập nhật Cloud Run/Vercel Preview smoke test, cloud folder upload flow và UI toast/layout.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
+## 2026-10-10 — Clarify MRI volume orbit gizmo
+
+### Changed
+
+- Removed the black circular backing behind the MRI Volume gizmo; its line artwork now sits on a transparent background.
+- Reframed the three lines as open, dashed horizontal, vertical, and diagonal rotation arcs with small direction arrowheads. Labels no longer use Axial/Sagittal/Coronal, so they cannot be confused with MPR slice planes.
+- Updated the native DICOM/MPR spec, product README, and HTML design board.
+
 ## 2026-10-10 — Cloud upload preview UX and study-folder handling
 
 ### Fixed / Changed

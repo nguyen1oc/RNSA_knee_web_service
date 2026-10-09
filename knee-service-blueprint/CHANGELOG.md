@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-08
-> **Thay đổi gần nhất:** Thêm auth/user ownership plan, phân biệt Identity Platform với PostgreSQL, xác nhận staging VM CPU-only và định hướng GPU VM riêng cho Triton.
+> **Thay đổi gần nhất:** Thêm folder picker dễ thấy, byte-level upload progress/transfer ETA và chuyển trạng thái upload khỏi banner workspace.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-08 — Multi-user authentication and GPU roadmap
@@ -140,38 +140,14 @@
 - Feature mới bắt đầu từ `dev`, được push trên branch riêng và review qua PR vào `dev`; chỉ đưa `dev` vào `main` khi deploy.
 - Cho phép drag reference line để nhảy giao điểm crosshair trên MPR; click line / crosshair liên kết ba mặt phẳng.
 
-## 2026-10-07 — Overview layout polish
+## 2026-10-08 — Folder import and upload progress
 
 ### Changed
 
-- Bỏ nút `Study library` nằm trên màn hình study vì sidebar đã là nơi chọn study; nút cũ gây hiểu nhầm như nút Back và trùng chức năng chọn study.
-- Sửa `3D primary`: locator chiếm cột trái xuyên suốt ba hàng, còn sagittal/coronal/axial được xếp dọc ở cột phải với viewport và toolbar thu gọn. Trước đó locator chỉ span hai hàng nên ô thứ ba bị đẩy thành hàng mới; cách xếp mới cũng tránh locator bị cao quá mức.
-- Cập nhật README và design board để phân biệt layout locator với volume rendering patient-specific. Chưa thêm dựng volume 3D từ MRI.
-
-## 2026-10-07 — Capture preview and geometry clarity
-
-### Changed
-
-- Capture modal tạo preview từ đúng viewport đã render và các tùy chọn PNG/JPEG, kích thước, annotation, metadata; nút tải chỉ bật khi preview sẵn sàng và tải chính blob đang xem.
-- Cross-series geometry status được cho phép xuống dòng để không mất chữ; khi frame không tương thích, panel giải thích rằng không thể căn chỉnh chéo series và MPR vẫn được đánh giá riêng theo từng series.
-- MPR help text giải thích đây là tái tạo ba mặt phẳng liên kết từ một volume/series đủ geometry, không phải dựng bề mặt 3D.
-- Cập nhật README, viewer spec và design board HTML.
-
-## 2026-10-07 — Study details and square capture sizes
-
-### Changed
-
-- Căn trái status/explanation của cross-series geometry; hiển thị đầy đủ Study UID theo nhiều dòng thay vì rút gọn.
-- Capture chỉ còn các kích thước vuông 512×512, 256×256 và 128×128 px. Preview/output đều đúng kích thước; ảnh MRI được fit giữ tỉ lệ trên nền đen, không bị crop hoặc kéo méo; metadata nằm trong canvas vuông.
-- Cập nhật README, viewer spec, QA acceptance và design board HTML.
-
-## 2026-10-07 — Annotation deletion and study actions
-
-### Changed
-
-- Đưa Eraser thành nút icon riêng, active mode rõ ràng; click annotation để xóa đúng mark đó. Đưa thao tác xóa mọi mark của slice vào menu phụ và yêu cầu xác nhận.
-- Tăng khoảng cách và căn nhóm riêng cho Analyze / Delete study; trên màn hẹp xếp thành hai nút toàn chiều ngang.
-- Cập nhật README, viewer spec, QA acceptance và design board HTML.
+- Tách rõ picker chọn nhiều `.dcm`/`.zip` với nút `Choose a folder of DICOM files` hiển thị ngay dưới nút import; không còn quảng cáo folder trong nút mở file picker.
+- Thay trạng thái ingest full-width bằng progress card trong sidebar, hiển thị phần trăm/dung lượng và ETA ước lượng cho giai đoạn truyền dữ liệu.
+- Khi file đã tới VM, UI báo đang validating/indexing và không bịa ETA cho thời gian xử lý backend chưa đo được.
+- Cập nhật app README và [13 — Input formats](13-input-formats-and-example-studies.md).
 
 ## 2026-10-06 — Current
 

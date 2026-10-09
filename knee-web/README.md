@@ -1,7 +1,7 @@
 # Knee Review — local DICOM workspace
 
 > **Cập nhật gần nhất:** 2026-10-08
-> **Thay đổi gần nhất:** Ghi rõ multi-user/auth chưa được triển khai; liên kết plan Identity Platform + per-user study ownership; staging VM hiện CPU-only.
+> **Thay đổi gần nhất:** Nêu rõ file picker và folder picker riêng; upload có estimated transfer ETA và trạng thái indexing không giả ETA.
 > **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
 
 This is the first local vertical slice for the knee diagnostic web service. Upload accepts individual `.dcm` files, folders, and unencrypted `.zip` archives containing DICOM files.
@@ -10,7 +10,7 @@ The current deployment target is still local Docker Compose. For a first private
 The UI is in English and currently supports:
 
 - one seeded, read-only example study; it can be sourced from `series_1`/`series_2` folders or `results.zip` in the mounted examples directory;
-- importing individual `.dcm` files or a folder of `.dcm` files;
+- importing one or multiple `.dcm`/`.zip` files through the file picker, or a DICOM folder through the explicit folder picker; upload shows byte progress and estimated remaining transfer time, then an honest indeterminate server-indexing state;
 - grouping by `StudyInstanceUID` and `SeriesInstanceUID`;
 - browsing series and slices with sagittal/coronal/axial labels when DICOM geometry is available;
 - native DICOM rendering with Cornerstone3D, real Window/Level, slice navigation, center zoom/pan and Reset; PNG remains only for inventory thumbnails;

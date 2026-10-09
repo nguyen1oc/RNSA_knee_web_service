@@ -1,24 +1,31 @@
 # 09 — GCP runbook: staging, public app và AI runtime
 
 > **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Chốt public demo không cần tài khoản; workspace cô lập bằng HttpOnly session cookie, TTL và giới hạn upload.
+> **Thay đổi gần nhất:** Chốt Vercel host frontend, Cloud Run host API, Cloud Storage nhận DICOM lớn trực tiếp; VM hiện tại không phải web host và dành cho GPU/Triton về sau.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-App dùng anonymous temporary session, không dùng username/password hay Firebase Identity Platform. VM `knee-review-staging-01` là môi trường staging private qua IAP; không phải production và không nên dùng để sửa source bằng tay. CI chỉ test/build; CD chưa tự động. Xem [18 — Anonymous session và giới hạn upload](18-anonymous-session-and-upload-limits.md).
+App dùng anonymous temporary session, không có tài khoản/mật khẩu. URL `rnsa-knee-web-service.vercel.app` là frontend; Vercel tự cấp HTTPS cho URL đó nhưng không tự chạy FastAPI. Frontend hiện gọi `/api` cùng origin, nên import trên Vercel sẽ lỗi cho tới khi API được deploy và nối vào.
+
+VM `knee-review-staging-01` là staging private qua IAP; mục tiêu dài hạn của VM này là GPU/Triton, không host website/backend. CI chỉ test/build; CD chưa tự động. Xem [18 — Anonymous session và giới hạn upload](18-anonymous-session-and-upload-limits.md) và [19 — Public preview deployment plan](19-public-preview-deployment.md).
 
 ## Môi trường và pipeline
 
 ```text
-feature branch → PR dev (CI) → merge dev → deploy image SHA to private VM staging
-                                             ↓ manual acceptance test
+feature branch → PR dev (CI) → merge dev
+                   ├─ Vercel preview / frontend deployment (HTTPS)
+                   └─ Cloud Run API (HTTPS) → Cloud Storage resumable DICOM upload
+                                                ├─ shared session/study metadata store
+                                                ├─ rate limits + cleanup
+                                                └─ private GPU VM → Triton (later)
 main ← reviewed PR dev→main ← staging accepted
-  ↓
-production deploy SHA (public HTTPS) — only after GCS + shared session metadata + abuse controls
 ```
 
-- VM staging chạy Docker Compose, SQLite/named volume; phù hợp test anonymous sessions, upload limits và reset. Keep IAP; không mở cổng app ra Internet chỉ để test.
-- Production public không được dựa vào local SQLite/files trên VM hoặc Cloud Run. Cloud Run writable filesystem không bền qua instance shutdown; DICOM tạm cần Cloud Storage và session/study metadata cần store chia sẻ giữa instances (ví dụ Firestore hoặc Cloud SQL).
-- Public anonymous upload cần HTTPS, request/session/IP rate limits, concurrency caps, short retention và de-identified data. Không mở endpoint chỉ vì đã có size cap.
+- Vercel frontend hiện có URL HTTPS công khai; không cần mua custom domain để test phần frontend. Cloud Run cấp URL HTTPS `run.app` cho API sau khi service được deploy.
+- Local VM Compose + SQLite/files vẫn là môi trường staging cũ, chỉ để test qua IAP. Không mở nó công khai và không dùng làm backend lâu hạn.
+- Backend hiện chưa sẵn để public: metadata/session và DICOM còn dựa SQLite/local filesystem. Trước Cloud Run cần shared session/study metadata (Firestore hoặc Cloud SQL) và Cloud Storage cho raw DICOM.
+- ZIP mẫu khoảng 431 MiB; không gửi payload upload qua [Vercel Function](https://vercel.com/docs/functions/limitations) (request/response tối đa 4.5 MiB) hoặc [Vercel external rewrite](https://vercel.com/docs/routing/rewrites) (proxy timeout tối đa 120 giây). [Cloud Run](https://docs.cloud.google.com/run/quotas) giới hạn HTTP/1 request 32 MiB. Dùng browser → [Cloud Storage resumable upload](https://docs.cloud.google.com/storage/docs/resumable-uploads); FastAPI chỉ cấp phiên upload, xác nhận object, enqueue/điều phối ingest và trả trạng thái.
+- HTTPS ở Vercel/Cloud Run do nền tảng kết thúc TLS; trong app phải đặt cookie Secure và cấu hình origin đúng. Rate limit cần áp dụng ở edge/API và theo session, giới hạn concurrent ingest, quota/storage, retention/cleanup. Không public endpoint chỉ vì có size cap.
+- Chỉ dùng DICOM đã de-identify; không upload dữ liệu bệnh nhân thật vào preview.
 - Trước auto-deploy: Artifact Registry, separate staging/production projects or isolated resources, workload identity federation, least-privilege service accounts, health/smoke tests, backup/rollback và approval gate.
 
 ## Cấu hình staging VM

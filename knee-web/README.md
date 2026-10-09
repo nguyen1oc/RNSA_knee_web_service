@@ -49,15 +49,16 @@ The Dockerfile builds the React frontend in a multi-stage image, so `frontend/di
 
 See [anonymous session and upload-limit plan](../knee-service-blueprint/18-anonymous-session-and-upload-limits.md). There is no login/signup. The backend issues an HttpOnly cookie, scopes every study/data route to that temporary session, and deletes the session's uploads on reset/expiry. `SESSION_COOKIE_SECURE=true` is required behind HTTPS; local HTTP defaults to false.
 
-Local Docker continues to use SQLite/filesystem. The Cloud Run backend path uses Firestore metadata and a private GCS bucket with browser-to-GCS resumable upload; configure `METADATA_BACKEND=firestore` only in Cloud Run. Upload initiation/finalize limits use Firestore counters; the OIDC-protected cleanup endpoint is implemented, but Cloud Scheduler and TTL still need GCP setup. Bucket, Firestore and the runtime service account are provisioned; Cloud Run is not deployed yet. The public Vercel frontend still needs `VITE_API_BASE_URL` and `VITE_DIRECT_GCS_UPLOAD=true` configured/redeployed before its session/import APIs can work. Cloud adapters are unit-tested with fakes, not integration-tested against GCP. IP session-creation limits are not active, and direct calls to the public Cloud Run origin can bypass a Vercel-only WAF. See [deployment guide](../knee-service-blueprint/19-public-preview-deployment.md). Pipeline stages remain feature PR → `dev` staging test → reviewed `dev` to `main` → production; GitHub currently runs CI only. Do not proxy the large example ZIP through Vercel or Cloud Run request bodies.
+Local Docker continues to use SQLite/filesystem. The Cloud Run backend path uses Firestore metadata and a private GCS bucket with browser-to-GCS resumable upload. The existing manually deployed `knee-review-api` remains untouched. The new GitHub Actions CD is designed to deploy `dev` to a gated staging Cloud Run service and `main` to production, but requires WIF, GitHub Environments, staging Secret Manager gate, production bucket/database/service account, and Vercel Preview/Production variables before it can succeed. Vercel Preview is for internal QA; Vercel Production is the public frontend. Full setup and rollback behavior: [CI/CD plan](../knee-service-blueprint/15-ci-cd-plan.md) and [deployment guide](../knee-service-blueprint/19-public-preview-deployment.md). Cloud adapters have fake-client unit tests, not GCP integration tests. Do not proxy large DICOM/ZIP bodies through Vercel or Cloud Run.
 
 ## CI baseline
 
-GitHub Actions runs on pushes to `dev`/`main` and on pull requests. The current gate is intentionally small:
+GitHub Actions runs CI on pushes to `dev`/`main` and pull requests. Pushes merged into `dev`/`main` also trigger environment-specific Cloud Run CD after CI passes. CD is gated on configured GitHub Environments and GCP Workload Identity Federation:
 
 - backend: Ruff lint, Mypy type-check, Python compilation, and pytest API contract tests;
 - frontend: clean `npm ci` followed by `npm run build`;
-- Docker: build the production image from a clean checkout.
+- Docker: build the production image for pull-request validation.
+- CD: publish an immutable commit-SHA image, deploy a no-traffic revision, health-check the candidate, then promote only on success. `dev` maps to staging; `main` maps to production and should require reviewer approval.
 
 The backend suite covers ZIP upload, invalid archives, idempotent example seeding, read-only example protection, cleanup, anonymous session isolation/expiry, upload caps and fake Firestore/GCS adapter behavior. Run it locally with `python -m pytest -q` from `knee-web`.
 

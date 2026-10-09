@@ -1,9 +1,0 @@
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "https://knee-review-api-jnbsqra6ma-as.a.run.app/api/:path*"
-    }
-  ]
-}

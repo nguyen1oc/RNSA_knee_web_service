@@ -65,12 +65,19 @@ jobs:
       - name: Frontend unit tests
         run: npm test
 
+      - name: Compile and verify Vercel rewrite configuration
+        shell: bash
+        run: |
+          npx @vercel/config compile > "$RUNNER_TEMP/vercel-config.json"
+          node -e 'const fs=require("node:fs"); const config=JSON.parse(fs.readFileSync(process.argv[1], "utf8")).config; const route=config.rewrites?.[0]; if (!route || route.dest !== "$KNEE_API_ORIGIN/api/$1" || !JSON.stringify(route).includes("KNEE_STAGING_GATE_TOKEN")) process.exit(1);' "$RUNNER_TEMP/vercel-config.json"
+
       - name: Build frontend
         run: npm run build
 
   docker:
     name: Docker image build
     needs: [backend, frontend]
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -78,3 +85,116 @@ jobs:
 
       - name: Build image
         run: docker build --tag knee-review:ci ./knee-web
+
+  deploy-cloud-run:
+    name: Deploy Cloud Run (${{ github.ref_name }})
+    needs: [backend, frontend]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    concurrency:
+      group: cloud-run-${{ github.ref_name }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      AR_REPOSITORY: ${{ vars.AR_REPOSITORY }}
+      CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
+      CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT: ${{ vars.CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT }}
+      DICOM_BUCKET: ${{ vars.DICOM_BUCKET }}
+      FIRESTORE_DATABASE: ${{ vars.FIRESTORE_DATABASE }}
+      CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS }}
+      WIF_PROVIDER: ${{ vars.WIF_PROVIDER }}
+      WIF_SERVICE_ACCOUNT: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      STAGING_GATE_SECRET_NAME: ${{ vars.STAGING_GATE_SECRET_NAME }}
+      IMAGE_URI: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.AR_REPOSITORY }}/knee-review-api:${{ github.sha }}
+      CANDIDATE_TAG: ci-${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate environment configuration
+        shell: bash
+        run: |
+          required=(GCP_PROJECT_ID GCP_REGION AR_REPOSITORY CLOUD_RUN_SERVICE CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT DICOM_BUCKET FIRESTORE_DATABASE CORS_ALLOWED_ORIGINS WIF_PROVIDER WIF_SERVICE_ACCOUNT)
+          for name in "${required[@]}"; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing GitHub Environment variable: $name" >&2
+              exit 1
+            fi
+          done
+          if [[ "$GITHUB_REF_NAME" == "dev" && -z "$STAGING_GATE_SECRET_NAME" ]]; then
+            echo "Staging requires GitHub Environment variable STAGING_GATE_SECRET_NAME." >&2
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push immutable image
+        shell: bash
+        run: |
+          gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
+          docker build --tag "$IMAGE_URI" ./knee-web
+          docker push "$IMAGE_URI"
+
+      - name: Deploy candidate without user traffic
+        shell: bash
+        run: |
+          secret_args=()
+          if [[ "$GITHUB_REF_NAME" == "dev" ]]; then
+            secret_args+=(--update-secrets "STAGING_GATE_TOKEN=${STAGING_GATE_SECRET_NAME}:latest")
+          fi
+          gcloud run deploy "$CLOUD_RUN_SERVICE" \
+            --image "$IMAGE_URI" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --platform managed \
+            --allow-unauthenticated \
+            --service-account "$CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT" \
+            --memory 4Gi \
+            --cpu 2 \
+            --concurrency 1 \
+            --max 1 \
+            --timeout 3600s \
+            --no-traffic \
+            --tag "$CANDIDATE_TAG" \
+            "${secret_args[@]}" \
+            --update-env-vars="^@^METADATA_BACKEND=firestore@GOOGLE_CLOUD_PROJECT=${GCP_PROJECT_ID}@FIRESTORE_DATABASE=${FIRESTORE_DATABASE}@DICOM_BUCKET=${DICOM_BUCKET}@CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}@SESSION_COOKIE_SECURE=true@MAX_UPLOAD_MIB=600@MAX_EXPANDED_MIB=800@MAX_SESSION_MIB=800@MAX_DICOM_FILE_MIB=200@MAX_DICOM_FILES=500"
+
+      - name: Smoke-test candidate revision
+        id: smoke
+        shell: bash
+        run: |
+          candidate_url=""
+          for attempt in {1..12}; do
+            candidate_url="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
+              --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json \
+              | jq -r --arg tag "$CANDIDATE_TAG" '.status.traffic[]? | select(.tag == $tag) | .url' | head -n 1)"
+            [[ -n "$candidate_url" && "$candidate_url" != "null" ]] && break
+            sleep 5
+          done
+          if [[ -z "$candidate_url" || "$candidate_url" == "null" ]]; then
+            echo "Cloud Run did not return a URL for the candidate revision." >&2
+            exit 1
+          fi
+          curl --fail --silent --show-error --retry 5 --retry-connrefused --retry-delay 3 \
+            "$candidate_url/api/health" | jq -e '.status == "ok" and .service == "knee-review"'
+
+      - name: Promote tested revision to 100 percent traffic
+        shell: bash
+        run: |
+          gcloud run services update-traffic "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --to-latest

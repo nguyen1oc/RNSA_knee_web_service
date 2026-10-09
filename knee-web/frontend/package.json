@@ -21,5 +21,8 @@
     "react-dom": "latest",
     "three": "^0.186.1",
     "vite": "latest"
+  },
+  "devDependencies": {
+    "@vercel/config": "^0.12.0"
   }
 }

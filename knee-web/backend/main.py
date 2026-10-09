@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import io
 import json
 import logging
@@ -54,6 +55,19 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-Knee-Session"],
 )
+
+
+@app.middleware("http")
+async def protect_staging_api(request: Request, call_next: Any) -> Response:
+    expected_token = os.getenv("STAGING_GATE_TOKEN", "")
+    if (
+        expected_token
+        and request.url.path.startswith("/api/")
+        and request.url.path != "/api/health"
+        and not hmac.compare_digest(request.headers.get("x-knee-staging-gate", ""), expected_token)
+    ):
+        return JSONResponse({"detail": "Staging access is restricted"}, status_code=403)
+    return await call_next(request)
 
 
 @app.middleware("http")

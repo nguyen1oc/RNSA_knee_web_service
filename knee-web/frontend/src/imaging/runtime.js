@@ -22,7 +22,10 @@ export const imageId = (url) => `wadouri:${new URL(url, window.location.origin).
 export function initializeImaging() {
   initialization ??= (async () => {
     await core.init()
-    loaderInit({ maxWebWorkers: 2 })
+    loaderInit({
+      maxWebWorkers: 2,
+      beforeSend: (xhr) => { if (xhr) xhr.withCredentials = true },
+    })
     await tools.init()
     core.cache.setMaxCacheSize(512 * 1024 * 1024)
     new Set([...Object.values(toolClasses), tools.ZoomTool, tools.CrosshairsTool, tools.TrackballRotateTool]).forEach((Tool) => tools.addTool(Tool))

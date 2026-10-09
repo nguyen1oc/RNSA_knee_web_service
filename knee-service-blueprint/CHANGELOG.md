@@ -1,8 +1,34 @@
 # Changelog — Knee Review
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Ghi nhận Vercel frontend riêng, FastAPI chưa kết nối; public upload cần Cloud Run + GCS resumable, shared metadata và distributed rate limiting.
+> **Cập nhật gần nhất:** 2026-10-10
+> **Thay đổi gần nhất:** Ghi nhận GCP bucket, Firestore Native database và service-account IAM đã provision.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
+
+## 2026-10-09 — Cloud Run backend direction
+
+- Chọn Firestore Native mode cho temporary session/study metadata và private Cloud Storage cho DICOM; Cloud SQL chưa cần ở MVP.
+- Thêm cloud implementation: Firestore metadata repository, private GCS object store, direct resumable upload/finalize, session owner checks, read/delete DICOM through GCS, and cache for DICOM access.
+- Thêm fake-client adapter tests; 31 pytest, Ruff và Mypy pass. Đây chưa phải GCP integration test.
+- Sửa bucket CORS template để cho phép `Content-Range`; ghi rõ lifecycle chỉ dọn prefix `incoming/` để không xóa study đang hoạt động.
+- Chưa deploy Cloud Run và chưa tạo bucket/database/service account; rate limiting, scheduled TTL cleanup, cloud sample seeding và public smoke test còn là gates.
+- Tách vai trò VM: để dành GPU/Triton về sau, không host web/API; cập nhật runbook GCP và trách nhiệm cấu hình người dùng.
+- Ghi nhận cấu hình mục tiêu ban đầu: session 10/10 phút + 30/ngày/IP tin cậy; upload init 5/phút, 30/giờ/session, tối đa 3 pending; cleanup OIDC/Cloud Scheduler mỗi 15 phút; GCS incoming lifecycle 1 ngày. Phần upload/finalize và endpoint cleanup được triển khai ở entry tiếp theo; quota IP vẫn chờ trusted edge.
+
+## 2026-10-09 — Upload abuse controls and scheduled cleanup
+
+- Thêm Firestore fixed-window counters cho upload initiation (5/phút, 30/giờ/session) và finalize (3/10 phút/session); thêm cap 3 upload đang truyền và xác minh GCS object trước khi đánh dấu upload hoàn tất.
+- Thêm `POST /internal/cleanup` xác minh Google OIDC token/audience/email; cleanup theo batch 20 session, xóa GCS object trước metadata và giữ metadata nếu xóa thất bại để lượt Scheduler sau retry.
+- Bổ sung dependency `google-auth`, env mẫu, TTL `rate_limits.expires_at`, Cloud Scheduler runbook mỗi 15 phút và cập nhật hướng dẫn bucket.
+- Session creation IP quota chưa được giả lập bằng XFF: cấu hình Vercel WAF 10/10 phút ở edge; 30/ngày chưa được thực thi tới khi có shared trusted-edge counter.
+- Thêm unit tests cho fixed-window limiter và adapter counter; kiểm tra lại Ruff/Mypy/pytest/build trước push.
+
+## 2026-10-10 — GCP storage, Firestore and service identity provisioned
+
+- Người dùng đã tạo bucket `rsna-knee-dicom-preview-511004` ở `asia-southeast1`, Standard, Uniform bucket-level access và Public access prevention enforced.
+- Đã áp dụng CORS cho Vercel origin và lifecycle xóa prefix `incoming/` sau 1 ngày. Bucket hiện giữ soft-deleted objects 7 ngày theo policy mặc định; ghi nhận khả năng khôi phục/phí lưu trữ, chưa đổi policy.
+- Đã bật Firestore API và tạo database `(default)` Native mode ở `asia-southeast1`; backend dùng database mặc định.
+- Đã tạo `knee-review-api@rsna-knee-511004.iam.gserviceaccount.com`; cấp `roles/datastore.user` cấp project, `roles/storage.objectAdmin` ở bucket, và `roles/iam.serviceAccountUser` cho deployer trên service account.
+- Chưa deploy Cloud Run, chưa cấu hình Scheduler/TTL, chưa chạy integration smoke test. Không tạo hoặc tải service-account key JSON.
 
 ## 2026-10-09 — Anonymous review session replaces demo account
 

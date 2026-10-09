@@ -1,7 +1,7 @@
 # Knee Review — local DICOM workspace
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Gộp chọn file/ZIP/folder trong một Import menu; lỗi API có fallback rõ ràng; ghi nhận Vercel frontend tách biệt backend.
+> **Cập nhật gần nhất:** 2026-10-10
+> **Thay đổi gần nhất:** Gộp menu import/lỗi API rõ ràng; bổ sung backend Cloud Run path, rate limit upload và ghi nhận GCP resources đã provision.
 > **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
 
 This is the first local vertical slice for the knee diagnostic web service. Upload accepts individual `.dcm` files, folders, and unencrypted `.zip` archives containing DICOM files.
@@ -49,9 +49,7 @@ The Dockerfile builds the React frontend in a multi-stage image, so `frontend/di
 
 See [anonymous session and upload-limit plan](../knee-service-blueprint/18-anonymous-session-and-upload-limits.md). There is no login/signup. The backend issues an HttpOnly cookie, scopes every study/data route to that temporary session, and deletes the session's uploads on reset/expiry. `SESSION_COOKIE_SECURE=true` is required behind HTTPS; local HTTP defaults to false.
 
-The public frontend `https://rnsa-knee-web-service.vercel.app/` is hosted separately from FastAPI; Vercel supplies HTTPS for that frontend URL. This source currently calls relative `/api` routes, so public session/import APIs will not work until a backend URL/routing is configured. See [public preview deployment plan](../knee-service-blueprint/19-public-preview-deployment.md).
-
-Current SQLite and local DICOM storage are suitable for local/single-VM staging only. The existing VM remains private and is reserved for GPU/Triton later, not public web/API hosting. Before public upload, deploy FastAPI separately (Cloud Run target), move DICOM to private Cloud Storage with browser-resumable uploads, move session/study metadata to a shared store, and configure distributed rate limits and cleanup. Do not proxy the 431 MiB example ZIP through a Vercel Function or long-running external rewrite. Pipeline stages are feature PR → `dev` review → Vercel preview/API staging → reviewed `dev` to `main`; the GitHub workflow currently runs CI only, no auto-deploy.
+Local Docker continues to use SQLite/filesystem. The Cloud Run backend path uses Firestore metadata and a private GCS bucket with browser-to-GCS resumable upload; configure `METADATA_BACKEND=firestore` only in Cloud Run. Upload initiation/finalize limits use Firestore counters; the OIDC-protected cleanup endpoint is implemented, but Cloud Scheduler and TTL still need GCP setup. Bucket, Firestore and the runtime service account are provisioned; Cloud Run is not deployed yet. The public Vercel frontend still needs `VITE_API_BASE_URL` and `VITE_DIRECT_GCS_UPLOAD=true` configured/redeployed before its session/import APIs can work. Cloud adapters are unit-tested with fakes, not integration-tested against GCP. IP session-creation limits are not active, and direct calls to the public Cloud Run origin can bypass a Vercel-only WAF. See [deployment guide](../knee-service-blueprint/19-public-preview-deployment.md). Pipeline stages remain feature PR → `dev` staging test → reviewed `dev` to `main` → production; GitHub currently runs CI only. Do not proxy the large example ZIP through Vercel or Cloud Run request bodies.
 
 ## CI baseline
 
@@ -61,7 +59,7 @@ GitHub Actions runs on pushes to `dev`/`main` and on pull requests. The current 
 - frontend: clean `npm ci` followed by `npm run build`;
 - Docker: build the production image from a clean checkout.
 
-The backend fixture suite covers ZIP upload, invalid archives, idempotent example seeding, read-only example protection, cleanup, anonymous session isolation/expiry and upload caps. Run it locally with `python -m pytest -q` from `knee-web`.
+The backend suite covers ZIP upload, invalid archives, idempotent example seeding, read-only example protection, cleanup, anonymous session isolation/expiry, upload caps and fake Firestore/GCS adapter behavior. Run it locally with `python -m pytest -q` from `knee-web`.
 
 Open <http://localhost:8080>.
 

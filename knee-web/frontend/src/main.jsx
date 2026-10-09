@@ -19,6 +19,7 @@ import ViewerTabs from './components/ViewerTabs'
 import ViewerToolbar from './components/ViewerToolbar'
 import ImportStudyMenu from './components/ImportStudyMenu'
 import { uploadStudy } from './uploadStudy'
+import { apiFetch } from './api'
 
 function readableError(error, fallback) {
   const message = typeof error?.message === 'string' ? error.message.trim() : ''
@@ -34,7 +35,7 @@ function readableError(error, fallback) {
 
 const api = async (path, options) => {
   const sessionHeaders = await getSessionHeaders()
-  const response = await fetch(path, { ...options, headers: { ...sessionHeaders, ...(options?.headers || {}) } })
+  const response = await apiFetch(path, { ...options, headers: { ...sessionHeaders, ...(options?.headers || {}) } })
   const responseText = await response.text()
   let payload = {}
   try { payload = responseText ? JSON.parse(responseText) : {} } catch { /* handled with a clear API message below */ }

@@ -1,10 +1,10 @@
 # Knee Review — kế hoạch local Docker
 
-> **Cập nhật gần nhất:** 2026-10-08
-> **Thay đổi gần nhất:** Thêm quyết định và plan tài khoản nhiều người dùng; Identity Platform quản lý đăng nhập, database chỉ lưu ownership/metadata; xác nhận VM hiện tại chưa có GPU.
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Phân biệt staging VM riêng tư hiện tại với production chưa triển khai; mô tả đích URL cho reviewer và cảnh báo tài khoản demo mặc định.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-Cập nhật **08/10/2026**: app hiện tại là local/staging viewer, upload DICOM và example study, **chưa auth và chưa có AI**. Nếu mở cho nhiều người dùng cần triển khai auth/ownership theo [18](18-auth-and-user-data-plan.md) trước khi mời họ dùng; staging GCP hiện chạy trên VM CPU riêng tư.
+Cập nhật **09/10/2026**: staging hiện tại là VM CPU riêng tư qua IAP, chưa có URL public và app chưa có login. `dev` là nguồn staging/review; `main` chỉ deploy production sau khi được duyệt. Đích public review là React trên Firebase Hosting + FastAPI trên Cloud Run. Account bootstrap dự kiến `admin123 / 123456`, có thể upload/xóa study thuộc UID của nó; muốn dữ liệu riêng thì mỗi reviewer phải có account riêng. Nếu dùng chung credential, study cũng dùng chung. Xem [09](09-gcp-runbook.md) và [18](18-auth-and-user-data-plan.md).
 
 Bắt đầu bằng [12 — Các bước build local](12-local-docker-build-steps.md), sau đó đọc [13 — Input và example studies](13-input-formats-and-example-studies.md). Lịch hiện hành ở [11](11-team-rebalance-and-vibe-frontend.md).
 

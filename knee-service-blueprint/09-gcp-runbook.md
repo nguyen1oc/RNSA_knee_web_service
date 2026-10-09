@@ -1,7 +1,7 @@
 # 09 — Deploy staging GCP và lộ trình Triton
 
-> **Cập nhật gần nhất:** 2026-10-08
-> **Thay đổi gần nhất:** Ghi nhận VM staging hiện là CPU-only; thêm lộ trình đăng nhập qua Identity Platform, ownership authorization, PostgreSQL/GCS và GPU VM riêng cho Triton.
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Giải thích staging hiện tại của dự án, phân biệt staging/review với production và bổ sung đích frontend Hosting + backend Cloud Run có auth.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Quyết định cho lần deploy đầu
@@ -9,6 +9,30 @@
 Deploy **một staging riêng tư, chưa có AI**, bằng một Compute Engine VM chạy Docker Compose. Đây là cách ít thay đổi app nhất vì phiên bản hiện tại ghi SQLite và DICOM vào filesystem/volume Docker, đồng thời seed example từ thư mục mount. Một VM với disk bền vững giữ nguyên mô hình đó; Cloud Run không nên nhận image hiện tại nguyên trạng vì filesystem của instance là tạm thời và không chia sẻ được như volume local.
 
 Staging ban đầu không cần public IP cho VM hoặc web app public. Dùng IAP/SSH tunnel để người được cấp quyền mở app trên `localhost`; đây là kiểm soát ở hạ tầng, không thêm tài khoản/mật khẩu vào giao diện sản phẩm. Không đưa dữ liệu bệnh nhân thật lên staging này; chỉ dùng sample đã được kiểm tra de-identification.
+
+## Staging của dự án hiện tại là gì?
+
+**Staging** là môi trường thử nghiệm gần giống production để nhóm và reviewer xác nhận phiên bản trước khi phát hành thật. Staging dùng dữ liệu mẫu/de-identified, có thể reset, và phải tách khỏi production data. Nó khác `dev` (nhánh code để tích hợp) và khác `main` (nhánh phát hành): `dev` được deploy thành staging; chỉ sau review/approval mới merge `dev → main` và deploy production.
+
+| Môi trường | Trạng thái hiện tại | Ai truy cập / URL |
+|---|---|---|
+| Local | Docker Compose trên máy dev | `localhost`; dành cho phát triển |
+| Staging v0 | VM `knee-review-staging-01`, Docker Compose, CPU-only, SQLite + named volume | Riêng tư qua IAP tunnel; mở `http://127.0.0.1:8081` khi tunnel đang chạy. Đây không phải URL public |
+| Production | Chưa tạo/chưa deploy | Chưa có URL người dùng; `main` là nhánh dành cho bản production sau này |
+
+Lần deploy đã ghi nhận trên VM là code `dev` cũ tại commit `8f8d805`; trước khi cập nhật phải xác nhận PR đã merge, `dev` đang ở commit nào và dữ liệu/volume cần giữ. VM hiện tại **chưa có tài khoản app**; IAP chỉ kiểm soát ai được mở tunnel bằng IAM của Google, không phải login bên trong Knee Review.
+
+### Đích để reviewer có URL
+
+Khi muốn reviewer truy cập bằng URL mà không phải mở IAP tunnel, triển khai staging riêng từ `dev`: React tĩnh lên Firebase Hosting, FastAPI lên Cloud Run, và route `/api/**` từ Hosting sang service backend. Hosting có URL mặc định `*.web.app`; có thể gắn domain sau. Cloud Run filesystem không bền vững giữa instance restart/scale, vì vậy không deploy app hiện tại nguyên trạng nếu cần giữ study. Tham khảo [Firebase Hosting + Cloud Run](https://firebase.google.com/docs/hosting/cloud-run?hl=en) và [Cloud Run filesystem](https://docs.cloud.google.com/run/docs/overview/what-is-cloud-run).
+
+### Tài khoản và study trên URL public dự kiến
+
+Tài khoản bootstrap/test được yêu cầu: username hiển thị `admin123`, password khởi tạo `123456`. Account này có thể upload và xóa study **thuộc chính UID của nó**; không được có quyền xem/xóa study của UID khác. Tên đăng nhập `admin123` không đồng nghĩa quyền super-admin. Example study là shared read-only và không xóa được.
+
+Mỗi người review cần một account/Identity UID riêng để study upload được cách ly. Nếu mọi người cùng đăng nhập bằng `admin123 / 123456`, backend thấy cùng một UID và các study upload sẽ chung catalog—không thể coi là riêng theo từng người. Vì vậy không phát tán credential bootstrap như shared login; tạo account riêng qua invite (hoặc bật signup có kiểm soát sau này). Public URL không đồng nghĩa mở quyền ghi cho anonymous.
+
+Identity Platform email/password yêu cầu tối thiểu 6 ký tự; `123456` đáp ứng kỹ thuật nhưng rất yếu nếu dùng như mật khẩu bí mật. Chỉ dùng làm credential khởi tạo/staging, không gán quyền admin toàn hệ thống, không dùng cho dữ liệu bệnh nhân thật, và thay/thu hồi trước production. Không ép chữ hoa/chữ thường/ký tự đặc biệt; password provider quản lý, app không lưu plaintext. Nguồn: [Identity Platform password policy](https://docs.cloud.google.com/identity-platform/docs/password-policy?hl=en), [sign-up requirements](https://docs.cloud.google.com/identity-platform/docs/reference/rest/v1/accounts/signUp).
 
 ### Bản đồ vai trò
 
@@ -69,6 +93,8 @@ Không tạo Cloud SQL chỉ để lưu dữ liệu cho staging một VM: app hi
 ## Lộ trình tài khoản và dữ liệu nhiều người dùng
 
 Quyết định đề xuất: dùng **Google Identity Platform email/password** để quản lý credential và token; FastAPI xác minh token và enforce ownership trên từng endpoint. PostgreSQL/Cloud SQL là nơi lưu metadata/profile/`owner_uid`, không lưu password. Tài khoản được tạo qua invite/admin ở giai đoạn đầu; không bật public signup. Mỗi study upload thuộc một Identity UID; mọi list/read/preview/raw-file/delete đều authorize ở backend. Example study vẫn shared read-only.
+
+Yêu cầu UX mật khẩu: form không bắt chữ hoa/chữ thường, số hay ký tự đặc biệt và không tự đặt giới hạn độ dài thấp. Identity Platform yêu cầu tối thiểu 6 ký tự; bootstrap `admin123 / 123456` đáp ứng provider nhưng yếu, chỉ dùng staging/test và phải thay trước production. Xem [18 — account bootstrap và per-user studies](18-auth-and-user-data-plan.md#account-bootstrap-per-user-studies-và-quy-tắc-mật-khẩu).
 
 Thứ tự khuyến nghị:
 

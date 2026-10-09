@@ -1,12 +1,14 @@
 # Knee Review — local DICOM workspace
 
-> **Cập nhật gần nhất:** 2026-10-08
-> **Thay đổi gần nhất:** Nêu rõ file picker và folder picker riêng; upload có estimated transfer ETA và trạng thái indexing không giả ETA.
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Phân biệt staging VM nội bộ với plan public URL; ghi account bootstrap và per-user study ownership.
 > **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
 
 This is the first local vertical slice for the knee diagnostic web service. Upload accepts individual `.dcm` files, folders, and unencrypted `.zip` archives containing DICOM files.
 
 The current deployment target is still local Docker Compose. For a first private GCP staging, use one Compute Engine VM with a durable disk and the existing Compose setup; do not deploy this SQLite/local-filesystem version unchanged to multi-instance Cloud Run. See [the GCP runbook](../knee-service-blueprint/09-gcp-runbook.md). This staging is for de-identified sample data and is not a clinical/production service.
+
+The existing VM is private and reached through an IAP tunnel; it has no public user URL or application login. The planned public review URL uses separate React hosting and FastAPI services. A bootstrap `admin123 / 123456` account is planned to upload/delete studies owned by its own identity; each person must use an individual account for per-user isolation. If reviewers share the bootstrap credentials, they share that account's studies. This credential is not implemented yet and must not be used for production or patient data. See the [authentication plan](../knee-service-blueprint/18-auth-and-user-data-plan.md).
 The UI is in English and currently supports:
 
 - one seeded, read-only example study; it can be sourced from `series_1`/`series_2` folders or `results.zip` in the mounted examples directory;

@@ -1,7 +1,7 @@
 # 18 — Authentication, account ownership và dữ liệu người dùng
 
-> **Cập nhật gần nhất:** 2026-10-08  
-> **Thay đổi gần nhất:** Chốt hướng đề xuất Identity Platform quản lý đăng nhập; backend xác minh token và phân quyền study theo user; tách GPU/Triton khỏi VM staging hiện tại.  
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Ghi rõ trạng thái staging/production, yêu cầu reviewer có URL và chính sách demo credential/password đơn giản nhưng không dùng mật khẩu mặc định yếu trên Internet.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Quyết định đề xuất
@@ -9,6 +9,14 @@
 Nếu mở service cho nhiều bác sĩ/người dùng và cần study tồn tại sau khi đóng trang, hãy thêm tài khoản trước khi mời người dùng thật. Dùng **Google Identity Platform với email/password** (hoặc Firebase Authentication nếu sau này chọn hệ Firebase) để quản lý credential, đăng nhập, reset password và token. **Không tự lưu password trong PostgreSQL.** FastAPI xác minh ID token ở mọi API riêng tư; database chỉ lưu hồ sơ/role tối thiểu và quan hệ sở hữu study.
 
 Tạo tài khoản nên là **invite/admin-provisioned**, không bật đăng ký công khai ở giai đoạn đầu. Mật khẩu là credential, không phải authorization: mỗi API vẫn phải xác minh user được phép đọc/xóa resource cụ thể.
+
+## Account bootstrap, per-user studies và quy tắc mật khẩu
+
+Credential khởi tạo được yêu cầu cho demo/staging: username hiển thị `admin123`, password `123456`. Tài khoản này được phép upload/delete study **của UID đó**, nhưng không có quyền vượt ownership hoặc quản trị toàn hệ thống. Example study là shared read-only. Không để người dùng xóa example.
+
+**Mỗi người phải có Identity UID riêng** để dữ liệu thực sự riêng: upload tạo study có `owner_uid` lấy từ ID token; list/get/preview/raw-DICOM/delete chỉ query theo UID đã xác minh. Nếu nhiều người cùng dùng `admin123 / 123456`, họ là cùng một principal và thấy/có thể xóa cùng các study của account đó. Vì vậy credential bootstrap dùng để thiết lập/kiểm tra, không nên phát tán như shared login cho nhóm; provision account riêng qua invite. Nếu cần public self-sign-up sau này, phải thêm rate/abuse controls và kiểm tra isolation trước khi bật.
+
+Identity Platform email/password yêu cầu tối thiểu 6 ký tự; `123456` được provider chấp nhận nhưng rất yếu và chỉ nên là credential tạm của staging. Không dùng cho production hoặc dữ liệu bệnh nhân; đổi/thu hồi trước khi mở production. UX không ép chữ hoa/chữ thường/số/ký tự đặc biệt và không đặt giới hạn độ dài thấp tùy tiện; tuân theo provider limits. Identity Platform hiện dùng email/password, không username-only mặc định, vì vậy `admin123` cần được map tới email account do admin provision. Không lưu password trong PostgreSQL, source, logs hoặc image. Nguồn: [Identity Platform password policy](https://docs.cloud.google.com/identity-platform/docs/password-policy?hl=en), [Sign up requirements](https://docs.cloud.google.com/identity-platform/docs/reference/rest/v1/accounts/signUp).
 
 ## Identity Platform và PostgreSQL khác nhau thế nào?
 
@@ -41,7 +49,7 @@ Mỗi upload tạo `study_id` riêng, liên kết với `owner_uid`. Series/asse
 
 ### P0 — Chốt threat boundary trước khi bật login
 
-1. Giữ staging chỉ qua IAP; không mở web/API công khai và không dùng dữ liệu bệnh nhân thật.
+1. Staging v0 hiện chỉ qua IAP; khi tạo URL review mới, chỉ dùng sample/de-identified data, invite reviewer và bật auth/ownership trước khi cho upload.
 2. Quyết định ai được cấp tài khoản, role ban đầu (`clinician`, `admin` nếu cần), email xác minh và quy trình thu hồi tài khoản.
 3. Đặt upload size/quota, retention/TTL cho upload lỗi, backup, delete, audit và incident contact. Không ghi patient name, DICOM payload hoặc token vào logs.
 

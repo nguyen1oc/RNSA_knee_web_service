@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
-> **Cập nhật gần nhất:** 2026-10-08
-> **Thay đổi gần nhất:** Thêm folder picker dễ thấy, byte-level upload progress/transfer ETA và chuyển trạng thái upload khỏi banner workspace.
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Làm rõ staging hiện tại riêng tư; ghi account bootstrap `admin123 / 123456`, per-user study ownership và cảnh báo shared credential.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-08 — Multi-user authentication and GPU roadmap
@@ -13,6 +13,15 @@
 - Thêm thứ tự rollout auth, cross-user authorization tests, ownership migration, GCS private storage và acceptance gate ở [18](18-auth-and-user-data-plan.md).
 - Làm rõ staging hiện tại là một VM `e2-medium` CPU-only; Triton/GPU chưa được tạo. Định hướng benchmark sau này trên GPU VM riêng, kiểm tra quota/zone/giá trước.
 - Cập nhật architecture, GCP runbook, GCP glossary, blueprint README và app README.
+
+## 2026-10-09 — Staging vs production and demo account policy
+
+### Changed
+
+- Làm rõ nhánh `dev` deploy staging/review; PR `dev → main` mới là luồng production. Project hiện chỉ có VM staging riêng tư qua IAP, chưa có URL public hoặc production deployment.
+- Ghi đích review có URL: Firebase Hosting (React) + Cloud Run (FastAPI); bootstrap account `admin123 / 123456` có thể upload/delete study thuộc UID của nó; mọi reviewer cần account riêng để dữ liệu được cách ly.
+- Ghi yêu cầu UX không ép password gồm chữ hoa/chữ thường/số/ký tự đặc biệt. Identity Platform yêu cầu tối thiểu 6 ký tự; `123456` chỉ là credential tạm staging, không dùng production/dữ liệu bệnh nhân. Dùng chung credential đồng nghĩa dùng chung một account và study.
+- Cập nhật GCP runbook, CI/CD, GCP glossary, auth plan và blueprint README.
 
 ## 2026-10-08 — Private GCP staging plan
 

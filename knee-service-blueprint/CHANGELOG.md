@@ -20,6 +20,17 @@
 - Reframed the three lines as open, dashed horizontal, vertical, and diagonal rotation arcs with small direction arrowheads. Labels no longer use Axial/Sagittal/Coronal, so they cannot be confused with MPR slice planes.
 - Updated the native DICOM/MPR spec, product README, and HTML design board.
 
+## 2026-10-10 — Separate Cloud Run staging and production CD
+
+### Changed
+
+- Added GitHub Actions deploy flow: pushes to `dev` deploy to a dedicated staging Cloud Run service; pushes to `main` deploy to a dedicated production service through separate GitHub Environments.
+- Deploys immutable SHA-tagged images with Workload Identity Federation, no-traffic candidate revisions, health smoke test, and traffic promotion only after the test passes. The existing Cloud Run service is not overwritten by this workflow.
+- Added dynamic Vercel same-origin API rewrites: Preview targets staging and Production targets production via `KNEE_API_ORIGIN`.
+- Restricted staging API routes with a Secret Manager-backed gate header injected by the Vercel Preview rewrite; health endpoint remains available for smoke tests. Production has no gate.
+- Documented separate buckets, Firestore databases, runtime/deployer identities, production approval, manual post-promotion rollback, and remaining one-time GCP setup.
+- Added `FIRESTORE_DATABASE` runtime configuration and tests; excluded temporary Google auth credentials from Git and Docker build context.
+
 ## 2026-10-10 — Cloud upload preview UX and study-folder handling
 
 ### Fixed / Changed

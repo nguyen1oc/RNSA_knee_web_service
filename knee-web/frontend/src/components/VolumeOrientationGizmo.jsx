@@ -1,10 +1,20 @@
 import { useRef } from 'react'
 
 const orbitRings = [
-  { id: 'axial', label: 'Axial · rotate left / right', axis: [0, 0, 1], color: '#ff7777', rx: 28, ry: 11, rotation: -32 },
-  { id: 'sagittal', label: 'Sagittal · rotate up / down', axis: [1, 0, 0], color: '#f4d35e', rx: 12, ry: 28, rotation: -32 },
-  { id: 'coronal', label: 'Coronal · oblique rotation', axis: [0, 1, 0], color: '#6fd69b', rx: 24, ry: 17, rotation: 48 },
+  { id: 'horizontal', label: 'Horizontal orbit · rotate left / right', axis: [0, 1, 0], color: '#f4d35e', rx: 28, ry: 10, rotation: -32, arrowAngle: 5.1 },
+  { id: 'vertical', label: 'Vertical orbit · rotate up / down', axis: [1, 0, 0], color: '#ff7777', rx: 11, ry: 28, rotation: -32, arrowAngle: 5.1 },
+  { id: 'diagonal', label: 'Diagonal orbit · rotate obliquely', axis: [0, 0, 1], color: '#6fd69b', rx: 23, ry: 16, rotation: 48, arrowAngle: 5.1 },
 ]
+
+function orbitPath(rx, ry) {
+  const start = 0.35
+  const end = 5.1
+  const startX = 42 + rx * Math.cos(start)
+  const startY = 42 + ry * Math.sin(start)
+  const endX = 42 + rx * Math.cos(end)
+  const endY = 42 + ry * Math.sin(end)
+  return `M ${startX} ${startY} A ${rx} ${ry} 0 1 1 ${endX} ${endY}`
+}
 
 function pointerAngle(event, svg) {
   const bounds = svg.getBoundingClientRect()
@@ -40,17 +50,25 @@ export default function VolumeOrientationGizmo({ onRotate }) {
   }
 
   return <div className="mpr-orientation-gizmo" role="group" aria-label="MRI volume orbit rotation controls">
-    <svg viewBox="0 0 84 84" role="group" aria-label="Drag an orbit ring to rotate the MRI volume" onPointerMove={moveDrag} onPointerUp={finishDrag} onPointerCancel={finishDrag}>
-      <circle cx="42" cy="42" r="2" fill="#dbe5ed" />
+    <svg viewBox="0 0 84 84" role="group" aria-label="Three orbit paths for horizontal, vertical, and diagonal MRI volume rotation" onPointerMove={moveDrag} onPointerUp={finishDrag} onPointerCancel={finishDrag}>
+      <circle className="mpr-orbit-pivot" cx="42" cy="42" r="1.6" />
       {orbitRings.map((ring) => <g key={ring.id} className={`mpr-orbit-ring mpr-orbit-${ring.id}`} role="button" tabIndex="0" aria-label={`Drag to ${ring.label.toLowerCase()}`} onPointerDown={(event) => startDrag(event, ring)} onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
           onRotate(ring.axis, Math.PI / 12)
         }
-      }}>
-        <ellipse className="mpr-orbit-hit" cx="42" cy="42" rx={ring.rx} ry={ring.ry} transform={`rotate(${ring.rotation} 42 42)`} />
-        <ellipse className="mpr-orbit-stroke" cx="42" cy="42" rx={ring.rx} ry={ring.ry} transform={`rotate(${ring.rotation} 42 42)`} stroke={ring.color} />
-        <title>{`Drag ring to ${ring.label}`}</title>
+        }}>
+        <g transform={`rotate(${ring.rotation} 42 42)`}>
+          <path className="mpr-orbit-hit" d={orbitPath(ring.rx, ring.ry)} />
+          <path className="mpr-orbit-stroke" d={orbitPath(ring.rx, ring.ry)} stroke={ring.color} />
+          <path
+            className="mpr-orbit-direction"
+            d="M -2.7 -2.4 L 1.4 0 L -2.7 2.4"
+            transform={`translate(${42 + ring.rx * Math.cos(ring.arrowAngle)} ${42 + ring.ry * Math.sin(ring.arrowAngle)}) rotate(${Math.atan2(ring.ry * Math.cos(ring.arrowAngle), -ring.rx * Math.sin(ring.arrowAngle)) * 180 / Math.PI})`}
+            stroke={ring.color}
+          />
+        </g>
+        <title>{`Orbit path: drag to ${ring.label}. This is a rotation guide, not an image slice.`}</title>
       </g>)}
     </svg>
   </div>

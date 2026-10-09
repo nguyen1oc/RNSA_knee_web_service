@@ -1,7 +1,7 @@
 # Knee Review — local DICOM workspace
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Một nút Import study có lựa chọn Files / ZIP hoặc Folder; ingest success toast tự tắt sau 3 giây.
+> **Thay đổi gần nhất:** Làm gizmo MRI Volume nền trong suốt; ba cung orbit hở có mũi chỉ hướng ngang/dọc/xiên, phân biệt khỏi MPR slice planes.
 > **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
 
 This is the first local vertical slice for the knee diagnostic web service. Upload accepts individual `.dcm` files, folders, and unencrypted `.zip` archives containing DICOM files.
@@ -24,7 +24,7 @@ The UI is in English and currently supports:
 - focused direction wheel navigation changes slices (scroll down = next, scroll up = previous); zoom remains explicit through the zoom controls;
 - focused direction tools are grouped into one selector: Pointer (default), Length, Rectangle, Ellipse, Freehand, and Arrow + note; native geometry-based measurements use spacing metadata where available (calibration must be independently verified);
 - Arrow + note opens an inline editor after drawing; `Eraser` removes one mark and `Clear slice marks` removes all marks on the current slice. Capture previews the final square export and downloads PNG/JPEG at 64×64, 128×128 or 512×512, with optional annotations and slice/orientation metadata;
-- Overview supports `3D four-up`, `3D primary`, and `3D main` arrangements; MRI Volume is rendered from patient DICOM voxels (not a generic anatomy model), with colored plane overlays and a three-ring orientation gizmo;
+- Overview supports `3D four-up`, `3D primary`, and `3D main` arrangements; MRI Volume is rendered from patient DICOM voxels (not a generic anatomy model), with colored slice-plane overlays and a transparent three-orbit rotation gizmo. Open dashed orbit arcs and arrowheads mean horizontal, vertical, and diagonal camera movement—not additional slice planes;
 - Overview MPR source defaults to an eligible geometry series, can be changed explicitly, and supplies the MRI volume plus linked axial/coronal/sagittal planes; ineligible series show the geometry reason and are not silently combined;
 - an explicit local ingest pipeline: DICOM validation, metadata extraction, UID grouping, geometry-aware sorting, and on-demand preview rendering;
 - real Window / Level drag tool, W/L values, Invert and Reset per native viewport;

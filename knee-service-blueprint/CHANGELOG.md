@@ -1,8 +1,62 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Nhận diện thông báo `Cannot find service` khi kiểm tra Cloud Run để deploy lần đầu không bị dừng sớm.
+> **Thay đổi gần nhất:** Làm rõ production bootstrap: Cloud Run tạo URL trước; Vercel Production origin được cấu hình sau.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
+
+## 2026-10-10 — Clarify production Vercel/API bootstrap order
+
+### Documented
+
+- Cloud Run production must be created and health-checked before assigning the production `KNEE_API_ORIGIN`; never use staging as a temporary value or guess the Cloud Run URL.
+- The first Vercel build from `main` may fail while the origin is unset, independently of the GitHub Actions Cloud Run deploy; then set the real origin and redeploy Vercel.
+- Recorded the merge-first API bootstrap sequence in the CI/CD and deployment runbooks.
+
+## 2026-10-10 — Correct MRI gizmo mappings and use white lines
+
+### Changed
+
+- Swapped the vertical and diagonal orbit actions: vertical now rolls the camera; diagonal now rotates up/down. Horizontal remains left/right.
+- Changed all three orbit arcs, arrowheads, and pivot to white for clear contrast on the black MRI Volume viewport.
+- Updated the MPR specification, README, and design-board overview.
+
+## 2026-10-10 — Record production storage bootstrap
+
+### Documented
+
+- Recorded user-confirmed creation of Firestore `knee-review-production` and private GCS bucket `rsna-knee-dicom-production-511004`.
+- Recorded verified production-origin CORS and one-day `incoming/` lifecycle configuration, plus seven-day soft-delete retention.
+- Clarified that production runtime IAM, WIF/CD, Cloud Run service, and Vercel routing are still pending; noted Firestore `freeTier: false` for cost awareness.
+- Confirmed the bucket's CORS allows only the stable Vercel production origin and lifecycle deletes only `incoming/` objects after one day.
+- Recorded production runtime identity `knee-review-api-production@...` with bucket-level Object Admin and conditional Datastore User limited to `knee-review-production`.
+- Marked the remaining staging Firestore project-wide binding as the next isolation task before production data is used.
+- Recorded the staging runtime's conditional Firestore binding for `(default)` and removal of its old unconditional project-wide binding; user confirmed staging upload/delete still works afterward.
+- Corrected the planned production deployer service-account ID to `knee-review-deployer-prod` (25 characters), within Google's 30-character account-ID limit.
+- Recorded user-confirmed creation of `knee-review-deployer-prod@rsna-knee-511004.iam.gserviceaccount.com`; its IAM role bindings and WIF setup remain pending.
+- Recorded confirmed deployer permissions: Artifact Registry Writer on `knee-review`, Cloud Run Admin, and Service Account User only on the production runtime account.
+- Recorded creation of production WIF pool `github-actions-production` and provider `github-main-production`, restricted to repository ID `1406855192` and `refs/heads/main`; principal binding remains pending.
+- Recorded successful `roles/iam.workloadIdentityUser` binding from that repository principalSet to the production deployer service account.
+- Documented bootstrap sequence for missing Vercel Production `KNEE_API_ORIGIN`: do not point to staging or guess a URL; first deploy/health-check Cloud Run, then set the real origin and redeploy Vercel. The initial Vercel auto-build may fail while the variable is absent without replacing the last successful deployment.
+
+## 2026-10-10 — Provision shared staging example study
+
+### Fixed / Documented
+
+- Gizmo mapping now matches the requested visual semantics: green horizontal left/right orbit, red vertical up/down orbit with reversed drag sign, yellow oblique roll. Rotation axes follow the current camera so controls stay intuitive after orbiting.
+- Added `knee-web/backend/provision_example.py` to validate and provision the public `results.zip` into staging GCS (`examples/sample-knee/`) and Firestore as a shared, read-only sample. Stable IDs and archive hash make reruns idempotent; cleanup is restricted to the dedicated example prefix.
+- Provisioned 284 DICOM instances across 5 series in `rsna-knee-dicom-preview-511004` and `(default)` Firestore. No production resources were changed.
+- Updated the example-study guide and README with local-vs-cloud behavior and the one-time ADC command. Added virtualenv directories to `.gitignore` so local cloud SDK setup is not committed.
+- Kept the MRI gizmo mapping change: green horizontal, red vertical with corrected drag sign, yellow diagonal; updated the MPR spec, README/design-board and gizmo docs.
+
+## 2026-10-10 — Production bootstrap and MRI volume default camera
+
+### Changed
+
+- Added a six-step production runbook covering isolated GCS/Firestore resources, runtime IAM, main-only WIF, GitHub production approval, Vercel production routing, and post-deploy verification/cleanup prerequisites.
+- Added a production-only GCS CORS template for `https://rnsa-knee-web-service.vercel.app`; staging origins are not included.
+- MRI Volume now initializes in the screenshot-matched sagittal oblique pose (~45°), with the axial plane horizontal and the other two planes upright, at 80% fit scale. Its orbit pivot is taken from the volume world-space bounds center, and Reset restores the same pose.
+- Updated README, GCP runbook and MPR specification to reflect the new workflow and viewer defaults.
+- Updated deployment status notes: staging WIF/CD, API, bucket/Firestore and shared example are confirmed; production bootstrap starts with its own bucket and Firestore database.
 
 ## 2026-10-10 — Handle first Cloud Run deployment
 

@@ -1,13 +1,13 @@
 # Knee Review — local DICOM workspace
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Làm gizmo MRI Volume nền trong suốt; ba cung orbit hở có mũi chỉ hướng ngang/dọc/xiên, phân biệt khỏi MPR slice planes.
+> **Thay đổi gần nhất:** Gizmo MRI Volume đơn sắc trắng; đổi chức năng cung dọc/chéo; giữ pose tham khảo, zoom 80% và pivot giữa volume.
 > **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
 
 This is the first local vertical slice for the knee diagnostic web service. Upload accepts individual `.dcm` files, folders, and unencrypted `.zip` archives containing DICOM files.
 The UI is in English and currently supports:
 
-- one seeded, read-only example study; it can be sourced from `series_1`/`series_2` folders or `results.zip` in the mounted examples directory;
+- one shared, read-only `Example Knee Study`: local Docker seeds from the mounted examples directory; Cloud Run reads the provisioned sample from GCS/Firestore (the public RSNA example is shared across staging sessions);
 - importing individual `.dcm` files or a folder of `.dcm` files;
 - one Import study menu with explicit `DICOM files or ZIP` and `Folder of DICOM files` choices;
 - non-empty, actionable error banners when API/network responses fail;
@@ -24,7 +24,7 @@ The UI is in English and currently supports:
 - focused direction wheel navigation changes slices (scroll down = next, scroll up = previous); zoom remains explicit through the zoom controls;
 - focused direction tools are grouped into one selector: Pointer (default), Length, Rectangle, Ellipse, Freehand, and Arrow + note; native geometry-based measurements use spacing metadata where available (calibration must be independently verified);
 - Arrow + note opens an inline editor after drawing; `Eraser` removes one mark and `Clear slice marks` removes all marks on the current slice. Capture previews the final square export and downloads PNG/JPEG at 64×64, 128×128 or 512×512, with optional annotations and slice/orientation metadata;
-- Overview supports `3D four-up`, `3D primary`, and `3D main` arrangements; MRI Volume is rendered from patient DICOM voxels (not a generic anatomy model), with colored slice-plane overlays and a transparent three-orbit rotation gizmo. Open dashed orbit arcs and arrowheads mean horizontal, vertical, and diagonal camera movement—not additional slice planes;
+- Overview supports `3D four-up`, `3D primary`, and `3D main` arrangements; MRI Volume is rendered from patient DICOM voxels (not a generic anatomy model), opens at the sagittal-oblique 45° pose from the reference (axial plane horizontal, the other two upright) and 80% fit, rotates around the volume center, and has colored slice-plane overlays plus a transparent white three-orbit gizmo. The horizontal arc rotates left/right, vertical arc rolls, and diagonal arc rotates up/down. Open dashed orbit arcs and arrowheads mean camera movement—not additional slice planes;
 - Overview MPR source defaults to an eligible geometry series, can be changed explicitly, and supplies the MRI volume plus linked axial/coronal/sagittal planes; ineligible series show the geometry reason and are not silently combined;
 - an explicit local ingest pipeline: DICOM validation, metadata extraction, UID grouping, geometry-aware sorting, and on-demand preview rendering;
 - real Window / Level drag tool, W/L values, Invert and Reset per native viewport;
@@ -49,7 +49,7 @@ The Dockerfile builds the React frontend in a multi-stage image, so `frontend/di
 
 See [anonymous session and upload-limit plan](../knee-service-blueprint/18-anonymous-session-and-upload-limits.md). There is no login/signup. The backend issues an HttpOnly cookie, scopes every study/data route to that temporary session, and deletes the session's uploads on reset/expiry. `SESSION_COOKIE_SECURE=true` is required behind HTTPS; local HTTP defaults to false.
 
-Local Docker continues to use SQLite/filesystem. The Cloud Run backend path uses Firestore metadata and a private GCS bucket with browser-to-GCS resumable upload. The existing manually deployed `knee-review-api` remains untouched. The new GitHub Actions CD is designed to deploy `dev` to a gated staging Cloud Run service and `main` to production, but requires WIF, GitHub Environments, staging Secret Manager gate, production bucket/database/service account, and Vercel Preview/Production variables before it can succeed. Vercel Preview is for internal QA; Vercel Production is the public frontend. Full setup and rollback behavior: [CI/CD plan](../knee-service-blueprint/15-ci-cd-plan.md) and [deployment guide](../knee-service-blueprint/19-public-preview-deployment.md). Cloud adapters have fake-client unit tests, not GCP integration tests. Do not proxy large DICOM/ZIP bodies through Vercel or Cloud Run.
+Local Docker continues to use SQLite/filesystem. The Cloud Run backend path uses Firestore metadata and a private GCS bucket with browser-to-GCS resumable upload. The existing manually deployed `knee-review-api` remains untouched. GitHub Actions CD deploys `dev` to the gated staging Cloud Run service; staging WIF, GitHub Environment, gate, and Vercel Preview routing are configured. Production uses a separate bucket/database/runtime identity and main-only WIF, already provisioned; GitHub `production` Environment variables, the production Cloud Run service, and Vercel Production API origin are still pending. Vercel Preview is for internal QA; Vercel Production is the public frontend. Full setup and rollback behavior: [CI/CD plan](../knee-service-blueprint/15-ci-cd-plan.md) and [deployment guide](../knee-service-blueprint/19-public-preview-deployment.md). Cloud adapters have fake-client unit tests, not GCP integration tests. Do not proxy large DICOM/ZIP bodies through Vercel or Cloud Run.
 
 ## CI baseline
 
@@ -99,11 +99,20 @@ cd ..
 python -m uvicorn backend.main:app --reload --port 8080
 ```
 
-The backend expects sample DICOM folders or `results.zip` at `../dicom-viewer/files`. Override it with `EXAMPLES_DIR` if needed. An example ZIP is indexed on startup; users do not need to upload it through the UI.
+For local Docker, the backend expects sample DICOM folders or `results.zip` at `../dicom-viewer/files` (override with `EXAMPLES_DIR`); it indexes the example on startup. Cloud Run does not seed DICOM on every revision startup. Provision the reviewed public archive once into the staging GCS bucket and Firestore database with Application Default Credentials:
+
+```powershell
+gcloud auth application-default login
+python -m backend.provision_example --project rsna-knee-511004 --database "(default)" --bucket rsna-knee-dicom-preview-511004
+```
+
+Run that command from `knee-web`. It stores DICOM under `examples/sample-knee/`, records a shared `source=sample` study, and is safe to rerun with the same archive. The sample is read-only in the viewer and is not removed by anonymous-session cleanup. See [example study operations](../knee-service-blueprint/13-input-formats-and-example-studies.md).
 
 ## P1 native viewer
 
 See [native DICOM / MPR specification](../knee-service-blueprint/16-native-dicom-and-mpr.md) for controls, geometry checks and acceptance criteria. Build uses Node 24. Do not use this research viewer for clinical diagnosis.
+
+Production provisioning order and per-environment isolation are documented in [CI/CD production bootstrap](../knee-service-blueprint/15-ci-cd-plan.md#production-bootstrap--làm-lần-lượt). Do not point the public frontend to production until its separate GCS/Firestore, runtime identity, WIF deployment, cleanup schedule and smoke tests are ready.
 
 MPR requires regular single-frame grayscale slices with valid IOP/IPP/spacing and a consistent Frame of Reference within that series. Ineligible data shows a reason; original stack views remain available. Patient-specific 3D, persistent annotations, DICOM SR and multi-frame indexing are deferred. Compressed syntax support depends on the bundled decoder; this is not yet validated across vendors or for clinical diagnosis.
 

@@ -1,7 +1,7 @@
 # 19 — Public preview: Vercel + Cloud Run + GCP storage
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Ghi nhận Artifact Registry đã tạo nhưng còn trống; CD Cloud Run tách staging/production đã có trong source, WIF/GitHub Environments và tài nguyên production còn cần cấu hình.
+> **Thay đổi gần nhất:** Ghi rõ bootstrap order cho Vercel `KNEE_API_ORIGIN`: Cloud Run production phải được tạo và health-check trước khi nối frontend.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Trạng thái
@@ -9,8 +9,9 @@
 - Frontend production là `https://rnsa-knee-web-service.vercel.app/`; branch feature có Preview `https://rnsa-knee-web-service-git-fe-7a5d7b-locntmasterc-5002s-projects.vercel.app/`. Vercel chỉ host React, không tự host FastAPI.
 - **Staging = QA preview nội bộ**, phục vụ deploy từ `dev`; **production = backend public cho người dùng**, phục vụ deploy từ `main` sau review. VM không còn là web staging.
 - Backend cloud path đã được code: Firestore repository, private GCS adapter, temporary sessions, upload trực tiếp resumable, finalize/index, đọc/xóa theo quyền sở hữu; quota upload/finalize phân tán và endpoint cleanup có xác minh OIDC. Cần chạy lại CI sau thay đổi; adapter tests dùng fake, chưa phải integration test với GCP thật.
-- Bucket, Firestore `(default)` và quyền service account đã được xác nhận qua output `gcloud` do người dùng chạy ngày 2026-10-10. Cloud Run `knee-review-api` đã deploy ở `asia-southeast1`; `/api/health` trả `ok`; Preview gọi `POST /api/sessions` trả HTTP 200. Scheduler/TTL và upload end-to-end chưa xác nhận.
-- Source đã có workflow CD tách service `knee-review-api-staging` / `knee-review-api-production`, staging gate qua Secret Manager, nhưng chưa provisioned/chạy: GitHub Environments, WIF/deployer identities, staging gate secret, production bucket + Firestore DB + runtime SA và Vercel Preview/Production variables cần cấu hình thủ công. Service `knee-review-api` đang chạy hiện tại không bị workflow mới ghi đè.
+- Staging bucket/Firestore, WIF/deployer, GitHub staging Environment/gate, Vercel Preview routing và Cloud Run `knee-review-api-staging` đã được xác nhận; `/api/health` trả `ok`. Public RSNA `results.zip` đã được provision thành shared `Example Knee Study` (284 DICOM, 5 series) trong staging GCS/Firestore.
+- Workflow CD tách service `knee-review-api-staging` / `knee-review-api-production` đã được xác nhận chạy trên staging. Production resources, runtime/deployer identities, IAM và WIF main-only đã được tạo. **GitHub Environment `production` chưa có variables** (người dùng vừa xác nhận); Cloud Run production service/API URL và Vercel Production `KNEE_API_ORIGIN` cũng còn thiếu. Không trỏ Vercel production sang staging; hoàn tất Environment variables, deploy Cloud Run rồi thêm API origin và redeploy frontend. Vercel frontend build có thể tạm fail do env thiếu trong lần bootstrap đầu, nhưng không làm hỏng deployment frontend thành công hiện tại.
+- Service cũ `knee-review-api` vẫn giữ nguyên, không bị workflow mới ghi đè. Cleanup Scheduler/TTL và full upload end-to-end chưa được xác nhận.
 - Hướng đích: Vercel → FastAPI Cloud Run → Firestore (session/study metadata) + private Cloud Storage (DICOM). VM hiện có không tham gia web request; để dành cho GPU/Triton khi có model.
 - Local Docker tiếp tục dùng SQLite và filesystem để giữ workflow phát triển hiện có.
 
@@ -28,16 +29,18 @@ Xem cấu hình đầy đủ và checklist thực hiện tại [15 — CI/CD: de
 Đã xác nhận từ các lệnh CLI người dùng chạy trong project `rsna-knee-511004`:
 
 - **Cloud Storage:** bucket `gs://rsna-knee-dicom-preview-511004`, region `ASIA-SOUTHEAST1`, Standard; Uniform bucket-level access bật, Public access prevention `enforced`.
-- **Artifact Registry:** Docker repository `knee-review` tại `asia-southeast1`, URI `asia-southeast1-docker.pkg.dev/rsna-knee-511004/knee-review`; Google-managed encryption. Đã tạo nhưng chưa có image (0 MB). Vulnerability scanning chưa bật vì API `containerscanning.googleapis.com` chưa được enable. Repo `cloud-run-source-deploy` là repo riêng.
+- **Artifact Registry:** Docker repository `knee-review` tại `asia-southeast1`, URI `asia-southeast1-docker.pkg.dev/rsna-knee-511004/knee-review`; GitHub Actions dùng để lưu image theo commit SHA. Vulnerability scanning chưa bật vì API `containerscanning.googleapis.com` chưa được enable. Repo `cloud-run-source-deploy` là repo riêng.
 - **CORS:** Preview origin đã được thêm vào local template `templates/gcs-cors.json`; người dùng cần xác nhận bucket đã nhận cấu hình bằng `gcloud storage buckets describe`. API Preview session POST trả 200, nên origin đó hiện được backend chấp nhận.
+- **Production resources:** Firestore Native database `knee-review-production`, bucket `gs://rsna-knee-dicom-production-511004`, và runtime identity `knee-review-api-production@rsna-knee-511004.iam.gserviceaccount.com` đã được người dùng xác nhận tạo tại `asia-southeast1`. Bucket Standard, Uniform bucket-level access bật, Public access prevention `enforced`, soft-delete retention 7 ngày; CORS chỉ cho `https://rnsa-knee-web-service.vercel.app`; lifecycle chỉ xóa prefix `incoming/` từ 1 ngày tuổi. Runtime có Object Admin trên riêng bucket và Datastore User condition giới hạn database production. Cloud Run service và Vercel API routing production chưa tạo.
 - **Lifecycle:** chỉ xóa object có prefix `incoming/` từ 1 ngày tuổi; không áp dụng cho dữ liệu study đang hoạt động.
 - **Soft delete:** bucket hiện có retention mặc định 7 ngày. Xóa khỏi app là xóa khỏi vùng object đang hoạt động, nhưng vẫn có thể khôi phục trong thời gian retention và storage của bản đã xóa có thể bị tính phí. Chưa thay đổi policy này.
 - **Firestore:** database `(default)`, `FIRESTORE_NATIVE`, region `asia-southeast1`, free tier báo bật. Backend client mặc định dùng database này; không cần chọn DB trong từng request.
-- **Service identity:** `knee-review-api@rsna-knee-511004.iam.gserviceaccount.com`; đã cấp `roles/datastore.user` trên project và `roles/storage.objectAdmin` trên đúng bucket.
+- **Example staging:** `results.zip` public đã được nạp thành `sample-knee` (`source=sample`, owner rỗng) với 5 series/284 instances; DICOM ở prefix `gs://rsna-knee-dicom-preview-511004/examples/sample-knee/`. Không nằm trong production và không bị session cleanup xóa.
+- **Staging service identity:** `knee-review-api@rsna-knee-511004.iam.gserviceaccount.com`; có `roles/datastore.user` với IAM condition chỉ vào Firestore `(default)` và `roles/storage.objectAdmin` trên bucket staging.
 - **Deployer:** tài khoản `gcloud` hiện tại đã có `roles/iam.serviceAccountUser` trên service account để có thể gắn nó khi deploy Cloud Run.
 - Không tạo/tải service-account key JSON. Cloud Run sẽ lấy credential từ service identity/ADC.
-- **Đã xác nhận:** Cloud Run service `knee-review-api` hiện có, health và session endpoint chạy; đây chưa phải cặp staging/production tự deploy.
-- **Còn làm:** cấu hình CD theo [15 — CI/CD](15-ci-cd-plan.md), tạo production bucket/DB/runtime identity, WIF/deployer identities, GitHub Environments, Vercel Preview/Production API origin; Scheduler/TTL và upload integration test cũng chưa xác nhận. VM GPU/Triton không liên quan.
+- **Đã xác nhận:** Cloud Run service cũ `knee-review-api` và service CD staging `knee-review-api-staging` hiện có; staging health trả `ok`. Đây chưa phải production API.
+- **Còn làm:** thêm variables vào GitHub Environment `production`, rồi deploy Cloud Run production và xác nhận health. Sau đó đặt `KNEE_API_ORIGIN` trong Vercel Production và redeploy frontend. Vercel build lần đầu có thể fail do origin chưa tồn tại; không điền URL staging. Staging upload/delete đã được người dùng xác nhận thành công sau khi thu hẹp Firestore IAM. Thiết lập Scheduler/TTL, edge protection và upload integration test trước khi chia sẻ rộng. VM GPU/Triton không liên quan.
 
 ## Vì sao cần đổi upload protocol
 
@@ -216,9 +219,9 @@ Nguồn giới hạn: [Vercel Functions](https://vercel.com/docs/functions/limit
 
 ## Luồng branch/release
 
-`feature → PR dev (CI + Vercel preview) → merge dev → review staging → PR dev→main → Vercel production + Cloud Run API release`. CI hiện không tự deploy API; credentials dùng Workload Identity Federation khi thiết lập CD, không để key trong repository.
+`feature → PR dev (CI + Vercel preview) → merge dev → Cloud Run staging + review → PR dev→main → approval production → Cloud Run production + Vercel production`. GitHub Actions dùng Workload Identity Federation, không lưu service-account key trong repository. Production chưa được deploy cho đến khi Environment `production` có đủ variables và reviewer approval.
 
-## Chưa làm
+## Việc còn lại trước khi chia sẻ rộng
 
-Cloud bucket/firestore provisioning, upload protocol migration, Cloud Run deployment, distributed rate limiter/Cloud Armor policy, Vercel API routing/env, public URL smoke test và production CD. Local rate-limit middleware chưa được thêm vì không bảo vệ nhiều Cloud Run instances và không phải nơi phù hợp để cấu hình edge HTTPS/rate limits.
+Production GitHub Environment variables, Cloud Run production service, Vercel Production API origin, cleanup Scheduler/Firestore TTL, edge protection và end-to-end public smoke test. Local rate-limit middleware chưa được thêm vì không bảo vệ nhiều Cloud Run instances và không phải nơi phù hợp để cấu hình edge HTTPS/rate limits.
 </details>

@@ -1,7 +1,7 @@
 # 13 — Input DICOM và lưu một example study
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Một nút Import study mở hai lựa chọn Files / ZIP hoặc Folder; toast ingest thành công tự tắt.
+> **Thay đổi gần nhất:** Provision `results.zip` thành example dùng chung trên staging: 284 DICOM objects trong GCS và metadata 5 series trong Firestore.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Áp dụng cho giai đoạn local ngày 05/10/2026. “Study” DICOM là nhóm theo StudyInstanceUID; một thư mục chỉ là cách chọn nhiều file, không tự quyết định số study. ZIP không mã hóa được mở ở staging và các member `.dcm` được group theo UID.
@@ -46,6 +46,17 @@ Kiểm tra header bằng pydicom ngày 05/10/2026, không decode/duyệt pixel t
 Tất cả header kiểm tra là Explicit VR Little Endian, single-frame. Đây là **một sample study**, chưa kết luận de-identification, geometry/đủ ba hướng hoặc chất lượng hiển thị chỉ từ lần kiểm kê. Folder fixture hoặc `results.zip` đều được seed vào cùng `study_id`; không tách thành nhiều study nếu metadata chỉ có một StudyInstanceUID.
 
 ## 4. Lưu source sample và runtime như thế nào?
+
+**Trạng thái triển khai (2026-10-10):** `dicom-viewer/files/results.zip` vẫn là source fixture local; local Docker mount thư mục này thành `/examples` và seed vào SQLite + volume `knee_data`. Trên staging, script one-time `backend/provision_example.py` đã provision study `sample-knee`: **284 DICOM objects** tại `gs://rsna-knee-dicom-preview-511004/examples/sample-knee/` và **5 series** cùng metadata trong Firestore `(default)`, với `source=sample` và không gắn session owner. Người dùng xác nhận archive là public RSNA challenge data. Cloud Run không đọc archive từ máy/repo, không COPY DICOM/ZIP vào image, và `seed_sample()` vẫn skip cloud mode; restart/revision mới không upload trùng. GCS prefix `examples/` tách khỏi upload `incoming/`; cleanup session không xóa example, endpoint delete từ chối sample.
+
+Provision/reconcile lại khi cần, từ thư mục `knee-web`, bằng ADC có quyền ghi Firestore và Storage:
+
+```powershell
+gcloud auth application-default login
+python -m backend.provision_example --project rsna-knee-511004 --database "(default)" --bucket rsna-knee-dicom-preview-511004
+```
+
+Script dùng Firestore ID và GCS object names xác định theo DICOM UID, archive SHA-256 để nhận ra cùng nguồn, chạy lại cùng ZIP là no-op khi metadata/objects đã đầy đủ, tự ghi tiếp nếu lần trước bị ngắt giữa chừng, và từ chối ghi đè nếu `sample-knee` đã tồn tại với nguồn khác. Nó chỉ dọn stale objects bên trong prefix riêng của example. Không đổi/xóa prefix đó bằng tay khi chưa kiểm tra metadata.
 
 Source mẫu giữ ngoài image/code và ngoài thư mục đồng bộ nếu có thể. Ví dụ path host **dự kiến**, cần tạo/điền khi build:
 

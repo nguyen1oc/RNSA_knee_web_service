@@ -165,7 +165,7 @@ jobs:
           if gcloud run services describe "$CLOUD_RUN_SERVICE" \
             --project "$GCP_PROJECT_ID" --region "$GCP_REGION" >/dev/null 2>"$describe_error"; then
             service_exists=true
-          elif grep -q "NOT_FOUND" "$describe_error"; then
+          elif grep -Eqi "NOT_FOUND|Cannot find service" "$describe_error"; then
             service_exists=false
           else
             cat "$describe_error" >&2

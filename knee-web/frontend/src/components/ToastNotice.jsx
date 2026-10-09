@@ -1,4 +1,5 @@
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import '../toast-notice.css'
 
 const icons = {
@@ -8,6 +9,18 @@ const icons = {
 }
 
 export default function ToastNotice({ notice, onDismiss }) {
+  const dismissRef = useRef(onDismiss)
+
+  useEffect(() => {
+    dismissRef.current = onDismiss
+  }, [onDismiss])
+
+  useEffect(() => {
+    if (notice?.type !== 'success') return undefined
+    const timer = window.setTimeout(() => dismissRef.current(), 3000)
+    return () => window.clearTimeout(timer)
+  }, [notice?.type, notice?.text])
+
   if (!notice || notice.type === 'analyze') return null
   const Icon = icons[notice.type] || Info
 

@@ -1,8 +1,17 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Ghi nhận GCP bucket, Firestore Native database và service-account IAM đã provision.
+> **Thay đổi gần nhất:** Cập nhật Cloud Run/Vercel Preview smoke test, cloud folder upload flow và UI toast/layout.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
+
+## 2026-10-10 — Cloud upload preview UX and study-folder handling
+
+### Fixed / Changed
+
+- Cloud multi-DICOM/folder imports are packaged as a stored ZIP in the browser and sent through one resumable GCS upload, avoiding one rate-limited upload-init request per slice. Series paths are retained; backend groups instances by DICOM `StudyInstanceUID`.
+- Added frontend tests for ZIP packaging and CI execution. User-facing errors now explain when the Vercel build lacks `VITE_DIRECT_GCS_UPLOAD=true`.
+- Changed ingest notifications from a full-width page banner to a dismissible toast; aligned workspace bottom padding with top padding.
+- Documented current Cloud Run/Preview smoke tests, Vercel Preview environment variable, CORS, and archive limits.
 
 ## 2026-10-09 — Cloud Run backend direction
 

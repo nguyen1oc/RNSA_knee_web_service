@@ -67,13 +67,15 @@ export default function StudySidebar({
       {uploadProgress && (
         <div className="upload-progress" role="status" aria-live="polite">
           <div className="upload-progress-heading">
-            <b>{uploadProgress.phase === 'uploading' ? 'Uploading study' : 'Indexing study'}</b>
-            {uploadProgress.phase === 'uploading' && <span>{uploadProgress.percent}%</span>}
+            <b>{uploadProgress.phase === 'preparing' ? 'Preparing study' : uploadProgress.phase === 'uploading' ? 'Uploading study' : 'Indexing study'}</b>
+            {uploadProgress.phase !== 'indexing' && <span>{uploadProgress.percent}%</span>}
           </div>
-          {uploadProgress.phase === 'uploading' ? (
+          {uploadProgress.phase !== 'indexing' ? (
             <>
-              <progress max="100" value={uploadProgress.percent} aria-label="Upload progress" />
-              <small>{formatBytes(uploadProgress.loaded)} of about {formatBytes(uploadProgress.total)} · {uploadProgress.eta ? `about ${uploadProgress.eta} left for transfer` : 'estimating transfer time…'}</small>
+              <progress max="100" value={uploadProgress.percent} aria-label={uploadProgress.phase === 'preparing' ? 'Study preparation progress' : 'Upload progress'} />
+              {uploadProgress.phase === 'preparing'
+                ? <small>Packaging {uploadProgress.fileCount} DICOM files into one study archive…</small>
+                : <small>{formatBytes(uploadProgress.loaded)} of about {formatBytes(uploadProgress.total)} · {uploadProgress.eta ? `about ${uploadProgress.eta} left for transfer` : 'estimating transfer time…'}</small>}
             </>
           ) : (
             <small>{uploadProgress.fileCount} selected file(s) received. Validating and indexing; processing time depends on file count and size.</small>

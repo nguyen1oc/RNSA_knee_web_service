@@ -1,7 +1,7 @@
 # 18 — Anonymous temporary workspace
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Ghi nhận frontend HTTPS trên Vercel; public API cần Cloud Run + shared metadata/storage, Cloud Storage resumable upload và edge/session rate limits.
+> **Cập nhật gần nhất:** 2026-10-10
+> **Thay đổi gần nhất:** Ghi nhận cloud folder upload được đóng gói thành ZIP trong browser; làm rõ CORS Preview và upload limits.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Quyết định sản phẩm
@@ -35,6 +35,8 @@ Bản review hiện tại không bắt người dùng tạo username/password. A
 
 Có thể chỉnh qua `MAX_UPLOAD_MIB`, `MAX_EXPANDED_MIB`, `MAX_SESSION_MIB`, `MAX_DICOM_FILE_MIB`, `MAX_DICOM_FILES`. ZIP được đọc/giải nén theo chunk xuống staging disk, không nạp nguyên archive vào Python memory; file member và tổng expanded bytes đều bị chặn. Tăng giới hạn chỉ sau khi đo RAM/disk với dữ liệu thật.
 
+Ở cloud mode, khi người dùng chọn nhiều file `.dcm` hoặc một folder, frontend đóng gói các DICOM đó thành một ZIP không nén trước khi upload resumable trực tiếp lên GCS. Việc này tránh tạo hàng trăm upload-init API requests và giữ đường dẫn Series trong archive. Local Docker tiếp tục gửi multipart như trước. Với study có nhiều Series, chọn **folder Study ở cấp cao nhất** hoặc ZIP chứa mọi Series; chỉ chọn folder của một Series sẽ tạo study chỉ có Series đó. Giới hạn cloud là tối đa 500 DICOM, 200 MiB/DICOM, 600 MiB/archive và 800 MiB/session; nếu cần chia study lớn, chọn nhiều ZIP theo Series trong cùng một lần import để backend gom theo `StudyInstanceUID`.
+
 ## Kiểm thử local/staging
 
 ```powershell
@@ -50,8 +52,8 @@ Automated API tests cover session required, cross-session isolation for study/se
 
 Anonymous không có nghĩa là endpoint vô hạn hoặc dữ liệu công khai. Trước khi mở Internet cần:
 
-1. Frontend `rnsa-knee-web-service.vercel.app` đã có HTTPS, nhưng đây chỉ là static React; relative `/api` chưa trỏ tới FastAPI. Vì vậy public page có thể mở nhưng import/session API chưa hoạt động.
-2. Public backend target là Cloud Run với URL HTTPS do Google cấp. Không dùng VM GPU làm web/API host. `SESSION_COOKIE_SECURE=true` và CORS/origin/session behavior phải được kiểm thử trên chính domain Vercel.
+1. Frontend production `rnsa-knee-web-service.vercel.app` và Preview deployment dùng Vercel; Preview `/api/health` trả `ok`. API health không thay thế kiểm tra upload.
+2. Public backend đang chạy trên Cloud Run với URL HTTPS do Google cấp; không dùng VM GPU làm web/API host. `SESSION_COOKIE_SECURE=true` và CORS/origin/session behavior phải được kiểm thử trên đúng domain Vercel. Với Preview, thêm chính xác origin Preview vào Cloud Run `CORS_ALLOWED_ORIGINS` và bucket CORS.
 3. Không proxy ZIP/DICOM bytes qua Vercel Function (body tối đa 4.5 MiB) hoặc Vercel external rewrite (timeout 120 giây); Cloud Run HTTP/1 cũng giới hạn request 32 MiB. ZIP mẫu 431 MiB cần browser → Cloud Storage resumable upload; API cấp upload session, xác minh/finalize object rồi ingest theo job.
 4. DICOM raw files phải ở Cloud Storage private bucket; session/study/job metadata phải dùng shared store (Firestore hoặc Cloud SQL), không SQLite/local filesystem của Cloud Run. API xóa object khi Clear/expiry; lifecycle policy là cleanup dự phòng.
 5. Rate limit cần áp dụng theo client/IP ở edge/API và theo session cho tạo phiên/upload/finalize; thêm concurrency caps, storage quotas, upload timeouts, abuse monitoring và retention. Không mở upload public trước khi các giới hạn này được cấu hình.

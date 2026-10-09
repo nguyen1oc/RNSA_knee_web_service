@@ -1,14 +1,14 @@
 # 19 — Public preview: Vercel + Cloud Run + GCP storage
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Ghi nhận bucket, Firestore `(default)`, service account và IAM đã provision; Cloud Run, Scheduler và TTL chưa triển khai.
+> **Thay đổi gần nhất:** Cloud Run đã deploy; Preview `/api/health` và tạo temporary session đã kiểm tra; ghi rõ Vercel upload flag và folder batching.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Trạng thái
 
-- Frontend đã có URL Vercel `https://rnsa-knee-web-service.vercel.app/`; Vercel chỉ host React, không tự host FastAPI.
+- Frontend production là `https://rnsa-knee-web-service.vercel.app/`; branch feature có Preview `https://rnsa-knee-web-service-git-fe-7a5d7b-locntmasterc-5002s-projects.vercel.app/`. Vercel chỉ host React, không tự host FastAPI.
 - Backend cloud path đã được code: Firestore repository, private GCS adapter, temporary sessions, upload trực tiếp resumable, finalize/index, đọc/xóa theo quyền sở hữu; quota upload/finalize phân tán và endpoint cleanup có xác minh OIDC. Cần chạy lại CI sau thay đổi; adapter tests dùng fake, chưa phải integration test với GCP thật.
-- Bucket, Firestore `(default)` và quyền service account đã được xác nhận qua output `gcloud` do người dùng chạy ngày 2026-10-10; Cloud Run chưa deploy, Scheduler/TTL chưa cấu hình và chưa có end-to-end test.
+- Bucket, Firestore `(default)` và quyền service account đã được xác nhận qua output `gcloud` do người dùng chạy ngày 2026-10-10. Cloud Run `knee-review-api` đã deploy ở `asia-southeast1`; `/api/health` trả `ok`; Preview gọi `POST /api/sessions` trả HTTP 200. Scheduler/TTL và upload end-to-end chưa xác nhận.
 - Hướng đích: Vercel → FastAPI Cloud Run → Firestore (session/study metadata) + private Cloud Storage (DICOM). VM hiện có không tham gia web request; để dành cho GPU/Triton khi có model.
 - Local Docker tiếp tục dùng SQLite và filesystem để giữ workflow phát triển hiện có.
 
@@ -24,7 +24,7 @@
 Đã xác nhận từ các lệnh CLI người dùng chạy trong project `rsna-knee-511004`:
 
 - **Cloud Storage:** bucket `gs://rsna-knee-dicom-preview-511004`, region `ASIA-SOUTHEAST1`, Standard; Uniform bucket-level access bật, Public access prevention `enforced`.
-- **CORS:** chỉ cho origin `https://rnsa-knee-web-service.vercel.app`; method PUT/POST; cho phép `Content-Range`, expose `Range` cùng các header upload cần thiết.
+- **CORS:** Preview origin đã được thêm vào local template `templates/gcs-cors.json`; người dùng cần xác nhận bucket đã nhận cấu hình bằng `gcloud storage buckets describe`. API Preview session POST trả 200, nên origin đó hiện được backend chấp nhận.
 - **Lifecycle:** chỉ xóa object có prefix `incoming/` từ 1 ngày tuổi; không áp dụng cho dữ liệu study đang hoạt động.
 - **Soft delete:** bucket hiện có retention mặc định 7 ngày. Xóa khỏi app là xóa khỏi vùng object đang hoạt động, nhưng vẫn có thể khôi phục trong thời gian retention và storage của bản đã xóa có thể bị tính phí. Chưa thay đổi policy này.
 - **Firestore:** database `(default)`, `FIRESTORE_NATIVE`, region `asia-southeast1`, free tier báo bật. Backend client mặc định dùng database này; không cần chọn DB trong từng request.
@@ -37,13 +37,13 @@
 
 Study ZIP mẫu khoảng 431 MiB. Vercel Functions giới hạn request/response body 4.5 MiB; Vercel external rewrites giới hạn proxy duration; Cloud Run HTTP/1 giới hạn request 32 MiB. Vì vậy không gửi ZIP lớn qua Vercel hoặc Cloud Run multipart.
 
-Luồng code: trình duyệt xin API tạo resumable upload session → upload bytes trực tiếp tới GCS theo các chunk 8 MiB → gọi API finalize → backend kiểm tra object, tải vào vùng xử lý tạm, validate/index DICOM, lưu DICOM objects riêng trong bucket → metadata ghi Firestore. Bucket không public; API kiểm tra session ownership trước khi cho đọc/xóa. Finalize hiện đồng bộ; khi dataset/tải tăng cần tách ingest thành job với polling.
+Luồng code: trình duyệt xin API tạo resumable upload session → upload bytes trực tiếp tới GCS theo các chunk 8 MiB → gọi API finalize → backend kiểm tra object, tải vào vùng xử lý tạm, validate/index DICOM, lưu DICOM objects riêng trong bucket → metadata ghi Firestore. Bucket không public; API kiểm tra session ownership trước khi cho đọc/xóa. Khi chọn nhiều `.dcm`/folder, frontend tạo một ZIP không nén trong browser để dùng một upload-init request thay vì một request cho mỗi slice; Series paths được giữ và backend gom study theo `StudyInstanceUID`. Finalize hiện đồng bộ; khi dataset/tải tăng cần tách ingest thành job với polling.
 
 Nguồn giới hạn: [Vercel Functions](https://vercel.com/docs/functions/limitations), [Cloud Run quotas](https://docs.cloud.google.com/run/quotas), [Cloud Storage resumable uploads](https://docs.cloud.google.com/storage/docs/resumable-uploads).
 
 ## Cấu hình bucket (đã hoàn tất)
 
-Chọn region `asia-southeast1` (Singapore), Standard storage, bật **Uniform bucket-level access** và **Public access prevention**. Tên bucket phải global-unique; gợi ý `rsna-knee-dicom-preview-511004` rồi kiểm tra tên trước khi tạo. Không cấp `allUsers` hoặc `allAuthenticatedUsers`. CORS chỉ allow `https://rnsa-knee-web-service.vercel.app`; template gồm `Content-Range` cho upload chunk và `Range` để frontend đọc vị trí đã nhận. Configure lifecycle chỉ cho prefix `incoming/` (ZIP/DICOM upload chưa finalize), không áp dụng rule xóa theo tuổi lên `sessions/` vì đó là study đang hoạt động. Study được xóa khi user Clear session hoặc hết TTL.
+Chọn region `asia-southeast1` (Singapore), Standard storage, bật **Uniform bucket-level access** và **Public access prevention**. Tên bucket phải global-unique; gợi ý `rsna-knee-dicom-preview-511004` rồi kiểm tra tên trước khi tạo. Không cấp `allUsers` hoặc `allAuthenticatedUsers`. CORS phải allow đúng production và Preview origins; template gồm `Content-Range` cho upload chunk và `Range` để frontend đọc vị trí đã nhận. Configure lifecycle chỉ cho prefix `incoming/` (ZIP/DICOM upload chưa finalize), không áp dụng rule xóa theo tuổi lên `sessions/` vì đó là study đang hoạt động. Study được xóa khi user Clear session hoặc hết TTL.
 
 Tạo Firestore Native mode ở `asia-southeast1` nếu project chưa có database; vị trí database không đổi được sau khi tạo. Cloud Run dùng service account riêng, cấp `roles/datastore.user` cho Firestore và `roles/storage.objectAdmin` ở riêng bucket (không cấp project-wide nếu không cần); deployer cần `roles/iam.serviceAccountUser` trên service account. Không tải service-account key xuống máy, không commit key. Cloud Run dùng service identity/ADC.
 

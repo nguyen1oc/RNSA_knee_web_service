@@ -12,6 +12,8 @@ from fastapi.testclient import TestClient
 from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.uid import ExplicitVRLittleEndian, MRImageStorage, generate_uid
 
+from backend import ingest as ingest_module
+
 
 def dicom_bytes(study_uid: str, series_uid: str, instance_number: int) -> bytes:
     meta = FileMetaDataset()
@@ -71,13 +73,21 @@ def main_module(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
 @pytest.fixture()
 def client(main_module: Any) -> TestClient:
     with TestClient(main_module.app) as test_client:
+        session = test_client.post("/api/sessions")
+        assert session.status_code == 200, session.text
         yield test_client
 
 
-def upload_zip(client: TestClient, raw_zip: bytes, filename: str = "study.zip") -> dict[str, Any]:
+def upload_zip(
+    client: TestClient,
+    raw_zip: bytes,
+    filename: str = "study.zip",
+    headers: dict[str, str] | None = None,
+) -> dict[str, Any]:
     response = client.post(
         "/api/studies/upload",
         files={"files": (filename, raw_zip, "application/zip")},
+        headers=headers,
     )
     assert response.status_code == 200, response.text
     return response.json()
@@ -205,6 +215,7 @@ def test_example_study_is_read_only(main_module: Any) -> None:
         )
 
     with TestClient(main_module.app) as client:
+        assert client.post("/api/sessions").status_code == 200
         response = client.delete("/api/studies/sample-knee")
 
     assert response.status_code == 409
@@ -230,3 +241,90 @@ def test_delete_uploaded_study_removes_raw_files(client: TestClient, main_module
     assert response.status_code == 200
     assert not upload_root.exists()
     assert client.get(f"/api/studies/{study_id}").status_code == 404
+
+
+def test_anonymous_session_is_required_and_study_assets_are_isolated(
+    client: TestClient,
+    main_module: Any,
+) -> None:
+    with TestClient(main_module.app) as other_client:
+        assert other_client.get("/api/studies").status_code == 401
+        assert other_client.post("/api/sessions").status_code == 200
+    study_uid, series_uid = generate_uid(), generate_uid()
+    payload = upload_zip(
+        client,
+        zip_bytes({"one.dcm": dicom_bytes(study_uid, series_uid, 1)}),
+    )
+    study_id = payload["study_ids"][0]
+    alice_study = client.get(f"/api/studies/{study_id}")
+    assert alice_study.status_code == 200
+    series_id = alice_study.json()["series"][0]["id"]
+    slice_response = client.get(f"/api/series/{series_id}/slices")
+    assert slice_response.status_code == 200
+    instance_id = slice_response.json()[0]["id"]
+
+    with TestClient(main_module.app) as other_client:
+        assert other_client.post("/api/sessions").status_code == 200
+        assert all(row["id"] != study_id for row in other_client.get("/api/studies").json())
+        assert other_client.get(f"/api/studies/{study_id}").status_code == 404
+        assert other_client.get(f"/api/studies/{study_id}/pipeline").status_code == 404
+        assert other_client.get(f"/api/series/{series_id}/geometry").status_code == 404
+        assert other_client.get(f"/api/series/{series_id}/slices").status_code == 404
+        assert other_client.get(f"/api/series/{series_id}/volume").status_code == 404
+        assert other_client.get(f"/api/instances/{instance_id}/dicom").status_code == 404
+        assert other_client.get(f"/api/instances/{instance_id}/image").status_code == 404
+        assert other_client.delete(f"/api/studies/{study_id}").status_code == 404
+
+    with main_module.db() as connection:
+        owner = connection.execute("SELECT owner_session_id FROM studies WHERE id = ?", (study_id,)).fetchone()["owner_session_id"]
+        path = connection.execute(
+            "SELECT instances.path FROM instances JOIN series ON series.id = instances.series_id WHERE series.study_id = ?",
+            (study_id,),
+        ).fetchone()["path"]
+    assert owner
+    assert Path(path).is_file()
+    assert client.delete(f"/api/studies/{study_id}").status_code == 200
+    assert not Path(path).exists()
+
+
+def test_clear_session_deletes_uploads_and_rotates_session(client: TestClient, main_module: Any) -> None:
+    payload = upload_zip(client, zip_bytes({"one.dcm": dicom_bytes(generate_uid(), generate_uid(), 1)}))
+    study_id = payload["study_ids"][0]
+    with main_module.db() as connection:
+        path = connection.execute(
+            "SELECT instances.path FROM instances JOIN series ON series.id = instances.series_id "
+            "WHERE series.study_id = ?", (study_id,),
+        ).fetchone()["path"]
+
+    cleared = client.delete("/api/sessions/current")
+    assert cleared.status_code == 204
+    assert not Path(path).exists()
+    assert client.get(f"/api/studies/{study_id}").status_code == 401
+    assert client.post("/api/sessions").status_code == 200
+    assert all(row["id"] != study_id for row in client.get("/api/studies").json())
+
+
+def test_expired_session_is_rejected_and_upload_files_are_purged(client: TestClient, main_module: Any) -> None:
+    payload = upload_zip(client, zip_bytes({"one.dcm": dicom_bytes(generate_uid(), generate_uid(), 1)}))
+    study_id = payload["study_ids"][0]
+    with main_module.db() as connection:
+        path = connection.execute(
+            "SELECT instances.path FROM instances JOIN series ON series.id = instances.series_id "
+            "WHERE series.study_id = ?", (study_id,),
+        ).fetchone()["path"]
+        connection.execute("UPDATE anonymous_sessions SET idle_expires_at = '2000-01-01T00:00:00+00:00'")
+
+    assert client.get("/api/studies").status_code == 401
+    assert not Path(path).exists()
+
+
+def test_upload_and_expanded_zip_limits_return_413(client: TestClient, main_module: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    valid_zip = zip_bytes({"one.dcm": dicom_bytes(generate_uid(), generate_uid(), 1)})
+    monkeypatch.setattr(ingest_module, "MAX_UPLOAD_BYTES", 10)
+    too_large = client.post("/api/studies/upload", files={"files": ("big.zip", valid_zip, "application/zip")})
+    assert too_large.status_code == 413
+
+    monkeypatch.setattr(ingest_module, "MAX_UPLOAD_BYTES", 1024 * 1024)
+    monkeypatch.setattr(ingest_module, "MAX_EXPANDED_BYTES", 10)
+    expanded_too_large = client.post("/api/studies/upload", files={"files": ("study.zip", valid_zip, "application/zip")})
+    assert expanded_too_large.status_code == 413

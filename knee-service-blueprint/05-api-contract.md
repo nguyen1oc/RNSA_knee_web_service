@@ -1,10 +1,20 @@
 # 05 — API v0.2: local upload và viewer
 
-> **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** Thêm contract native DICOM và volume eligibility thực tế (P1).
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Ghi contract anonymous session cookie, isolation và upload limits.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-Đề xuất 05/10/2026, thay v0.1 có auth/inference. Base `/api/v1`, JSON snake_case, thời gian UTC, ID UUID; examples dùng stable slug. Không login/logout/identity, token, owner filter hoặc model endpoint. API/React cùng origin qua web proxy.
+Base implementation `/api`, JSON snake_case, thời gian UTC, ID UUID. Không có username/password/account/provider. Backend dùng opaque HttpOnly `knee_session` cookie để isolate uploaded data. Cookie không được trả cho JavaScript; session record chỉ lưu token hash. Local cookie Secure=false trên HTTP; deployment HTTPS phải cấu hình Secure. API/React cùng origin qua web proxy.
+
+## Temporary session endpoints (implemented)
+
+| Method + path | Behavior |
+|---|---|
+| POST `/api/sessions` | Create anonymous session and set HttpOnly cookie |
+| GET `/api/sessions/current` | Return current session metadata; 401 if absent/expired |
+| DELETE `/api/sessions/current` | Delete session-owned uploaded studies/files and expire cookie; shared example remains |
+
+All study/series/instance/image/DICOM routes require the cookie for user-uploaded content. A different browser profile receives no access. Session defaults: 60-minute idle, 4-hour absolute. Request/expanded/session/file/count upload caps and HTTP 413 are specified in [18](18-anonymous-session-and-upload-limits.md).
 
 ## API P1 đang implement (base /api)
 
@@ -45,7 +55,7 @@ Frontend folder picker gửi relative paths; backend không nhận absolute host
 
 Complete dùng Idempotency-Key scoped theo upload. Cùng key/cùng receipt-set → cùng job; đổi payload → 409. Một upload chỉ complete một lần; gọi lại với key mới vẫn trả job đã có nếu receipt-set không đổi. OPEN mới nhận file; CLOSED reject file mới.
 
-Local vertical slice nhận `.dcm` files/folders và một `.zip` archive không mã hóa; server đọc các member `.dcm` trong archive, bỏ qua thư mục và không cho phép path traversal/nested ZIP. Validate + metadata extraction + grouping + geometry-aware sorting chạy trong request upload. Preview pixel render on demand khi viewport yêu cầu. Không resumable byte chunks ở P0, chỉ retry từng file chưa có receipt. 500 MiB received và tối đa 2.000 file DICOM; vượt trả 413. Chi tiết [13](13-input-formats-and-example-studies.md).
+Local vertical slice nhận `.dcm` files/folders và `.zip` không mã hóa; backend streams archive/files sang staging disk, chỉ mở member DICOM, bỏ qua thư mục và chặn path traversal/nested ZIP. Defaults: 600 MiB request, 800 MiB expanded/session, 200 MiB per DICOM, 500 DICOM files; vượt trả 413. Chi tiết [18](18-anonymous-session-and-upload-limits.md) và [13](13-input-formats-and-example-studies.md).
 
 ## Series manifest tối thiểu
 

@@ -1,15 +1,16 @@
 # 04 — Kiến trúc local và lưu trữ
 
-> **Cập nhật gần nhất:** 2026-10-08
-> **Thay đổi gần nhất:** Phân biệt rõ app hiện chưa có auth với kiến trúc đích: Identity Platform xác thực, `owner_uid` authorize study, PostgreSQL lưu metadata.
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Bổ sung anonymous session ownership, TTL cleanup và bounded upload staging.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-Phạm vi 05/10/2026: không auth, không inference, không cloud. Docker Compose trên máy người dùng.
+Phạm vi local hiện hành: không có tài khoản/đăng nhập, không inference, không cloud. Docker Compose cấp temporary HttpOnly session cookie; study upload thuộc một session, không phải catalog chung. Đây là session isolation, không thay thế đầy đủ account authentication/abuse controls cho public production.
 
 ```mermaid
 flowchart LR
     Browser[React và viewer trên browser] -->|localhost:8080| Web[Nginx: SPA và API proxy]
     Web --> API[FastAPI]
+    API --> Sessions[(Anonymous session hashes)]
     API --> DB[(SQLite)]
     API --> Files[(Raw files)]
     Worker[Index worker] --> DB
@@ -39,20 +40,13 @@ API không decode toàn study trong event loop. Worker dùng cùng Python image/
 |---|---|
 | uploads | id, kind, state, created_at, expires_at, accepted_bytes, receipts |
 | import_jobs | id, upload_id, state, stage, lease_until, attempt, error |
-| studies | id, source_kind=dicom, dicom_study_uid, label, source=upload/example, state, inventory_version, deleted_at nullable; future `owner_uid` for user uploads |
+| studies | id, source_kind=dicom, dicom_study_uid, label, source=upload/example, owner_session_id (upload only), state, inventory_version |
 | series | id, study_id, dicom_series_uid nullable, plane/fs/fluid nullable, label_source, geometry_status, sort_method |
 | assets | id, series_id, dicom_sop_uid, relative_source_path, object_key, checksum, transfer_syntax, rows/columns, frame_count |
 | example_versions | example_id, version, source_checksum, state, import_job_id, study_id nullable |
+| anonymous_sessions | token_hash, created_at, last_seen_at, idle_expires_at, absolute_expires_at |
 
-App IDs là UUID. Không có principals, users, owner_id hoặc fake dev-user. Original path không lấy nguyên filename client; API lookup bằng asset ID. DICOM SOP/frame vẫn giữ provenance.
-
-**Trạng thái hiện tại:** app vẫn không có đăng nhập hoặc ownership; schema ở trên mô tả local single-user. **Trước khi mời nhiều người dùng:** Identity Platform xác thực account, FastAPI kiểm tra token và mọi study API phân quyền bằng UID lấy từ token. PostgreSQL/Cloud SQL (nếu migration) chỉ lưu `identity_uid`, profile/role tối thiểu và metadata/ownership—không lưu password. Xem [18 — Auth and user data plan](18-auth-and-user-data-plan.md).
-
-## Ánh xạ kiến trúc lên GCP (staging đầu tiên)
-
-Phiên bản hiện tại chưa stateless: SQLite và raw DICOM cùng ở `DATA_DIR`, còn example được mount từ host. Để đưa đúng app hiện tại lên cloud với ít thay đổi, chạy nguyên Docker Compose trên một Compute Engine VM và đặt dữ liệu trên durable Persistent Disk. Không dùng Local SSD; không expose cổng app ra public internet. Truy cập staging bằng IAP/SSH tunnel. Chi tiết từng bước và giới hạn nằm ở [09 — GCP runbook](09-gcp-runbook.md).
-
-Khi chuyển sang Cloud Run/multi-instance, cần thay SQLite/local paths bằng PostgreSQL + Cloud Storage trước. Đây là một migration kiến trúc, không chỉ đổi Docker target. Triton/GPU là service/model-serving phase riêng; Kubernetes/GKE chỉ được thêm nếu nhu cầu scale/vận hành biện minh cho nó.
+Upload study rows carry `owner_session_id`; shared example rows have no session owner and are read-only. Server stores only a SHA-256 digest of the random cookie token. App IDs are UUID. Original path does not use client filenames; API looks up by asset ID. DICOM SOP/frame retain provenance.
 
 ## Duplicate và commit
 
@@ -70,7 +64,7 @@ Worker claim transaction, heartbeat/lease, retry transient tối đa một lần
 
 ## Storage lifecycle và restore
 
-Examples host mount chỉ đọc; DB/raw runtime trong Docker volume tránh SQLite chạy trên folder OneDrive. Source examples giữ để seed lại; study upload giữ đến khi người dùng xóa. Staging chưa hoàn tất/lỗi hết hạn 24h, loại trừ job active. Xóa study upload dùng `DELETING` → dọn asset files → xóa rows, ngăn reader/job mới; sample trả `EXAMPLE_READ_ONLY`. Nếu cleanup lỗi, hiện `DELETE_FAILED` và cho retry an toàn, không xóa nhầm study khác.
+Examples host mount chỉ đọc; DB/raw runtime trong Docker volume tránh SQLite chạy trên folder OneDrive. Study upload xóa được ngay hoặc hết hạn sau 60 phút idle/4 giờ absolute. Cleanup chạy khi app start và ở request kế tiếp; vì vậy physical deletion có thể đợi request/startup sau nếu app không hoạt động, nhưng expired session không đọc được nữa. Upload/archive được stream qua disk staging với limits xem [18](18-anonymous-session-and-upload-limits.md). Example read-only. Xóa session xóa rows và raw files cùng scope; không xóa source sample.
 
 Backup local: dừng nhận import, chờ worker idle và dừng writer; snapshot nhất quán DB + raw files, hoặc SQLite backup API phối hợp inventory frozen. Thử restore vào volume riêng, kiểm tra count/checksum/mở ảnh. `docker compose down` giữ volume; `down -v` xóa volume. Chi tiết cấu trúc [13](13-input-formats-and-example-studies.md).
 

@@ -1,12 +1,10 @@
 # 13 — Input DICOM và lưu một example study
 
-> **Cập nhật gần nhất:** 2026-10-08
-> **Thay đổi gần nhất:** Làm rõ nút chọn folder riêng; upload hiển thị tiến độ truyền và ETA ước lượng, còn thời gian indexing báo riêng vì phụ thuộc dữ liệu.
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Thêm bounded streaming ingestion và temporary-session retention/quotas.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Áp dụng cho giai đoạn local ngày 05/10/2026. “Study” DICOM là nhóm theo StudyInstanceUID; một thư mục chỉ là cách chọn nhiều file, không tự quyết định số study. ZIP không mã hóa được mở ở staging và các member `.dcm` được group theo UID.
-
-Trong UI, **Import DICOM files / ZIP** mở file picker cho phép chọn một hoặc nhiều `.dcm`/`.zip`; **Choose a folder of DICOM files** mở folder picker. Progress/ETA đo giai đoạn truyền file qua mạng tới VM; sau đó backend báo riêng giai đoạn validating/indexing vì chưa có telemetry đủ để dự đoán thời gian xử lý chính xác. Import folder không nén có thể chậm hơn ZIP lớn do gửi nhiều file riêng lẻ; thời gian thực tế phụ thuộc số file, dung lượng, mạng và IAP tunnel.
 
 ## 1. Supported matrix giai đoạn đầu
 
@@ -23,7 +21,7 @@ Validation dựa trên parser/header thực, không chỉ extension hoặc MIME 
 
 ## 2. Folder mapping và hướng mở rộng ZIP
 
-Browser folder picker gửi `File` và relative path; không cấp cho backend quyền đọc filesystem client. Frontend dùng directory picker được browser hỗ trợ và có fallback chọn nhiều file `.dcm`. Server sinh tên storage riêng. ZIP được đọc qua `ZipFile` trong memory/staging, chỉ lấy member `.dcm`, bỏ qua thư mục, không giải nén nested/encrypted archive và không dùng member path để ghi trực tiếp.
+Browser folder picker gửi `File` và relative path; không cấp cho backend quyền đọc filesystem client. Frontend dùng directory picker được browser hỗ trợ và có fallback chọn nhiều file `.dcm`. Server sinh tên storage riêng. ZIP members được stream từ archive sang staging disk theo chunks; chỉ lấy member `.dcm`, bỏ qua thư mục, không giải nén nested/encrypted archive và không dùng member path để ghi trực tiếp.
 
 DICOM: tên folder không đáng tin để suy study/hướng. Hai folder có cùng StudyInstanceUID vẫn là một study; hai study trong cùng folder vẫn tách.
 
@@ -31,7 +29,7 @@ Thư mục chỉ là cách chọn nhiều file; tên folder không đáng tin đ
 
 Sort dùng geometry nếu đủ IOP/IPP/PixelSpacing; fallback InstanceNumber rồi filename chỉ khi thiếu geometry và phải hiện warning. Lưu order vào manifest; không nhận JSON manifest tùy ý để chạy code hoặc truy cập đường dẫn server.
 
-Giới hạn mặc định để benchmark: tổng upload 500 MiB, tối đa 2.000 file DICOM. Worker kiểm tra bytes/file count, pixel estimate, timeout và disk free; ZIP cũng phải chịu cùng quota sau khi đọc member. Để 1 job import active; queue bounded và có 429 khi đầy. Các con số là giới hạn cấu hình ban đầu, không là bảo đảm máy nào cũng xử lý cùng tốc độ.
+Giới hạn runtime mặc định: 600 MiB compressed/request, 800 MiB expanded/request, 800 MiB tổng/session, 200 MiB/DICOM và tối đa 500 DICOM/session request. Có thể cấu hình qua `.env`; đây là caps chống request quá lớn, không phải performance/SLA guarantee. `results.zip` hiện tại ~431 MiB nén, ~587 MiB expanded, 286 DICOM (2026-10-09), nằm trong defaults. Xem [18](18-anonymous-session-and-upload-limits.md).
 
 ## 3. Dữ liệu thực có trong workspace
 
@@ -88,6 +86,6 @@ Mỗi item có `example_id`, `version`, `label`, `source_kind`, `source_path`, `
 
 ## 6. Vòng đời dữ liệu
 
-Study import thành công được giữ đến khi người dùng xóa; bỏ TTL study 7 ngày của plan cloud cũ. Staging lỗi/incomplete hết hạn sau 24 giờ, bỏ qua job active. Thumbnail có thể tạo lại. Xóa study user upload cần dọn tham chiếu và raw files tương ứng, không đụng source sample. Read-only example là quy tắc nội dung, không phải auth hay account.
+Study upload thuộc temporary browser session; không cần tài khoản. Người dùng có thể xóa một study hoặc bấm Clear session để xóa toàn bộ upload ngay; nếu không, session hết hạn sau 60 phút idle hoặc tối đa 4 giờ. Session expired bị từ chối; file vật lý được dọn lúc app startup/request tiếp theo. Example dùng chung, read-only. Limits/behavior cụ thể ở [18](18-anonymous-session-and-upload-limits.md).
 
 Trước demo sample: mở được ảnh thật ở cả `series_1` và `series_2`, xác minh count/order, reboot container, chạy seed lần hai và kiểm tra số study không tăng. Xóa study upload phải không làm mất sample; nút xóa sample trả lỗi read-only.

@@ -1,0 +1,2 @@
+.session-controls{display:flex;align-items:center;gap:12px}.session-status{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#70859a;white-space:nowrap}.session-clear{white-space:nowrap}
+@media(max-width:900px){.session-controls{gap:6px}.session-status{display:none}}

@@ -5,8 +5,8 @@ export async function createCaptureBlob(viewport, element, options, label) {
   const source = viewport.getCanvas()
   if (!source?.width || !source?.height) throw new Error('The selected viewport is not ready for capture.')
   const size = Number(options.size)
-  if (![512, 256, 128].includes(size)) throw new Error('Choose a supported square export size.')
-  const metadataHeight = options.includeMetadata ? Math.max(20, Math.round(size * 0.08)) : 0
+  if (![512, 128, 64].includes(size)) throw new Error('Choose a supported square export size.')
+  const metadataHeight = options.includeMetadata ? Math.max(16, Math.round(size * 0.07)) : 0
   const imageAreaHeight = size - metadataHeight
   const scale = Math.min(size / source.width, imageAreaHeight / source.height)
   const imageWidth = Math.round(source.width * scale)
@@ -36,8 +36,10 @@ export async function createCaptureBlob(viewport, element, options, label) {
   }
   if (options.includeMetadata) {
     context.fillStyle = '#fff'
-    context.font = `${Math.max(8, Math.round(size / 36))}px Arial`
-    context.fillText(label, 8, size - Math.max(6, Math.round(metadataHeight * 0.3)), size - 16)
+    context.font = `${Math.max(8, Math.round(size * 0.028))}px Arial`
+    context.textBaseline = 'middle'
+    const compactLabel = size < 128 ? label.split('·').slice(0, 2).join('·') : label
+    context.fillText(compactLabel, Math.max(4, size * 0.025), size - metadataHeight / 2, size - 8)
   }
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, options.format === 'jpg' ? 'image/jpeg' : 'image/png', 0.95))
   if (!blob) throw new Error('Capture failed. Try a smaller export size.')

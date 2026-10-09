@@ -1,6 +1,6 @@
 # Test report — ngày / release
 
-> **Cập nhật gần nhất:** 2026-10-06  
+> **Cập nhật gần nhất:** 2026-10-09
 > **Thay đổi gần nhất:** Thêm metadata bắt buộc cho test report.  
 > **Lịch sử:** [CHANGELOG](../CHANGELOG.md)
 
@@ -30,7 +30,7 @@ Tách cold/warm, upload/index/decode/preprocess/infer, queue wait. Ghi số mẫ
 
 ## Restart / backup / examples
 
-Kịch bản kill/restart: …; recovery: …; backup/restore: …; seed rerun không nhân bản: …; sample mở được hai series: …; delete upload/sample read-only: …; chỉ localhost port: …; không auth gate: …
+Kịch bản kill/restart: …; recovery: …; backup/restore: …; seed rerun không nhân bản: …; sample mở được hai series: …; delete upload/sample read-only: …; two-browser session isolation: …; clear/expiry cleanup: …; upload caps: …; only localhost port: …; no account/login: …
 
 ## Known issues và quyết định bàn giao
 

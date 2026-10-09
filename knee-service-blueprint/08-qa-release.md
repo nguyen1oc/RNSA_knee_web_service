@@ -1,7 +1,7 @@
 # 08 — QA và bàn giao local Docker
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; acceptance plan local được giữ nguyên.  
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Thêm acceptance cho anonymous session, data isolation, expiry và upload caps.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Cập nhật 05/10/2026. Mặc định mọi test là NOT_RUN; đây là acceptance plan. Người 1 own upload/storage/Docker, Người 2 own UI/viewer. Model, GCP, IAP không là release gate local.
@@ -29,7 +29,10 @@ Cập nhật 05/10/2026. Mặc định mọi test là NOT_RUN; đây là accepta
 | L16 | Backup/restore sang volume riêng | Count/checksum/ảnh mở lại đúng | Người 1 |
 | L17 | UI/build Docker | Typecheck/lint/build; SPA direct URL; viewer assets tải local | Người 2 |
 | L17a | Design-board parity | 1440×900 có tabs, viewer 4 ô, Study information panel và tree đúng vùng chức năng | Người 2 |
-| L18 | Vào app | Không login/password/token/AI dependency; chỉ web publish localhost | Người 1+2 |
+| L18 | Vào app | Không đăng ký/đăng nhập; server tạo temporary HttpOnly cookie; chỉ web publish localhost | Người 1+2 |
+| L19 | Hai browser profiles | Session B không list/read/delete study upload của A; shared example vẫn xem được | Người 1 |
+| L20 | Clear/expiry | Clear session xóa study/files ngay; idle/absolute expiry từ chối truy cập và cleanup khi có request/startup kế tiếp | Người 1 |
+| L21 | Upload caps | Vượt request/expanded/session/file/count cap trả 413, không để dữ liệu dở trong catalog; ZIP hợp lệ trong giới hạn vẫn import | Người 1 |
 
 Fixture gốc: một sample study gồm hai series + các bộ lỗi nhỏ/synthetic; không cần tìm nhiều ca thật chỉ để test ZIP/parser. Existing 64-file case mới kiểm tra header, chưa ghi PASS render/de-identification. Compressed DICOM/multi-frame chỉ thêm vào supported matrix khi có bằng chứng decode + geometry.
 
@@ -46,8 +49,8 @@ Fixture gốc: một sample study gồm hai series + các bộ lỗi nhỏ/synth
 
 ## Release gate
 
-Chặn bàn giao P0 khi: sample study hoặc một trong hai series chưa mở được nhưng tuyên bố READY, nhập/xem format đã cam kết không được, sai study/order/geometry labels, mất committed data sau restart, seed nhân bản, xóa nhầm sample, hoặc import silently fails. P1 MPR/3D chưa có không chặn P0 và phải ghi rõ chưa triển khai.
+Chặn bàn giao khi: sample study/series không mở được nhưng tuyên bố READY, import/view sai study/order/geometry, mất committed data, seed nhân bản, xóa nhầm sample, MPR volume bị dựng dù geometry gate reject, hoặc upload silently fails. MPR/3D cần được QA theo gate trong doc 16; không tuyên bố sẵn sàng lâm sàng.
 
 Report dùng [template](templates/test-report-template.md): version, máy/browser, fixture, expected/actual, lỗi còn lại và evidence. Benchmark riêng first image cold/warm, import/index, slice cached, memory và delete; cách tính xem [14 — Metrics local](14-local-metrics-and-acceptance.md); không lấy timing mock làm kết quả.
 
-Demo: mở sample study → expand Study/Series tree → chuyển `series_1`/`series_2` → upload folder DICOM → scroll/zoom/display preview → bấm Analyze → xóa study upload → refresh/restart → mở lại sample → thử một file lỗi. Không có bước inference/cloud/auth.
+Demo: mở app không cần tài khoản → kiểm tra cookie session → mở sample → upload ZIP/DICOM → expand Study/Series → kiểm tra session isolation bằng browser profile thứ hai → Clear session → kiểm tra upload biến mất, sample còn → thử cap/file lỗi. Không có bước inference/cloud.

@@ -50,7 +50,13 @@ class DicomObjectStore:
         return destination
 
     def delete_uri(self, object_uri: str) -> None:
-        self._blob_from_uri(object_uri).delete(if_generation_match=None)
+        try:
+            self._blob_from_uri(object_uri).delete(if_generation_match=None)
+        except Exception as exc:
+            code = getattr(exc, "code", None)
+            if code == 404:
+                return
+            raise
 
     def size_uri(self, object_uri: str) -> int:
         blob = self._blob_from_uri(object_uri)

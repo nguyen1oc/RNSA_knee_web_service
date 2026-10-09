@@ -1,14 +1,14 @@
 # 19 — Public preview: Vercel + Cloud Run + GCP storage
 
 > **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Hoàn tất cloud adapter/API cho Firestore + private GCS, thêm test adapter và sửa CORS cho chunked upload; GCP resources/deploy vẫn cần bạn thực hiện.
+> **Thay đổi gần nhất:** Bổ sung quota upload/finalize bằng Firestore, endpoint cleanup OIDC, xác nhận upload hoàn tất và bảo đảm lỗi xóa GCS không làm mất metadata; cấu hình GCP vẫn cần bạn thực hiện.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Trạng thái
 
 - Frontend đã có URL Vercel `https://rnsa-knee-web-service.vercel.app/`; Vercel chỉ host React, không tự host FastAPI.
-- Backend cloud path đã được code: Firestore repository, private GCS adapter, temporary sessions, upload trực tiếp resumable, finalize/index, đọc/xóa theo quyền sở hữu. Ruff/Mypy và 31 pytest pass; adapter tests dùng fake, chưa phải integration test với GCP thật.
-- Chưa tạo bucket/Firestore/service account, chưa deploy Cloud Run, chưa test end-to-end trên URL.
+- Backend cloud path đã được code: Firestore repository, private GCS adapter, temporary sessions, upload trực tiếp resumable, finalize/index, đọc/xóa theo quyền sở hữu; quota upload/finalize phân tán và endpoint cleanup có xác minh OIDC. Cần chạy lại CI sau thay đổi; adapter tests dùng fake, chưa phải integration test với GCP thật.
+- Chưa xác minh bucket/Firestore/service account, chưa deploy Cloud Run, chưa cấu hình Scheduler/TTL hoặc test end-to-end trên URL.
 - Hướng đích: Vercel → FastAPI Cloud Run → Firestore (session/study metadata) + private Cloud Storage (DICOM). VM hiện có không tham gia web request; để dành cho GPU/Triton khi có model.
 - Local Docker tiếp tục dùng SQLite và filesystem để giữ workflow phát triển hiện có.
 
@@ -65,38 +65,68 @@ gcloud run deploy knee-review-api --source . --project=rsna-knee-511004 --region
 
 `--allow-unauthenticated` làm API public; study vẫn yêu cầu temporary browser session nhưng hiện chưa có distributed anti-abuse/rate limit. Đây chỉ là review preview, max instances giới hạn 1; chỉ dùng DICOM đã de-identify. Sau deploy, test `/api/health`, rồi lấy service URL để cấu hình Vercel same-origin rewrite `/api/:path*`. Vercel env: `VITE_DIRECT_GCS_UPLOAD=true`, `VITE_API_BASE_URL` để trống; redeploy frontend. Bucket CORS cần cho phép `Content-Range` (request chunk) và expose `Range` (ack chunk).
 
+### Rate limits đã triển khai và giới hạn còn lại
+
+- `/api/uploads/resumable`: 5 lần/phút và 30 lần/giờ/session; tối đa 3 upload còn `uploading`; tổng file/session vẫn bị chặn ở 800 MiB. Chỉ chuyển pending slot sang `uploaded` sau khi backend xác nhận kích thước object trên GCS.
+- `/api/studies/finalize-upload`: 3 lần/10 phút/session. Giới hạn hiện có 600 MiB/file, 800 MiB/session/expanded và 500 DICOM vẫn áp dụng.
+- Counters nằm trong Firestore `rate_limits`, tăng nguyên tử bằng transaction, ID counter được hash, không lưu IP. Có thể cấu hình Firestore TTL cho `expires_at` sau 2 ngày.
+- GET viewer/slice/image chưa bị throttle để tránh làm hỏng trải nghiệm cuộn lát; theo dõi trước.
+- `/api/sessions` chưa có quota IP trong ứng dụng. Không đọc `X-Forwarded-For` trực tiếp: khi chỉ có Vercel rewrite tới Cloud Run, cần chứng minh được header/IP do trusted proxy đặt và chặn đường gọi vòng ngoài trước khi dùng nó làm khóa. Vercel WAF fixed window có thể cấu hình 10 request/10 phút trên `POST /api/sessions`, nhưng ngưỡng 30/ngày không được thực thi bởi backend hiện tại; không công bố rằng IP cap đã bật cho tới khi cấu hình và kiểm thử edge.
+
 ### Checklist còn lại trước public link rộng
 
-- Thêm distributed abuse/rate limit, đặc biệt `/api/sessions` và `/api/uploads/resumable`.
-- Lên lịch dọn Firestore session/study hết hạn; cleanup hiện tại chỉ opportunistic khi có request và tối đa mỗi 5 phút trên mỗi instance.
+- Cấu hình Vercel WAF 10/10 phút cho `POST /api/sessions` (ban đầu Log, kiểm tra false positive, rồi chuyển Block). Đây là lớp edge, không phải code FastAPI.
+- Cấu hình Firestore TTL và Cloud Scheduler bên dưới; verify chính xác service account OIDC.
 - Chạy integration test với bucket/database thật, test hai browser profile, upload DICOM/ZIP, refresh, delete/Clear, session expiry và kiểm tra hóa đơn/quota.
 - Seed example cloud nếu muốn trang mới có study mẫu; Cloud mode hiện không tự seed DICOM mẫu.
 
-## Đề xuất rate limit + cleanup (chờ duyệt, chưa implement)
+## Cấu hình rate limit và cleanup trên GCP
 
 Mục tiêu là chống upload flood/chi phí bất ngờ mà không làm bác sĩ bị chặn khi nhiều người cùng dùng một Wi-Fi bệnh viện.
 
 | Scope | Mức đề xuất ban đầu | Hành động khi vượt |
 |---|---:|---|
-| Tạo temporary session theo IP tin cậy | 10 lần / 10 phút, tối đa 30 / 24 giờ | HTTP 429 + `Retry-After`; không tạo Firestore session mới |
-| Tạo upload slot theo session | 5 / phút, 30 / giờ; tối đa 3 upload đang chờ | HTTP 429; yêu cầu hoàn tất/xóa upload đang chờ |
-| Finalize theo session | 3 lần / 10 phút; tối đa 500 DICOM và 800 MiB/session như giới hạn hiện có | HTTP 429/413; không finalize đồng thời cùng upload ID |
+| Tạo temporary session theo IP tin cậy | Chưa bật trong API; mục tiêu ban đầu 10 / 10 phút và 30 / ngày | Cấu hình 10/10 phút ở WAF; daily cap cần edge/shared counter đáng tin trước khi bật |
+| Tạo upload slot theo session | **5 / phút, 30 / giờ; tối đa 3 upload đang truyền** | HTTP 429; upload đã xác minh kích thước chuyển trạng thái `uploaded` |
+| Finalize theo session | **3 / 10 phút**; tối đa 500 DICOM, 600 MiB/file và 800 MiB/session | HTTP 429/413; upload chưa hoàn tất trả 409 |
 | GET study/series/slice/image | Không rate-limit chặt ở vòng đầu vì viewer tải nhiều ảnh; theo dõi 120 req/min/session trước khi điều chỉnh | Chỉ cảnh báo/log ở preview; thêm throttle nếu có scrape/abuse |
 
-IP quota chỉ dùng khi đường vào API có trusted edge (khuyến nghị Cloud Armor phía External Application Load Balancer). Không tin trực tiếp `X-Forwarded-For` do client tự gửi. Cloud Run max instances `1` và concurrency `1` là trần chi phí/đồng thời, không thay thế rate limit. Nếu chưa dựng load balancer thì giai đoạn review chỉ áp dụng quota theo session, bật max instance 1, giữ URL chia sẻ giới hạn; chưa gọi là bảo vệ public chống bot.
+Không tin trực tiếp `X-Forwarded-For` do client tự gửi. Cloud Run max instances `1` và concurrency `1` là trần chi phí/đồng thời, không thay thế rate limit. Rate counter Firestore không lưu IP thô; hiện chỉ dùng session ID. Với Vercel WAF, tạo rule match `POST /api/sessions`, limit 10 requests / 10-minute fixed window, key theo client IP do Vercel edge xác định; bắt đầu ở Log rồi Block sau khi kiểm tra. Vercel plan và edge behavior có thể giới hạn daily window; 30/ngày chưa được bảo đảm. Nếu cần đúng mức 30/ngày, dùng trusted edge có shared durable counter (ví dụ Cloud Armor/edge service) và chỉ nhận traffic qua edge đó.
 
-Rate counter lưu ở collection riêng `rate_limits`, key là HMAC(IP/session + route + fixed time window), update atomic bằng Firestore transaction; không lưu IP thô. Đặt Firestore TTL trên field Timestamp `expires_at` để dọn counter sau 2 ngày. Response 429 có message thân thiện và `Retry-After`; không áp dụng cùng quota cho từng frame image.
+Rate counter lưu ở collection riêng `rate_limits`, doc ID là SHA-256 của route/session/fixed window, update atomic bằng Firestore transaction; không lưu IP thô. Đặt Firestore TTL trên field Timestamp `expires_at` để dọn counter sau 2 ngày. Response 429 có message thân thiện và `Retry-After`; không áp dụng cùng quota cho từng frame image.
 
 ### Cleanup đề xuất
 
 1. Temporary session: idle 60 phút, absolute 4 giờ như hiện tại. Firestore expiry field nên là Timestamp; định kỳ query session hết hạn.
-2. Cloud Scheduler gọi endpoint cleanup mỗi 15 phút bằng OIDC service account riêng; endpoint phải xác minh token/audience/email, không chỉ kiểm tra URL bí mật.
+2. Cloud Scheduler gọi `POST /internal/cleanup` mỗi 15 phút bằng OIDC service account riêng. Endpoint xác minh chữ ký token, audience, email và `email_verified`; không chỉ kiểm tra URL bí mật.
 3. Theo từng session hết hạn: đọc danh sách DICOM object + pending upload, xóa object GCS trước, rồi xóa instance/series/study/session metadata. Nếu GCS xóa lỗi thì giữ metadata còn lại để lần scheduler sau retry; log số object lỗi và session ID đã hash.
 4. Batch Firestore tối đa 450 writes mỗi lần; cleanup worker có giới hạn mỗi lượt (đề xuất 20 sessions hoặc 2,000 objects) để không chiếm request viewer quá lâu; Cloud Scheduler retry lần sau.
-5. Lifecycle bucket chỉ xóa `incoming/` sau 1 ngày để dọn ZIP/object upload dở dang; không đặt lifecycle trên `sessions/`, vì sẽ xóa study đang hoạt động. Các resumable upload URL bị bỏ dở sẽ tự hết hạn theo quy định GCS.
+5. Lifecycle bucket chỉ xóa `incoming/` sau 1 ngày để dọn ZIP/object upload dở dang; không đặt lifecycle trên `sessions/`, vì sẽ xóa study đang hoạt động. Object uploads moved into `sessions/` must never inherit this rule.
 6. Clear session/xóa study thủ công thực hiện cùng quy tắc: xóa blob thành công rồi mới commit xóa metadata; lỗi nào cũng trả trạng thái để retry, không báo đã xóa khi blob còn.
 
-**Duyệt đề xuất trước khi implement:** các ngưỡng trên hợp cho demo nhỏ; chỉnh sau khi đo upload thật và chi phí. Vòng public giới hạn nên thêm alert budget, max instance 1, Cloud Armor rate policy, Cloud Scheduler cleanup và test retry/failure trước khi chia sẻ URL rộng. Đây là research preview, không gửi PHI.
+Ngưỡng trên là cấu hình preview đã chốt; đo upload/chi phí rồi điều chỉnh có chủ đích. Trước khi chia sẻ rộng cần budget alert, max instance 1, edge rate policy, Scheduler cleanup, TTL và test lỗi/retry. Đây là research preview, không gửi PHI.
+
+### Thiết lập Firestore TTL và Cloud Scheduler
+
+Chạy sau khi Cloud Run đã deploy. Thay project nếu không dùng project đang cấu hình:
+
+```powershell
+$project = "rsna-knee-511004"
+$region = "asia-southeast1"
+$service = "knee-review-api"
+$schedulerAccount = "knee-review-cleaner"
+$serviceUrl = gcloud run services describe $service --project=$project --region=$region --format="value(status.url)"
+$schedulerEmail = "$schedulerAccount@$project.iam.gserviceaccount.com"
+
+gcloud services enable cloudscheduler.googleapis.com --project=$project
+gcloud iam service-accounts create $schedulerAccount --project=$project --display-name="Knee Review scheduled cleanup"
+gcloud run services add-iam-policy-binding $service --project=$project --region=$region --member="serviceAccount:$schedulerEmail" --role="roles/run.invoker"
+gcloud run services update $service --project=$project --region=$region --update-env-vars="CLEANUP_SCHEDULER_EMAIL=$schedulerEmail,CLEANUP_OIDC_AUDIENCE=$serviceUrl"
+gcloud firestore fields ttls update expires_at --collection-group=rate_limits --enable-ttl --database="(default)" --project=$project
+gcloud scheduler jobs create http knee-review-cleanup --project=$project --location=$region --schedule="*/15 * * * *" --time-zone="Etc/UTC" --uri="$serviceUrl/internal/cleanup" --http-method=POST --oidc-service-account="$schedulerEmail" --oidc-token-audience="$serviceUrl" --attempt-deadline=300s --max-backoff=3600s
+```
+
+Nếu Scheduler job đã tồn tại, dùng `gcloud scheduler jobs update http ...` với các tham số tương ứng thay vì `create`. Chạy thử bằng `gcloud scheduler jobs run knee-review-cleanup --location=$region --project=$project`, rồi kiểm tra Executions/logs và Cloud Run logs. Scheduler service account cần `roles/run.invoker`; backend còn kiểm tra đúng email trong `CLEANUP_SCHEDULER_EMAIL`. TTL chỉ áp dụng `rate_limits.expires_at`, không cấu hình TTL cho study/session vì app phải xóa blob GCS trước metadata. Firestore TTL có thể xóa trễ; TTL chỉ là dọn counter, không phải cleanup DICOM.
 
 
 ## VM và chi phí

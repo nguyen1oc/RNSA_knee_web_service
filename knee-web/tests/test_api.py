@@ -328,3 +328,57 @@ def test_upload_and_expanded_zip_limits_return_413(client: TestClient, main_modu
     monkeypatch.setattr(ingest_module, "MAX_EXPANDED_BYTES", 10)
     expanded_too_large = client.post("/api/studies/upload", files={"files": ("study.zip", valid_zip, "application/zip")})
     assert expanded_too_large.status_code == 413
+
+
+def test_cloud_study_deletion_removes_objects_before_metadata(main_module: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    operations: list[str] = []
+
+    class Metadata:
+        def get_study(self, study_id: str) -> dict[str, str]:
+            return {"id": study_id}
+
+        def study_artifacts(self, study_id: str) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+            return ([{"id": "series-1"}], [{"id": "instance-1", "path": "gs://private/slice.dcm"}])
+
+        def delete_study_metadata(self, study_id: str, series: list[Any], instances: list[Any]) -> None:
+            operations.append("metadata")
+
+    class ObjectStore:
+        bucket_name = "private"
+
+        def delete_uri(self, uri: str) -> None:
+            operations.append(f"object:{uri}")
+
+    monkeypatch.setattr(main_module, "metadata_store", Metadata)
+    monkeypatch.setattr(main_module, "object_store", ObjectStore)
+
+    assert main_module.delete_cloud_study_data("study-1") == 1
+    assert operations == ["object:gs://private/slice.dcm", "metadata"]
+
+
+def test_cloud_study_deletion_keeps_metadata_when_object_delete_fails(main_module: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    operations: list[str] = []
+
+    class Metadata:
+        def get_study(self, study_id: str) -> dict[str, str]:
+            return {"id": study_id}
+
+        def study_artifacts(self, study_id: str) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+            return ([{"id": "series-1"}], [{"id": "instance-1", "path": "gs://private/slice.dcm"}])
+
+        def delete_study_metadata(self, study_id: str, series: list[Any], instances: list[Any]) -> None:
+            operations.append("metadata")
+
+    class ObjectStore:
+        bucket_name = "private"
+
+        def delete_uri(self, uri: str) -> None:
+            operations.append(f"object:{uri}")
+            raise RuntimeError("simulated GCS delete failure")
+
+    monkeypatch.setattr(main_module, "metadata_store", Metadata)
+    monkeypatch.setattr(main_module, "object_store", ObjectStore)
+
+    with pytest.raises(RuntimeError, match="simulated GCS delete failure"):
+        main_module.delete_cloud_study_data("study-1")
+    assert operations == ["object:gs://private/slice.dcm"]

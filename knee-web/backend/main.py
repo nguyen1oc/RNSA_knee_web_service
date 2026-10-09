@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import os
 import shutil
 import sqlite3
@@ -25,6 +26,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from backend.ingest import MAX_SESSION_BYTES, UploadLimitExceeded, stage_and_validate_uploads
+from backend.rate_limits import enforce_finalize_limits, enforce_upload_limits
 from backend.session_token import AnonymousSession, format_timestamp, hash_session_token, new_session_record, utc_now
 from backend.volume_geometry import volume_eligibility
 
@@ -39,6 +41,7 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Knee Review API", version="0.1.0")
+logger = logging.getLogger("knee_review.cleanup")
 allowed_origins = [
     origin.strip()
     for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
@@ -129,6 +132,25 @@ def delete_stored_paths(paths: Iterable[str]) -> None:
                 pass
         else:
             Path(stored_path).unlink(missing_ok=True)
+
+
+def delete_cloud_study_data(study_id: str) -> int:
+    """Delete GCS objects first, then metadata, so failed object deletion is retryable."""
+    store = metadata_store()
+    study = store.get_study(study_id)
+    if not study:
+        return 0
+    series_rows, instances = store.study_artifacts(study_id)
+    for instance in instances:
+        object_store().delete_uri(instance["path"])
+    store.delete_study_metadata(study_id, series_rows, instances)
+    return len(instances)
+
+
+def delete_cloud_pending_upload(upload: dict[str, Any]) -> None:
+    store = metadata_store()
+    object_store().delete_uri(f"gs://{object_store().bucket_name}/{upload['object_name']}")
+    store.delete_pending_upload(upload["id"])
 
 
 def db() -> sqlite3.Connection:
@@ -223,29 +245,37 @@ def remove_upload_roots(paths: list[str]) -> None:
             shutil.rmtree(root, ignore_errors=True)
 
 
-def cleanup_expired_sessions() -> int:
+def cleanup_expired_sessions(force: bool = False, limit: int = 20) -> dict[str, int]:
     global _last_cloud_cleanup
     if cloud_mode():
         current = time.monotonic()
-        if current - _last_cloud_cleanup < 300:
-            return 0
+        if not force and current - _last_cloud_cleanup < 300:
+            return {"sessions_deleted": 0, "objects_deleted": 0, "failures": 0}
         _last_cloud_cleanup = current
     stamp = format_timestamp(utc_now())
     if cloud_mode():
         store = metadata_store()
-        expired = store.expired_sessions(stamp)
-        for session_id in expired:
-            for study in store.session_studies(session_id):
-                _, instances = store.delete_study(study["id"])
-                delete_stored_paths([row["path"] for row in instances])
-            for upload in store.session_pending_uploads(session_id):
-                try:
-                    object_store().delete_uri(f"gs://{object_store().bucket_name}/{upload['object_name']}")
-                except Exception:
-                    pass
-                store.delete_pending_upload(upload["id"])
-            store.delete_session(session_id)
-        return len(expired)
+        expired = store.expired_sessions(stamp, limit=limit)
+        sessions_deleted = 0
+        objects_deleted = 0
+        failures = 0
+        for session in expired:
+            session_id = session.get("id", "")
+            if not session_id:
+                failures += 1
+                continue
+            try:
+                for study in store.session_studies(session_id):
+                    objects_deleted += delete_cloud_study_data(study["id"])
+                for upload in store.session_pending_uploads(session_id):
+                    delete_cloud_pending_upload(upload)
+                    objects_deleted += 1
+                store.delete_session(session_id)
+                sessions_deleted += 1
+            except Exception:
+                logger.exception("Expired session cleanup failed for hashed session id")
+                failures += 1
+        return {"sessions_deleted": sessions_deleted, "objects_deleted": objects_deleted, "failures": failures}
     with db() as connection:
         expired = connection.execute(
             "SELECT id FROM anonymous_sessions WHERE idle_expires_at <= ? OR absolute_expires_at <= ?",
@@ -253,7 +283,7 @@ def cleanup_expired_sessions() -> int:
         ).fetchall()
         session_ids = [row["id"] for row in expired]
         if not session_ids:
-            return 0
+            return {"sessions_deleted": 0, "objects_deleted": 0, "failures": 0}
         placeholders = ",".join("?" for _ in session_ids)
         path_rows = connection.execute(
             f"SELECT instances.path FROM instances JOIN series ON series.id = instances.series_id "
@@ -262,7 +292,7 @@ def cleanup_expired_sessions() -> int:
         ).fetchall()
         connection.execute(f"DELETE FROM anonymous_sessions WHERE id IN ({placeholders})", session_ids)
     remove_upload_roots([row["path"] for row in path_rows])
-    return len(session_ids)
+    return {"sessions_deleted": len(session_ids), "objects_deleted": len(path_rows), "failures": 0}
 
 
 def create_anonymous_session() -> dict[str, str]:
@@ -930,6 +960,34 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "knee-review"}
 
 
+@app.post("/internal/cleanup")
+def scheduled_cleanup(request: Request) -> dict[str, int]:
+    if not cloud_mode():
+        raise HTTPException(404, "Scheduled cleanup is available only in Cloud Run mode")
+    expected_audience = os.getenv("CLEANUP_OIDC_AUDIENCE", "").strip()
+    expected_email = os.getenv("CLEANUP_SCHEDULER_EMAIL", "").strip().lower()
+    authorization = request.headers.get("authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    token = token.strip()
+    if not expected_audience or not expected_email or scheme.lower() != "bearer" or not token:
+        raise HTTPException(401, "Cleanup service authentication is not configured")
+    try:
+        from google.auth.transport.requests import Request as GoogleAuthRequest
+        from google.oauth2 import id_token
+
+        claims = id_token.verify_oauth2_token(token, GoogleAuthRequest(), audience=expected_audience)
+    except Exception as exc:
+        raise HTTPException(401, "Invalid cleanup service identity token") from exc
+    token_email = claims.get("email")
+    if not isinstance(token_email, str) or token_email.lower() != expected_email or claims.get("email_verified") is not True:
+        raise HTTPException(403, "Cleanup service identity is not authorized")
+
+    result = cleanup_expired_sessions(force=True, limit=20)
+    if result["failures"]:
+        raise HTTPException(503, {"message": "Some expired sessions need cleanup retry", **result})
+    return result
+
+
 @app.post("/api/sessions")
 def start_session(response: Response, request: Request) -> dict[str, str]:
     cleanup_expired_sessions()
@@ -966,18 +1024,14 @@ def current_session(session: AnonymousSession = Depends(get_current_session)) ->
 def clear_current_session(request: Request, session: AnonymousSession = Depends(get_current_session)) -> Response:
     if cloud_mode():
         store = metadata_store()
-        cloud_paths: list[str] = []
-        for study in store.session_studies(session.session_id):
-            _, instances = store.delete_study(study["id"])
-            cloud_paths.extend(row["path"] for row in instances)
-        for upload in store.session_pending_uploads(session.session_id):
-            try:
-                object_store().delete_uri(f"gs://{object_store().bucket_name}/{upload['object_name']}")
-            except Exception:
-                pass
-            store.delete_pending_upload(upload["id"])
-        store.delete_session(session.session_id)
-        delete_stored_paths(cloud_paths)
+        try:
+            for study in store.session_studies(session.session_id):
+                delete_cloud_study_data(study["id"])
+            for upload in store.session_pending_uploads(session.session_id):
+                delete_cloud_pending_upload(upload)
+            store.delete_session(session.session_id)
+        except Exception as exc:
+            raise HTTPException(503, "Could not fully clear this workspace. Retry Clear session.") from exc
         response = Response(status_code=204)
         response.delete_cookie("knee_session", path="/api", secure=True, httponly=True, samesite="none")
         return response
@@ -1079,12 +1133,16 @@ def create_resumable_upload(
 ) -> dict[str, str]:
     if not cloud_mode():
         raise HTTPException(404, "Resumable upload is available only on the Cloud Storage deployment")
+    enforce_upload_limits(metadata_store(), session.session_id)
     filename = Path(body.filename).name
     if not filename.lower().endswith((".dcm", ".zip")):
         raise HTTPException(400, "Only .dcm files or .zip archives are supported")
     pending = metadata_store().session_pending_uploads(session.session_id)
     pending_bytes = sum(int(item.get("size", 0)) for item in pending)
-    if len(pending) >= 500 or pending_bytes + body.size > MAX_SESSION_BYTES:
+    active_uploads = [item for item in pending if item.get("status", "uploading") == "uploading"]
+    if len(active_uploads) >= 3:
+        raise HTTPException(429, "Finish or cancel a pending upload before starting another", headers={"Retry-After": "60"})
+    if pending_bytes + body.size > MAX_SESSION_BYTES:
         raise HTTPException(413, "Temporary session upload limit reached")
     if session_upload_bytes(session.session_id) + pending_bytes + body.size > MAX_SESSION_BYTES:
         raise HTTPException(413, f"Temporary session is limited to {MAX_SESSION_BYTES // (1024 * 1024)} MiB total")
@@ -1111,10 +1169,33 @@ def create_resumable_upload(
             "object_name": object_name,
             "filename": stored_filename,
             "size": body.size,
+            "status": "uploading",
             "created_at": now(),
         },
     )
     return {"upload_id": upload_id, "upload_url": upload_url, "content_type": content_type}
+
+
+@app.post("/api/uploads/{upload_id}/complete")
+def complete_resumable_upload(
+    upload_id: str,
+    session: AnonymousSession = Depends(get_current_session),
+) -> dict[str, str]:
+    if not cloud_mode():
+        raise HTTPException(404, "Resumable upload is available only on the Cloud Storage deployment")
+    store = metadata_store()
+    row = store.get_pending_upload(upload_id)
+    if not row or row.get("owner_session_id") != session.session_id:
+        raise HTTPException(404, "Upload session not found or expired")
+    object_uri = f"gs://{object_store().bucket_name}/{row['object_name']}"
+    try:
+        actual_size = object_store().size_uri(object_uri)
+    except Exception as exc:
+        raise HTTPException(400, "Uploaded object is not complete") from exc
+    if actual_size != int(row["size"]):
+        raise HTTPException(400, "Uploaded file size mismatch")
+    store.update_pending_upload(upload_id, {"status": "uploaded", "uploaded_at": now()})
+    return {"upload_id": upload_id, "status": "uploaded"}
 
 
 @app.post("/api/studies/finalize-upload")
@@ -1126,12 +1207,15 @@ def finalize_resumable_uploads(
         raise HTTPException(404, "Resumable upload is available only on the Cloud Storage deployment")
     if len(set(body.upload_ids)) != len(body.upload_ids):
         raise HTTPException(400, "Duplicate upload IDs are not allowed")
+    enforce_finalize_limits(metadata_store(), session.session_id)
 
     pending_rows: list[dict[str, Any]] = []
     for upload_id in body.upload_ids:
         row = metadata_store().get_pending_upload(upload_id)
         if not row or row.get("owner_session_id") != session.session_id:
             raise HTTPException(404, "Upload session not found or expired")
+        if row.get("status") != "uploaded":
+            raise HTTPException(409, "Upload must finish before it can be finalized")
         pending_rows.append(row)
 
     upload_root = STORAGE_DIR / f"upload-{uuid.uuid4().hex[:12]}"
@@ -1182,9 +1266,9 @@ def finalize_resumable_uploads(
             object_uri = f"gs://{object_store().bucket_name}/{row['object_name']}"
             try:
                 object_store().delete_uri(object_uri)
+                metadata_store().delete_pending_upload(row["id"])
             except Exception:
-                pass
-            metadata_store().delete_pending_upload(row["id"])
+                logger.exception("Failed to clean up a finalized-upload object; metadata retained for retry")
 
 
 @app.post("/api/studies/upload")
@@ -1238,8 +1322,10 @@ def delete_study(study_id: str, session: AnonymousSession = Depends(get_current_
             raise HTTPException(409, "The example study is read-only")
         if row.get("owner_session_id") != session.session_id:
             raise HTTPException(404, "Study not found")
-        _, instances = store.delete_study(study_id)
-        delete_stored_paths([instance["path"] for instance in instances])
+        try:
+            delete_cloud_study_data(study_id)
+        except Exception as exc:
+            raise HTTPException(503, "Could not fully delete this study. Retry the delete action.") from exc
         return {"status": "deleted", "study_id": study_id}
     with db() as connection:
         row = connection.execute("SELECT * FROM studies WHERE id = ?", (study_id,)).fetchone()

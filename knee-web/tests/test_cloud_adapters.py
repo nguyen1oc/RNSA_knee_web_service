@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -96,12 +97,20 @@ class FakeBatch:
 class FakeFirestore:
     def __init__(self) -> None:
         self.collections: dict[str, FakeCollection] = {}
+        self.rate_counters: dict[str, int] = {}
 
     def collection(self, name: str) -> FakeCollection:
         return self.collections.setdefault(name, FakeCollection())
 
     def batch(self) -> FakeBatch:
         return FakeBatch()
+
+    def consume_rate_limit(self, counter_id: str, limit: int, expires_at: Any) -> bool:
+        count = self.rate_counters.get(counter_id, 0)
+        if count >= limit:
+            return False
+        self.rate_counters[counter_id] = count + 1
+        return True
 
 
 class FakeBlob:
@@ -161,6 +170,16 @@ def test_firestore_metadata_session_owner_queries_and_delete() -> None:
     assert repository.get_study("study-a") is None
     assert repository.list_series("study-a") == []
     assert repository.get_instance("instance-a") is None
+
+
+def test_firestore_fixed_window_counter_uses_atomic_store_contract() -> None:
+    client = FakeFirestore()
+    repository = FirestoreMetadata(client=client)
+    expiry = datetime.now(timezone.utc)
+
+    assert repository.consume_rate_limit("counter-a", 2, expiry)
+    assert repository.consume_rate_limit("counter-a", 2, expiry)
+    assert not repository.consume_rate_limit("counter-a", 2, expiry)
 
 
 def test_cloud_storage_round_trip_and_rejects_foreign_bucket(tmp_path: Path) -> None:

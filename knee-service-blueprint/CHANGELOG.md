@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Hoàn tất code backend cloud path; thêm đề xuất ngưỡng rate limit và lịch cleanup để review trước khi implement.
+> **Thay đổi gần nhất:** Thêm quota upload/finalize Firestore, OIDC cleanup endpoint và runbook Cloud Scheduler/Firestore TTL; daily IP cap vẫn cần trusted edge.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-09 — Cloud Run backend direction
@@ -12,7 +12,15 @@
 - Sửa bucket CORS template để cho phép `Content-Range`; ghi rõ lifecycle chỉ dọn prefix `incoming/` để không xóa study đang hoạt động.
 - Chưa deploy Cloud Run và chưa tạo bucket/database/service account; rate limiting, scheduled TTL cleanup, cloud sample seeding và public smoke test còn là gates.
 - Tách vai trò VM: để dành GPU/Triton về sau, không host web/API; cập nhật runbook GCP và trách nhiệm cấu hình người dùng.
-- Thêm bản đề xuất (chưa implement): session 10/10 phút + 30/ngày/IP tin cậy; upload init 5/phút, 30/giờ/session, tối đa 3 pending; cleanup OIDC/Cloud Scheduler mỗi 15 phút; GCS incoming lifecycle 1 ngày.
+- Ghi nhận cấu hình mục tiêu ban đầu: session 10/10 phút + 30/ngày/IP tin cậy; upload init 5/phút, 30/giờ/session, tối đa 3 pending; cleanup OIDC/Cloud Scheduler mỗi 15 phút; GCS incoming lifecycle 1 ngày. Phần upload/finalize và endpoint cleanup được triển khai ở entry tiếp theo; quota IP vẫn chờ trusted edge.
+
+## 2026-10-09 — Upload abuse controls and scheduled cleanup
+
+- Thêm Firestore fixed-window counters cho upload initiation (5/phút, 30/giờ/session) và finalize (3/10 phút/session); thêm cap 3 upload đang truyền và xác minh GCS object trước khi đánh dấu upload hoàn tất.
+- Thêm `POST /internal/cleanup` xác minh Google OIDC token/audience/email; cleanup theo batch 20 session, xóa GCS object trước metadata và giữ metadata nếu xóa thất bại để lượt Scheduler sau retry.
+- Bổ sung dependency `google-auth`, env mẫu, TTL `rate_limits.expires_at`, Cloud Scheduler runbook mỗi 15 phút và cập nhật hướng dẫn bucket.
+- Session creation IP quota chưa được giả lập bằng XFF: cấu hình Vercel WAF 10/10 phút ở edge; 30/ngày chưa được thực thi tới khi có shared trusted-edge counter.
+- Thêm unit tests cho fixed-window limiter và adapter counter; kiểm tra lại Ruff/Mypy/pytest/build trước push.
 
 ## 2026-10-09 — Anonymous review session replaces demo account
 

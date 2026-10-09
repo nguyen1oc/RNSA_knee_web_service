@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterable
+from datetime import datetime
 from typing import Any
 
 
@@ -34,14 +35,14 @@ class FirestoreMetadata:
     def touch_session(self, session_id: str, last_seen_at: str, idle_expires_at: str) -> None:
         self.sessions.document(session_id).update({"last_seen_at": last_seen_at, "idle_expires_at": idle_expires_at})
 
-    def expired_sessions(self, stamp: str) -> list[dict[str, Any]]:
+    def expired_sessions(self, stamp: str, limit: int = 20) -> list[dict[str, Any]]:
         expired: dict[str, dict[str, Any]] = {}
         for field in ("idle_expires_at", "absolute_expires_at"):
-            for document in self.sessions.where(field, "<=", stamp).stream():
+            for document in self.sessions.where(field, "<=", stamp).limit(limit).stream():
                 data = self._data(document)
                 if data:
                     expired[document.id] = data
-        return list(expired.values())
+        return list(expired.values())[:limit]
 
     def delete_session(self, session_id: str) -> None:
         self.sessions.document(session_id).delete()
@@ -93,15 +94,27 @@ class FirestoreMetadata:
         study = self.get_study(study_id)
         if not study:
             return None, []
-        instances: list[dict[str, Any]] = []
+        series_rows, instances = self.study_artifacts(study_id)
+        self.delete_study_metadata(study_id, series_rows, instances)
+        return study, instances
+
+    def study_artifacts(self, study_id: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         series_rows = self.list_series(study_id)
+        instances: list[dict[str, Any]] = []
         for series in series_rows:
             instances.extend(self.list_instances(series["id"]))
+        return series_rows, instances
+
+    def delete_study_metadata(
+        self,
+        study_id: str,
+        series_rows: list[dict[str, Any]],
+        instances: list[dict[str, Any]],
+    ) -> None:
         refs = [self.instances.document(row["id"]) for row in instances]
         refs.extend(self.series.document(row["id"]) for row in series_rows)
         refs.append(self.studies.document(study_id))
         self._delete_documents(refs)
-        return study, instances
 
     def session_studies(self, session_id: str) -> list[dict[str, Any]]:
         rows = (self._data(doc) for doc in self.studies.where("owner_session_id", "==", session_id).stream())
@@ -119,6 +132,39 @@ class FirestoreMetadata:
 
     def delete_pending_upload(self, upload_id: str) -> None:
         self.pending_uploads.document(upload_id).delete()
+
+    def update_pending_upload(self, upload_id: str, data: dict[str, Any]) -> None:
+        self.pending_uploads.document(upload_id).update(data)
+
+    def consume_rate_limit(
+        self,
+        counter_id: str,
+        limit: int,
+        expires_at: datetime,
+    ) -> bool:
+        """Atomically increment a fixed-window counter, returning whether allowed."""
+        if hasattr(self.client, "consume_rate_limit"):
+            return bool(self.client.consume_rate_limit(counter_id, limit, expires_at))
+
+        from google.cloud import firestore
+
+        reference = self.client.collection("rate_limits").document(counter_id)
+        transaction = self.client.transaction()
+
+        @firestore.transactional
+        def consume(transaction: Any) -> bool:
+            snapshot = reference.get(transaction=transaction)
+            data = snapshot.to_dict() if snapshot.exists else {}
+            count = int((data or {}).get("count", 0))
+            if count >= limit:
+                return False
+            transaction.set(
+                reference,
+                {"count": count + 1, "expires_at": expires_at},
+            )
+            return True
+
+        return bool(consume(transaction))
 
     @staticmethod
     def _data(document: Any) -> dict[str, Any] | None:

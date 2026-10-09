@@ -81,6 +81,14 @@ function uploadDirectToCloudStorage(form, onProgress, startedAt) {
       offset = status.nextOffset
       if (status.complete) break
     }
+    const completionResponse = await fetch(apiUrl(`/api/uploads/${payload.upload_id}/complete`), {
+      method: 'POST',
+      credentials: 'include',
+    })
+    const completionPayload = await completionResponse.json().catch(() => ({}))
+    if (!completionResponse.ok) {
+      throw new Error(errorMessage(completionPayload, `Could not verify the upload for ${file.name}.`))
+    }
     loadedBeforeCurrent += file.size
     updateProgress(0)
     return payload.upload_id

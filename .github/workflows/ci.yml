@@ -99,7 +99,6 @@ jobs:
       WIF_SERVICE_ACCOUNT: ${{ vars.WIF_SERVICE_ACCOUNT }}
       STAGING_GATE_SECRET_NAME: ${{ vars.STAGING_GATE_SECRET_NAME }}
       IMAGE_URI: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.AR_REPOSITORY }}/knee-review-api:${{ github.sha }}
-      CANDIDATE_TAG: ci-${{ github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -140,6 +139,7 @@ jobs:
         id: deploy
         shell: bash
         run: |
+          candidate_tag="ci-${GITHUB_SHA:0:12}"
           secret_args=()
           if [[ "$GITHUB_REF_NAME" == "dev" ]]; then
             secret_args+=(--update-secrets "STAGING_GATE_TOKEN=${STAGING_GATE_SECRET_NAME}:latest")
@@ -175,12 +175,13 @@ jobs:
           if [[ "$service_exists" == true ]]; then
             echo "Existing Cloud Run service: deploy without traffic, then smoke-test and promote."
             gcloud run deploy "$CLOUD_RUN_SERVICE" "${deploy_args[@]}" \
-              --no-traffic --tag "$CANDIDATE_TAG"
+              --no-traffic --tag "$candidate_tag"
           else
             echo "First deployment: create the service, then smoke-test its initial revision."
             gcloud run deploy "$CLOUD_RUN_SERVICE" "${deploy_args[@]}"
           fi
           echo "service_exists=$service_exists" >> "$GITHUB_OUTPUT"
+          echo "candidate_tag=$candidate_tag" >> "$GITHUB_OUTPUT"
 
       - name: Smoke-test candidate revision
         id: smoke
@@ -191,7 +192,7 @@ jobs:
             service_json="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
               --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json)"
             if [[ "${{ steps.deploy.outputs.service_exists }}" == true ]]; then
-              candidate_url="$(jq -r --arg tag "$CANDIDATE_TAG" \
+              candidate_url="$(jq -r --arg tag "${{ steps.deploy.outputs.candidate_tag }}" \
                 '.status.traffic[]? | select(.tag == $tag) | .url' <<<"$service_json" | head -n 1)"
             else
               candidate_url="$(jq -r '.status.url // empty' <<<"$service_json")"

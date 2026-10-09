@@ -1,7 +1,7 @@
 # 15 — CI/CD: dev staging → main production
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Ghi rõ bootstrap order: tạo Cloud Run production trước khi điền Vercel `KNEE_API_ORIGIN`; không trỏ frontend sang staging.
+> **Thay đổi gần nhất:** Rút ngắn Cloud Run traffic tag theo 12 ký tự SHA; tên service + tag phải không quá 46 ký tự.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Mục tiêu và ý nghĩa môi trường
@@ -35,7 +35,7 @@ Artifact Registry standard repository `knee-review` chứa image ứng dụng `k
 
 The custom remote repository is currently retained but unused. Its first upstream fetch is timing out at Docker Hub's token endpoint; platform-log configuration also fails because Artifact Registry validates the upstream during the update. Do not add `AR_DOCKERHUB_REMOTE_REPOSITORY` to GitHub Environments. If this route is revisited, check current upstream connectivity first; see Google's [remote repository troubleshooting](https://cloud.google.com/artifact-registry/docs/troubleshoot-remote).
 
-Cloud Run deploy dùng image tag bất biến theo commit SHA. **Lần đầu tạo service:** Cloud Run không hỗ trợ `--no-traffic` khi chưa có service/revision, nên workflow tạo service và revision đầu tiên (revision này nhận traffic), sau đó smoke-test `/api/health`. Chưa có revision cũ để giữ traffic hoặc rollback nếu smoke test lần đầu thất bại; cần sửa cấu hình/commit rồi deploy lại. **Các lần tiếp theo:** workflow tạo revision với `--no-traffic`, gọi `/api/health` qua URL candidate, rồi chỉ chuyển traffic sang revision mới nếu JSON health hợp lệ. Nếu build/deploy/smoke test lỗi ở các lần này, revision cũ tiếp tục nhận traffic. Đây là promote gate tự động; không phải Cloud Run tự phát hiện mọi lỗi sau phát hành hay tự rollback sau khi đã chuyển traffic. Rollback hậu triển khai vẫn là thao tác thủ công tới revision cũ.
+Cloud Run deploy dùng image tag bất biến theo full commit SHA; traffic tag của candidate dùng tiền tố `ci-` cộng 12 ký tự SHA đầu để nằm trong giới hạn Cloud Run (tên service + traffic tag tối đa 46 ký tự). **Lần đầu tạo service:** Cloud Run không hỗ trợ `--no-traffic` khi chưa có service/revision, nên workflow tạo service và revision đầu tiên (revision này nhận traffic), sau đó smoke-test `/api/health`. Chưa có revision cũ để giữ traffic hoặc rollback nếu smoke test lần đầu thất bại; cần sửa cấu hình/commit rồi deploy lại. **Các lần tiếp theo:** workflow tạo revision với `--no-traffic`, gọi `/api/health` qua URL candidate, rồi chỉ chuyển traffic sang revision mới nếu JSON health hợp lệ. Nếu build/deploy/smoke test lỗi ở các lần này, revision cũ tiếp tục nhận traffic. Đây là promote gate tự động; không phải Cloud Run tự phát hiện mọi lỗi sau phát hành hay tự rollback sau khi đã chuyển traffic. Rollback hậu triển khai vẫn là thao tác thủ công tới revision cũ.
 
 ## Công việc GCP phải làm một lần trước khi bật CD
 

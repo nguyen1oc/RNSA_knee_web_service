@@ -1,8 +1,16 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Làm rõ production bootstrap: Cloud Run tạo URL trước; Vercel Production origin được cấu hình sau.
+> **Thay đổi gần nhất:** Rút gọn traffic tag Cloud Run theo SHA để tránh vượt giới hạn độ dài service + tag.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
+
+## 2026-10-10 — Shorten Cloud Run candidate traffic tag
+
+### Fixed
+
+- Candidate traffic tags now use `ci-` plus the first 12 characters of the commit SHA, while image tags keep the full SHA.
+- This keeps the Cloud Run service-name + traffic-tag combination within its 46-character limit and fixes the staging deployment failure.
+- The smoke-test step reads the exact candidate tag emitted by the deploy step.
 
 ## 2026-10-10 — Clarify production Vercel/API bootstrap order
 

@@ -12,7 +12,7 @@ The existing VM is private and reached through an IAP tunnel; it has no public u
 The UI is in English and currently supports:
 
 - one seeded, read-only example study; it can be sourced from `series_1`/`series_2` folders or `results.zip` in the mounted examples directory;
-- importing individual `.dcm` files or a folder of `.dcm` files;
+- importing one or multiple `.dcm`/`.zip` files through the file picker, or a DICOM folder through the explicit folder picker; upload shows byte progress and estimated remaining transfer time, then an honest indeterminate server-indexing state;
 - grouping by `StudyInstanceUID` and `SeriesInstanceUID`;
 - browsing series and slices with sagittal/coronal/axial labels when DICOM geometry is available;
 - native DICOM rendering with Cornerstone3D, real Window/Level, slice navigation, center zoom/pan and Reset; PNG remains only for inventory thumbnails;

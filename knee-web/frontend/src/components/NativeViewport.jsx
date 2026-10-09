@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Minus, Plus, RotateCcw } from 'lucide-react'
 import { activateTool, core, createTools, imageId, initializeImaging, sliceAnnotations, stackEngine, tools, uniqueId } from '../imaging/runtime'
-import { captureViewport } from '../imaging/capture'
+import { createCaptureBlob, downloadCapture } from '../imaging/capture'
 import { orientationLabels } from '../imaging/orientation'
 import OrientationLabels from './OrientationLabels'
 
@@ -95,7 +95,9 @@ export default function NativeViewport({ series, slices = [], index = 0, active,
       observer.observe(element)
       state.reset = () => { viewport.resetCamera(); viewport.resetProperties(); viewport.render() }
       state.zoom = (factor) => { viewport.setZoom(Math.max(1, viewport.getZoom() * factor)); viewport.render() }
-      state.capture = (options) => captureViewport(viewport, element, options, `${series.plane} · slice ${state.index + 1}/${slices.length} · Research preview`)
+      const captureLabel = () => `${series.plane} · slice ${state.index + 1}/${slices.length} · Research preview`
+      state.previewCapture = (options) => createCaptureBlob(viewport, element, options, captureLabel())
+      state.downloadCapture = (blob, format) => downloadCapture(blob, format)
       state.annotationCount = () => sliceAnnotations(viewport).length
       state.clear = () => {
         sliceAnnotations(viewport).forEach((item) => tools.annotation.state.removeAnnotation(item.annotationUID))

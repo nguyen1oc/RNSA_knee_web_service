@@ -1,4 +1,5 @@
 import { ChevronDown, ChevronRight, Database, FolderOpen, Image as ImageIcon, Plus, RefreshCw, Trash2, UploadCloud } from 'lucide-react'
+import { formatBytes } from '../uploadStudy'
 
 function StudyItem({ study, active, activeSeriesId, expanded, expandedSeries, onToggle, onToggleSeries, onOpen, onOpenSeries, onDelete, sliceMap }) {
   return (
@@ -48,6 +49,7 @@ export default function StudySidebar({
   expandedStudies,
   expandedSeries,
   uploading,
+  uploadProgress,
   onRefresh,
   onImport,
   onImportFolder,
@@ -67,9 +69,28 @@ export default function StudySidebar({
 
       <button className="drop-card" onClick={onImport} disabled={uploading}>
         <UploadCloud size={20} />
-        <span><b>{uploading ? 'Ingesting…' : 'Import DICOM study'}</b><small>Choose .dcm files, a folder, or a .zip</small></span>
+        <span><b>{uploading ? 'Import in progress' : 'Import DICOM files / ZIP'}</b><small>Select one or more .dcm files or a .zip archive</small></span>
         <Plus size={17} />
       </button>
+      <button className="folder-button folder-import" onClick={onImportFolder} disabled={uploading}>
+        <FolderOpen size={15} /> Choose a folder of DICOM files
+      </button>
+      {uploadProgress && (
+        <div className="upload-progress" role="status" aria-live="polite">
+          <div className="upload-progress-heading">
+            <b>{uploadProgress.phase === 'uploading' ? 'Uploading to the VM' : 'Indexing on the VM'}</b>
+            {uploadProgress.phase === 'uploading' && <span>{uploadProgress.percent}%</span>}
+          </div>
+          {uploadProgress.phase === 'uploading' ? (
+            <>
+              <progress max="100" value={uploadProgress.percent} aria-label="Upload progress" />
+              <small>{formatBytes(uploadProgress.loaded)} of about {formatBytes(uploadProgress.total)} · {uploadProgress.eta ? `about ${uploadProgress.eta} left for transfer` : 'estimating transfer time…'}</small>
+            </>
+          ) : (
+            <small>{uploadProgress.fileCount} selected file(s) received. Validating and indexing; processing time depends on file count and size.</small>
+          )}
+        </div>
+      )}
 
       <div className="library-divider"><span>Study library</span><em>{studies.length}</em></div>
       <div className="study-list">
@@ -94,7 +115,6 @@ export default function StudySidebar({
       </div>
 
       <div className="library-foot">
-        <button className="folder-button" onClick={onImportFolder}><FolderOpen size={15} /> Import folder</button>
         <p>Pipeline: validate · metadata · group · sort · preview.</p>
       </div>
     </aside>

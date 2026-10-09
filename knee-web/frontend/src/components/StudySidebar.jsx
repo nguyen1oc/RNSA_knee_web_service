@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Database, FolderOpen, Image as ImageIcon, Plus, RefreshCw, Trash2, UploadCloud } from 'lucide-react'
+import { ChevronDown, ChevronRight, Database, Image as ImageIcon, RefreshCw, Trash2 } from 'lucide-react'
 import { formatBytes } from '../uploadStudy'
 
 function StudyItem({ study, active, activeSeriesId, expanded, expandedSeries, onToggle, onToggleSeries, onOpen, onOpenSeries, onDelete, sliceMap }) {
@@ -48,11 +48,8 @@ export default function StudySidebar({
   activeSeriesId,
   expandedStudies,
   expandedSeries,
-  uploading,
   uploadProgress,
   onRefresh,
-  onImport,
-  onImportFolder,
   onToggleStudy,
   onToggleSeries,
   onOpenStudy,
@@ -67,14 +64,6 @@ export default function StudySidebar({
         <button className="icon-button" title="Refresh" onClick={onRefresh}><RefreshCw size={16} /></button>
       </div>
 
-      <button className="drop-card" onClick={onImport} disabled={uploading}>
-        <UploadCloud size={20} />
-        <span><b>{uploading ? 'Import in progress' : 'Import DICOM files / ZIP'}</b><small>Select .dcm files, a folder, or ZIP · temporary browser workspace</small></span>
-        <Plus size={17} />
-      </button>
-      <button className="folder-button folder-import" onClick={onImportFolder} disabled={uploading}>
-        <FolderOpen size={15} /> Choose a folder of DICOM files
-      </button>
       {uploadProgress && (
         <div className="upload-progress" role="status" aria-live="polite">
           <div className="upload-progress-heading">

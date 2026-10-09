@@ -1,7 +1,7 @@
 # Knee Review — local DICOM workspace
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Thêm giới hạn upload/finalize lưu phân tán bằng Firestore và cleanup OIDC theo lịch; cần cấu hình GCP và chạy integration test.
+> **Cập nhật gần nhất:** 2026-10-10
+> **Thay đổi gần nhất:** Gộp menu import/lỗi API rõ ràng; bổ sung backend Cloud Run path, rate limit upload và ghi nhận GCP resources đã provision.
 > **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
 
 This is the first local vertical slice for the knee diagnostic web service. Upload accepts individual `.dcm` files, folders, and unencrypted `.zip` archives containing DICOM files.
@@ -9,6 +9,8 @@ The UI is in English and currently supports:
 
 - one seeded, read-only example study; it can be sourced from `series_1`/`series_2` folders or `results.zip` in the mounted examples directory;
 - importing individual `.dcm` files or a folder of `.dcm` files;
+- one Import study menu with explicit `DICOM files or ZIP` and `Folder of DICOM files` choices;
+- non-empty, actionable error banners when API/network responses fail;
 - byte-based upload progress and a separate indexing state while a study is validated;
 - grouping by `StudyInstanceUID` and `SeriesInstanceUID`;
 - browsing series and slices with sagittal/coronal/axial labels when DICOM geometry is available;
@@ -47,7 +49,7 @@ The Dockerfile builds the React frontend in a multi-stage image, so `frontend/di
 
 See [anonymous session and upload-limit plan](../knee-service-blueprint/18-anonymous-session-and-upload-limits.md). There is no login/signup. The backend issues an HttpOnly cookie, scopes every study/data route to that temporary session, and deletes the session's uploads on reset/expiry. `SESSION_COOKIE_SECURE=true` is required behind HTTPS; local HTTP defaults to false.
 
-Local Docker continues to use SQLite/filesystem. The Cloud Run backend path uses Firestore metadata and a private GCS bucket with browser-to-GCS resumable upload; configure `METADATA_BACKEND=firestore` only in Cloud Run. Upload initiation/finalize limits use Firestore counters; scheduled cleanup has an OIDC-protected endpoint, but Scheduler/TTL still need GCP configuration. Cloud adapters are unit-tested with fakes, not integration-tested against a GCP project. IP session-creation limits are not active: configure a trusted edge rule and ensure the public Cloud Run origin cannot bypass it before claiming IP-level protection. See [deployment guide](../knee-service-blueprint/19-public-preview-deployment.md). Pipeline stages remain feature PR → `dev` staging test → reviewed `dev` to `main` → production; GitHub currently runs CI only.
+Local Docker continues to use SQLite/filesystem. The Cloud Run backend path uses Firestore metadata and a private GCS bucket with browser-to-GCS resumable upload; configure `METADATA_BACKEND=firestore` only in Cloud Run. Upload initiation/finalize limits use Firestore counters; the OIDC-protected cleanup endpoint is implemented, but Cloud Scheduler and TTL still need GCP setup. Bucket, Firestore and the runtime service account are provisioned; Cloud Run is not deployed yet. The public Vercel frontend still needs `VITE_API_BASE_URL` and `VITE_DIRECT_GCS_UPLOAD=true` configured/redeployed before its session/import APIs can work. Cloud adapters are unit-tested with fakes, not integration-tested against GCP. IP session-creation limits are not active, and direct calls to the public Cloud Run origin can bypass a Vercel-only WAF. See [deployment guide](../knee-service-blueprint/19-public-preview-deployment.md). Pipeline stages remain feature PR → `dev` staging test → reviewed `dev` to `main` → production; GitHub currently runs CI only. Do not proxy the large example ZIP through Vercel or Cloud Run request bodies.
 
 ## CI baseline
 

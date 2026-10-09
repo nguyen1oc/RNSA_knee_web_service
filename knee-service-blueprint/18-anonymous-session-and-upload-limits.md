@@ -1,7 +1,7 @@
 # 18 — Anonymous temporary workspace
 
 > **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Chốt chưa cần tài khoản; thêm session cookie cô lập dữ liệu, Clear session, TTL và giới hạn upload.
+> **Thay đổi gần nhất:** Ghi nhận frontend HTTPS trên Vercel; public API cần Cloud Run + shared metadata/storage, Cloud Storage resumable upload và edge/session rate limits.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Quyết định sản phẩm
@@ -46,14 +46,15 @@ Acceptance: mở workspace không đăng nhập; session A upload và xem; sessi
 
 Automated API tests cover session required, cross-session isolation for study/series/DICOM/image, reset deletion, expiry cleanup, upload caps, ZIP failures and read-only example. Run `python -m pytest -q` from `knee-web`.
 
-## Trước khi public URL
+## Public preview: còn điều kiện trước khi bật upload
 
 Anonymous không có nghĩa là endpoint vô hạn hoặc dữ liệu công khai. Trước khi mở Internet cần:
 
-1. Chỉ dùng MRI đã de-identify; không upload PHI/clinical studies vào demo.
-2. HTTPS, rate limit theo IP/session ở ingress, giới hạn đồng thời/request timeout và quota để chống lạm dụng/chi phí.
-3. Upload và metadata trên Cloud Run không được dựa vào local SQLite/filesystem: filesystem Cloud Run không bền khi instance dừng và local writes tiêu thụ memory. Dùng Cloud Storage tạm cho DICOM và metadata/session store dùng chung giữa instances.
-4. API xóa object ngay khi reset/expiry; thêm Cloud Storage lifecycle làm cleanup dự phòng (lifecycle không phải đồng hồ xóa chính xác tới từng phút).
-5. Kiểm thử race, nhiều instance, expired cookies, reset, object cleanup, backup/retention và logging không chứa thông tin bệnh nhân.
+1. Frontend `rnsa-knee-web-service.vercel.app` đã có HTTPS, nhưng đây chỉ là static React; relative `/api` chưa trỏ tới FastAPI. Vì vậy public page có thể mở nhưng import/session API chưa hoạt động.
+2. Public backend target là Cloud Run với URL HTTPS do Google cấp. Không dùng VM GPU làm web/API host. `SESSION_COOKIE_SECURE=true` và CORS/origin/session behavior phải được kiểm thử trên chính domain Vercel.
+3. Không proxy ZIP/DICOM bytes qua Vercel Function (body tối đa 4.5 MiB) hoặc Vercel external rewrite (timeout 120 giây); Cloud Run HTTP/1 cũng giới hạn request 32 MiB. ZIP mẫu 431 MiB cần browser → Cloud Storage resumable upload; API cấp upload session, xác minh/finalize object rồi ingest theo job.
+4. DICOM raw files phải ở Cloud Storage private bucket; session/study/job metadata phải dùng shared store (Firestore hoặc Cloud SQL), không SQLite/local filesystem của Cloud Run. API xóa object khi Clear/expiry; lifecycle policy là cleanup dự phòng.
+5. Rate limit cần áp dụng theo client/IP ở edge/API và theo session cho tạo phiên/upload/finalize; thêm concurrency caps, storage quotas, upload timeouts, abuse monitoring và retention. Không mở upload public trước khi các giới hạn này được cấu hình.
+6. Chỉ dùng MRI đã de-identify; không upload PHI/clinical studies vào demo. Test cross-session isolation, expired sessions, signed/resumable upload expiry, reset/object cleanup, multiple instances and logs without patient identifiers.
 
-Hiện VM staging private qua IAP dùng một instance + SQLite/local disk, phù hợp để thử flow và caps. Chưa deploy public production. Tham khảo [GCP runbook](09-gcp-runbook.md) và [CI/CD](15-ci-cd-plan.md).
+Hiện VM staging private qua IAP vẫn dùng Compose + SQLite/local files, chỉ phù hợp kiểm thử nội bộ; chưa phải public backend. Chi tiết target ở [GCP runbook](09-gcp-runbook.md), [public preview plan](19-public-preview-deployment.md) và [CI/CD](15-ci-cd-plan.md). Tham khảo [Vercel function limits](https://vercel.com/docs/functions/limitations), [Vercel external rewrites](https://vercel.com/docs/routing/rewrites), [Cloud Run quotas](https://docs.cloud.google.com/run/quotas) và [Cloud Storage resumable uploads](https://docs.cloud.google.com/storage/docs/resumable-uploads).

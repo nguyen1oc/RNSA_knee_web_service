@@ -109,7 +109,7 @@ Managed runtime chạy container services/jobs mà không cần tự vận hành
 
 ### Artifact Registry
 
-Nơi lưu Docker images có version/tag, ví dụ theo commit SHA. Khi chuyển từ build image trên VM sang pipeline chuẩn, CI build/test image, push vào Artifact Registry, rồi staging deploy đúng image bất biến.
+Nơi lưu Docker images. Standard repo `knee-review` giữ image ứng dụng theo commit SHA để Cloud Run chạy. Dockerfile hiện lấy Node/Python base images từ Google `mirror.gcr.io`, do remote repo `dockerhub-cache` đang timeout khi gọi Docker Hub token endpoint; xem [15 — CI/CD](15-ci-cd-plan.md). Deployer dùng WIF, cần Writer trên `knee-review`; custom remote repo hiện được giữ nhưng chưa dùng.
 
 ### Terraform
 

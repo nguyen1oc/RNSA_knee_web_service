@@ -1,16 +1,23 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Bổ sung Docker Hub authentication cho CI/CD để xử lý giới hạn pull image nền.
+> **Thay đổi gần nhất:** Dùng Google `mirror.gcr.io` cho base images sau khi custom remote repository gặp upstream auth timeout.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
+
+## 2026-10-10 — Use Google mirror for Docker base images
+
+### Changed
+
+- Dockerfile now uses `mirror.gcr.io/library/node:24-alpine` and `mirror.gcr.io/library/python:3.12-slim`; both were pulled successfully during local verification.
+- Cloud Run workflow no longer requires `AR_DOCKERHUB_REMOTE_REPOSITORY`; it builds with the Dockerfile defaults and publishes the app image to the standard `knee-review` repository.
+- The custom `dockerhub-cache` remote repository remains provisioned but deferred: its upstream validation timed out at `auth.docker.io/token`. Documented this state and the mirror cache eviction limitation.
+- Removed direct Docker Hub login and the separate PR Docker build job. PR CI remains source-level tests/build; after merge, the deployment build validates the container before deploy.
 
 ## 2026-10-10 — Authenticate Docker Hub pulls in CI/CD
 
 ### Fixed / Changed
 
-- Added Docker Hub login before both the PR Docker build and Cloud Run image build/push to avoid anonymous shared-runner pull-limit errors (HTTP 429).
-- Documented repository-level Actions variable `DOCKERHUB_USERNAME` and secret `DOCKERHUB_TOKEN`; do not put these in the staging environment or commit credentials.
-- Skip the Docker build job for fork pull requests, where GitHub does not expose repository secrets; backend and frontend checks still run.
+- Historical: direct Docker Hub login was tried after anonymous pull-limit errors (HTTP 429), but auth endpoint timeouts continued. Followed by an Artifact Registry remote repo attempt; currently using Google mirror due upstream auth timeout.
 
 ## 2026-10-10 — Clarify MRI volume orbit gizmo
 

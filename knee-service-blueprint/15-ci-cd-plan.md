@@ -1,7 +1,7 @@
 # 15 — CI/CD: dev staging → main production
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Chuyển base image sang Google `mirror.gcr.io` sau khi Artifact Registry remote repo gặp upstream auth timeout.
+> **Thay đổi gần nhất:** Hỗ trợ lần deploy đầu tạo Cloud Run service mới trước smoke test; deploy các revision sau vẫn dùng no-traffic candidate rồi promote.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Mục tiêu và ý nghĩa môi trường
@@ -35,7 +35,7 @@ Artifact Registry standard repository `knee-review` chứa image ứng dụng `k
 
 The custom remote repository is currently retained but unused. Its first upstream fetch is timing out at Docker Hub's token endpoint; platform-log configuration also fails because Artifact Registry validates the upstream during the update. Do not add `AR_DOCKERHUB_REMOTE_REPOSITORY` to GitHub Environments. If this route is revisited, check current upstream connectivity first; see Google's [remote repository troubleshooting](https://cloud.google.com/artifact-registry/docs/troubleshoot-remote).
 
-Cloud Run deploy dùng image tag bất biến theo commit SHA, tạo revision với `--no-traffic`, rồi gọi `/api/health` qua URL candidate. Chỉ khi JSON health hợp lệ thì workflow mới chuyển traffic sang revision mới. Nếu build/deploy/smoke test lỗi, revision cũ tiếp tục nhận traffic. Đây là promote gate tự động; không phải Cloud Run tự phát hiện mọi lỗi sau phát hành hay tự rollback sau khi đã chuyển traffic. Rollback hậu triển khai vẫn là thao tác thủ công tới revision cũ.
+Cloud Run deploy dùng image tag bất biến theo commit SHA. **Lần đầu tạo service:** Cloud Run không hỗ trợ `--no-traffic` khi chưa có service/revision, nên workflow tạo service và revision đầu tiên (revision này nhận traffic), sau đó smoke-test `/api/health`. Chưa có revision cũ để giữ traffic hoặc rollback nếu smoke test lần đầu thất bại; cần sửa cấu hình/commit rồi deploy lại. **Các lần tiếp theo:** workflow tạo revision với `--no-traffic`, gọi `/api/health` qua URL candidate, rồi chỉ chuyển traffic sang revision mới nếu JSON health hợp lệ. Nếu build/deploy/smoke test lỗi ở các lần này, revision cũ tiếp tục nhận traffic. Đây là promote gate tự động; không phải Cloud Run tự phát hiện mọi lỗi sau phát hành hay tự rollback sau khi đã chuyển traffic. Rollback hậu triển khai vẫn là thao tác thủ công tới revision cũ.
 
 ## Công việc GCP phải làm một lần trước khi bật CD
 
@@ -95,7 +95,7 @@ Sau khi sửa environment variables, redeploy frontend để build config mới.
 ## Sau khi cấu hình
 
 1. Mở PR cập nhật vào `dev`; xác nhận CI xanh.
-2. Merge vào `dev`; GitHub Environment `staging` deploy candidate, health-check thành công rồi mới nhận traffic.
+2. Merge vào `dev`; GitHub Environment `staging` chạy deploy. Lần đầu tạo service sẽ nhận traffic ngay trước smoke test; những lần deploy sau chỉ nhận traffic khi health-check thành công.
 3. Mở Vercel Preview deployment từ branch `dev`; kiểm tra `/api/health`, tạo session, import study đã de-identify, xem slices, refresh, xóa study và xác nhận cookie/session.
 4. Khi QA đạt, mở PR `dev → main`; production Environment yêu cầu approval.
 5. Merge `main`; workflow deploy production theo quy trình candidate → smoke test → promote. Xác nhận Vercel Production trỏ đúng Cloud Run production và kiểm tra public URL.

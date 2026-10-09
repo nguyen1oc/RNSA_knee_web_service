@@ -1,10 +1,10 @@
-import { Circle, Contrast, Eraser, MousePointer2, Pencil, Ruler, Square, Type } from 'lucide-react'
+import { Circle, Contrast, MousePointer2, Pencil, Ruler, Square, Type } from 'lucide-react'
 import { useState } from 'react'
 
 const choices = [
   ['pointer', 'Pointer / pan', MousePointer2], ['window', 'Window / Level', Contrast],
   ['length', 'Length', Ruler], ['rectangle', 'Rectangle ROI', Square], ['ellipse', 'Ellipse ROI', Circle],
-  ['freehand', 'Freehand ROI', Pencil], ['annotation', 'Arrow + note', Type], ['erase', 'Eraser', Eraser],
+  ['freehand', 'Freehand ROI', Pencil], ['annotation', 'Arrow + note', Type],
 ]
 export default function NativeToolPicker({ value, onChange }) {
   const [open, setOpen] = useState(false)

@@ -1,12 +1,14 @@
 # 17 — GCP nhập môn cho Knee Review
 
-> **Cập nhật gần nhất:** 2026-10-08
-> **Thay đổi gần nhất:** Bổ sung Identity Platform vs PostgreSQL, auth/ownership rollout và xác nhận GPU chưa được gắn vào VM hiện tại.
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Giải thích staging hiện tại qua IAP, chưa có URL public; `dev` deploy staging và `main` dành cho production.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Mục tiêu
 
 Tài liệu này là glossary/runbook nhập môn cho hai người phát triển dự án. Scope trước mắt là đưa **viewer hiện tại** lên staging riêng tư, chưa có AI. Không cần tạo GPU, Triton hoặc Kubernetes ở bước này.
+
+Trong project này, staging hiện tại là VM CPU `knee-review-staging-01` chạy Docker Compose, truy cập qua IAP tunnel tại `http://127.0.0.1:8081` trên máy đã mở tunnel. Nó chưa có domain/URL public, chưa có app login, và không phải nơi mời người dùng Internet upload study. Nhánh `dev` là nguồn staging; `main` là nguồn production sau review. Trạng thái cụ thể/đích URL-based frontend-backend xem [09 — GCP runbook](09-gcp-runbook.md).
 
 ## GCP là gì trong app này?
 

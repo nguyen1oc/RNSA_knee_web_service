@@ -1,10 +1,10 @@
 # Knee Review — kế hoạch local Docker
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Thêm P1 native DICOM và single-series MPR; doc 16 là contract viewer hiện hành.
+> **Cập nhật gần nhất:** 2026-10-08
+> **Thay đổi gần nhất:** Thêm quyết định và plan tài khoản nhiều người dùng; Identity Platform quản lý đăng nhập, database chỉ lưu ownership/metadata; xác nhận VM hiện tại chưa có GPU.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-Cập nhật **05/10/2026** theo phạm vi mới: local web, upload DICOM `.dcm`, một example study gồm `series_1` và `series_2`, **không auth và chưa làm model/GCP**. App vertical slice chạy tại `../knee-web`; bộ docs mô tả scope và các bước mở rộng tiếp theo.
+Cập nhật **08/10/2026**: app hiện tại là local/staging viewer, upload DICOM và example study, **chưa auth và chưa có AI**. Nếu mở cho nhiều người dùng cần triển khai auth/ownership theo [18](18-auth-and-user-data-plan.md) trước khi mời họ dùng; staging GCP hiện chạy trên VM CPU riêng tư.
 
 Bắt đầu bằng [12 — Các bước build local](12-local-docker-build-steps.md), sau đó đọc [13 — Input và example studies](13-input-formats-and-example-studies.md). Lịch hiện hành ở [11](11-team-rebalance-and-vibe-frontend.md).
 
@@ -14,21 +14,23 @@ Bắt đầu bằng [12 — Các bước build local](12-local-docker-build-step
 |---|---|---|
 | [00 Workflow](00-user-workflow-features.md) | Trang đầu, upload và xem ảnh | Local hiện hành |
 | [01 Scope](01-product-scope.md) | P0/P1, định nghĩa hoàn thành | Local hiện hành |
-| [02 Viewer](02-viewer-dicom-spec.md) | DICOM, series/FS/fluid, 4 ô và hướng | Hiện hành; MPR/3D có đánh dấu giai đoạn sau |
+| [02 Viewer](02-viewer-dicom-spec.md) | DICOM, series/FS/fluid, Overview MPR và hướng | Hiện hành |
 | [03 Design](03-design-system.md) | Theme sáng, font, controls, tree và Analyze placeholder | Hiện hành; panel AI để sau |
-| [04 Architecture](04-architecture-data.md) | Docker, SQLite, storage, index worker | Local hiện hành |
+| [04 Architecture](04-architecture-data.md) | Docker, SQLite, storage, index worker và ánh xạ staging GCP | Local hiện hành; GCP v0 là một VM riêng tư |
 | [05 API v0.2](05-api-contract.md) | Upload, examples, studies, image manifest | Local hiện hành |
 | [06 Model/Triton](06-ai-triton-contract.md) | Kiến thức và contract AI | Hoãn, không là gate local |
 | [07 Lịch ban đầu](07-two-person-plan.md) | Kế hoạch AI/cloud cũ | Lịch sử, không thực thi |
 | [08 QA](08-qa-release.md) | Kiểm tra local và persistence | Local hiện hành |
-| [09 GCP](09-gcp-runbook.md) | Hướng triển khai tương lai | Hoãn; auth/IAP cũ không là yêu cầu hiện hành |
+| [09 GCP](09-gcp-runbook.md) | Deploy staging VM trước; sau đó Cloud Run/Triton/GKE | Staging chưa AI; truy cập qua IAP, không public |
 | [10 Decisions](10-decisions-risks.md) | Quyết định, rủi ro, phần chưa chốt | Quyết định 05/10 ưu tiên |
 | [11 Hai người](11-team-rebalance-and-vibe-frontend.md) | Ownership, ngân sách và lịch 10 ngày | Local hiện hành |
 | [12 Build steps](12-local-docker-build-steps.md) | Làm từng bước và giải thích Triton | Điểm bắt đầu |
 | [13 Input/examples](13-input-formats-and-example-studies.md) | Format, grouping, seed và storage | Hiện hành |
 | [14 Metrics](14-local-metrics-and-acceptance.md) | Đánh giá đúng dữ liệu, xóa, restart, hiệu năng và UX | Hiện hành |
-| [15 CI/CD](15-ci-cd-plan.md) | CI baseline và lộ trình staging/autodeploy | CI hiện hành; CD để sau |
+| [15 CI/CD](15-ci-cd-plan.md) | CI baseline và lộ trình deploy staging/autodeploy | CI hiện hành; deploy staging v0 thủ công trước |
 | [16 Native DICOM/MPR](16-native-dicom-and-mpr.md) | P1 controls, geometry gate, runtime và giới hạn kiểm định | Viewer implementation hiện hành |
+| [17 GCP basics](17-gcp-basics-and-first-deploy.md) | Project, billing, CLI/ADC, IAM, VM, IAP, Terraform, Triton và GKE | Hướng dẫn nhập môn và bước chuẩn bị staging |
+| [18 Auth and user data](18-auth-and-user-data-plan.md) | Identity Platform vs PostgreSQL, token verification, ownership, GCS và GPU/Triton separation | Plan trước khi mở multi-user |
 | [CHANGELOG](CHANGELOG.md) | Lịch sử thay đổi đáng chú ý | Hiện hành |
 | [CONTRIBUTING](../CONTRIBUTING.md) | Commit, branch, push, review và CI/CD | Hiện hành |
 | [15 CI/CD](15-ci-cd-plan.md) | CI baseline và lộ trình staging/autodeploy | CI hiện hành; CD để sau |
@@ -41,8 +43,10 @@ Bắt đầu bằng [12 — Các bước build local](12-local-docker-build-step
 - Docker Compose: web, api, worker index và seed chạy một lần; chỉ web publish localhost.
 - SQLite và raw uploads trong named volume. Examples từ thư mục host mount read-only; không COPY MRI vào image.
 - Runtime không cần GPU NVIDIA, CUDA, checkpoint hoặc tài khoản GCP.
+- Deploy cloud v0 không thay đổi local scope: dùng một VM CPU + Docker Compose; không dùng Triton/GPU/Kubernetes.
+- Trạng thái hiện tại vẫn single shared catalog, không login/ownership. Multi-user release cần Identity Platform + FastAPI authorization; không lưu password trong PostgreSQL.
 - UI sáng theo design tokens; vùng tối bên trong ảnh vẫn theo pixel gốc.
-- 3D/MPR sau P0; chỉ dựng khi DICOM có geometry phù hợp.
+- Overview dựng MRI volume/MPR từ một series khi geometry hợp lệ; khi không hợp lệ, báo rõ và vẫn cho mở acquisition gốc.
 
 ## Dữ liệu sẵn có và phần còn thiếu
 

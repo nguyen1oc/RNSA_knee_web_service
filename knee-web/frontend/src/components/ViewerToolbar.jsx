@@ -12,15 +12,16 @@ export default function ViewerToolbar({
   resetView,
   showZoom = true,
   showSlices = true,
+  seriesLabel = 'Active series',
 }) {
   const maxSliceIndex = Math.max(slices.length - 1, 0)
 
   return (
     <div className="viewer-toolbar">
       <div className="toolbar-group">
-        <label>Active series</label>
-        <select value={activeSeries?.id || ''} onChange={(event) => selectSeries(activeStudy.series.find((series) => series.id === event.target.value))}>
-          {activeStudy.series.map((series) => <option key={series.id} value={series.id}>{series.plane} · {series.description || 'DICOM series'} · {series.slice_count} slices</option>)}
+        <label>{seriesLabel}</label>
+        <select aria-label={seriesLabel} title={seriesLabel === 'MPR source' ? 'One source series is reconstructed into all three linked MPR planes and the MRI volume.' : undefined} value={activeSeries?.id || ''} onChange={(event) => selectSeries(activeStudy.series.find((series) => series.id === event.target.value))}>
+          {activeStudy.series.map((series) => <option key={series.id} value={series.id}>{series.plane} · {series.description || 'DICOM series'} · {series.slice_count} slices{series.geometry_status === 'valid' ? ' · geometry metadata present' : ' · geometry incomplete'}</option>)}
         </select>
       </div>
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { AlertCircle, ArrowLeft, Image as ImageIcon, Info, Sparkles, Trash2, UploadCloud, X } from 'lucide-react'
+import { AlertCircle, Image as ImageIcon, Info, Sparkles, Trash2, UploadCloud, X } from 'lucide-react'
 import './styles.css'
 import './upload-progress.css'
 import './viewer-overrides.css'
@@ -9,7 +9,6 @@ import MprViewer from './components/MprViewer'
 import './native-viewer.css'
 import EmptyWorkspace from './components/EmptyWorkspace'
 import FocusedViewer from './components/FocusedViewer'
-import OverviewGrid from './components/OverviewGrid'
 import SeriesBrowser from './components/SeriesBrowser'
 import StudyInfoPanel from './components/StudyInfoPanel'
 import StudySidebar from './components/StudySidebar'
@@ -32,9 +31,16 @@ const tabs = [
   { label: 'Sagittal', plane: 'SAG' },
   { label: 'Coronal', plane: 'COR' },
   { label: 'Axial', plane: 'AX' },
-  { label: 'MPR' },
   { label: 'Images / Series' },
 ]
+
+function chooseInitialMprSource(series = []) {
+  return [...series].sort((a, b) => {
+    const geometryRank = Number(b.geometry_status === 'valid') - Number(a.geometry_status === 'valid')
+    const orientationRank = Number(b.plane === 'SAG') - Number(a.plane === 'SAG')
+    return geometryRank || orientationRank || b.slice_count - a.slice_count
+  })[0]
+}
 
 function App() {
   const [studies, setStudies] = useState([])
@@ -43,7 +49,6 @@ function App() {
   const [slices, setSlices] = useState([])
   const [seriesSliceMap, setSeriesSliceMap] = useState({})
   const [sliceIndex, setSliceIndex] = useState(null)
-  const [overviewSliceIndices, setOverviewSliceIndices] = useState({})
   const [viewerTab, setViewerTab] = useState('Overview')
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -81,8 +86,7 @@ function App() {
       setActiveStudy(full)
       setExpandedStudies((current) => new Set(current).add(id))
       const preferred = full.series.find((series) => series.id === requestedSeriesId)
-        || full.series.find((series) => series.plane === 'SAG')
-        || full.series[0]
+        || chooseInitialMprSource(full.series)
       await selectSeries(preferred, { switchToDirection: false })
       if (!requestedSeriesId) setViewerTab('Overview')
       return full
@@ -101,7 +105,7 @@ function App() {
       setViewerTab(series.plane === 'SAG' ? 'Sagittal' : series.plane === 'COR' ? 'Coronal' : series.plane === 'AX' ? 'Axial' : 'Images / Series')
       setSliceIndex(0)
     } else {
-      setSliceIndex(overviewSliceIndices[series.id] ?? null)
+      setSliceIndex(null)
     }
     setSlices(seriesSliceMap[series.id] || [])
     try {
@@ -161,7 +165,7 @@ function App() {
     }
   }
 
-  const analyzeStudy = () => setNotice({ type: 'info', text: 'Analyze is reserved for the upcoming AI pipeline. Triton inference is not connected in this local viewer yet.' })
+  const analyzeStudy = () => setNotice({ type: 'analyze', text: 'Analyze is reserved for the upcoming AI pipeline. Triton inference is not connected in this local viewer yet.' })
 
   const toggleStudy = (studyId) => setExpandedStudies((current) => {
     const next = new Set(current)
@@ -184,10 +188,6 @@ function App() {
     ? (sliceIndex === null ? Math.floor((slices.length - 1) / 2) : Math.min(sliceIndex, slices.length - 1))
     : 0
   const currentSlice = slices[currentIndex]
-  const activateSeries = (series) => {
-    if (!series || activeSeries?.id === series.id) return
-    selectSeries(series, { switchToDirection: false })
-  }
   const focusedPlane = viewerTab === 'Sagittal' ? 'SAG' : viewerTab === 'Coronal' ? 'COR' : viewerTab === 'Axial' ? 'AX' : null
   const focusedSeries = focusedPlane ? planeSeries[focusedPlane] : null
   const focusedItems = seriesSliceMap[focusedSeries?.id] || []
@@ -195,23 +195,6 @@ function App() {
   if (loading && !activeStudy) return <div className="loading-screen"><div className="brand-mark">KR</div><p>Loading local workspace…</p></div>
 
   const viewerContent = viewerTab === 'Overview' ? (
-      <OverviewGrid
-      planeSeries={planeSeries}
-      activeSeries={activeSeries}
-      currentSlice={currentSlice}
-      slices={slices}
-        currentIndex={currentIndex}
-        overviewSliceIndices={overviewSliceIndices}
-        onOverviewSliceChange={(seriesId, index) => {
-          setOverviewSliceIndices((current) => ({ ...current, [seriesId]: index }))
-          if (seriesId === activeSeries?.id) setSliceIndex(index)
-        }}
-      seriesSliceMap={seriesSliceMap}
-      selectSeries={selectSeries}
-      activateSeries={activateSeries}
-      studyGeometry={activeStudy.geometry}
-    />
-  ) : viewerTab === 'MPR' ? (
     <MprViewer series={activeSeries} />
   ) : viewerTab === 'Images / Series' ? (
     <SeriesBrowser study={activeStudy} activeSeriesId={activeSeries?.id} sliceMap={seriesSliceMap} onSelect={(series) => selectSeries(series, { switchToDirection: false })} />
@@ -231,7 +214,7 @@ function App() {
         <div className="top-actions"><span className="status-dot"><i /> Local only</span><button className="button primary" onClick={() => fileInput.current?.click()} disabled={uploading}><UploadCloud size={16} /> Import study</button><input ref={fileInput} hidden type="file" accept=".dcm,.zip,application/dicom,application/zip" multiple onChange={upload} /><input ref={folderInput} hidden type="file" webkitdirectory="true" multiple onChange={upload} /></div>
       </header>
 
-      {notice && <div className={`notice ${notice.type}`}><span>{notice.type === 'error' ? <AlertCircle size={16} /> : <Info size={16} />}{notice.text}</span><button aria-label="Dismiss notice" onClick={() => setNotice(null)}><X size={15} /></button></div>}
+      {notice && notice.type !== 'analyze' && <div className={`notice ${notice.type}`}><span>{notice.type === 'error' ? <AlertCircle size={16} /> : <Info size={16} />}{notice.text}</span><button aria-label="Dismiss notice" onClick={() => setNotice(null)}><X size={15} /></button></div>}
 
       <div className="body-layout">
         <StudySidebar
@@ -257,16 +240,18 @@ function App() {
           {!activeStudy ? <EmptyWorkspace onImport={() => fileInput.current?.click()} /> : (
             <>
               <div className="content-head">
-                <div><button className="back-button" onClick={() => setActiveStudy(null)}><ArrowLeft size={15} /> Study library</button><div className="title-row"><h2>{activeStudy.display_name}</h2><span className={`source-badge ${activeStudy.source}`}>{activeStudy.source === 'sample' ? 'Example' : 'Imported'}</span></div><p className="subline">{activeStudy.series.length} series · {activeStudy.total_slices} images · UID ending {activeStudy.study_uid.slice(-12)}</p></div>
+                <div><div className="title-row"><h2>{activeStudy.display_name}</h2><span className={`source-badge ${activeStudy.source}`}>{activeStudy.source === 'sample' ? 'Example' : 'Imported'}</span></div><p className="subline">{activeStudy.series.length} series · {activeStudy.total_slices} images · UID ending {activeStudy.study_uid.slice(-12)}</p></div>
                 <div className="head-actions"><button className="button analyze-button" onClick={analyzeStudy}><Sparkles size={15} /> Analyze <span>Coming soon</span></button><button className="button ghost" onClick={() => deleteStudy(activeStudy)} disabled={activeStudy.source === 'sample'}><Trash2 size={15} /> Delete study</button></div>
               </div>
+
+              {notice?.type === 'analyze' && <div className="notice analyze"><span><Info size={16} />{notice.text}</span><button aria-label="Dismiss notice" onClick={() => setNotice(null)}><X size={15} /></button></div>}
 
               <div className="viewer-shell">
                 <section className="viewer-pane" aria-label="DICOM viewer">
                   <ViewerTabs tabs={tabs} activeTab={viewerTab} onChange={changeTab} />
-                  <ViewerToolbar activeStudy={activeStudy} activeSeries={activeSeries} selectSeries={(series) => selectSeries(series, { switchToDirection: !['Overview', 'MPR', 'Images / Series'].includes(viewerTab) })} currentIndex={currentIndex} slices={slices} setSliceIndex={setSliceIndex} showZoom={false} showSlices={viewerTab !== 'MPR'} />
+                  <ViewerToolbar activeStudy={activeStudy} activeSeries={activeSeries} seriesLabel={viewerTab === 'Overview' ? 'MPR source' : 'Active series'} selectSeries={(series) => selectSeries(series, { switchToDirection: !['Overview', 'Images / Series'].includes(viewerTab) })} currentIndex={currentIndex} slices={slices} setSliceIndex={setSliceIndex} showZoom={false} showSlices={false} />
                   {viewerContent}
-                  <div className="viewer-footer"><span><ImageIcon size={14} /> {currentSlice?.filename || 'Select a series to view images'}</span><span>Native DICOM · Research use only · Not validated for diagnosis</span></div>
+                  <div className="viewer-footer"><span><ImageIcon size={14} /> {viewerTab === 'Overview' ? `Synchronized MPR · ${activeSeries?.description || 'Select an active series'}` : currentSlice?.filename || 'Select a series to view images'}</span><span>Native DICOM · Research use only · Not validated for diagnosis</span></div>
                 </section>
                 <StudyInfoPanel study={activeStudy} />
               </div>

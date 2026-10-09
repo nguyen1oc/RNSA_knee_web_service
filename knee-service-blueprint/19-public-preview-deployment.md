@@ -1,7 +1,7 @@
 # 19 — Public preview: Vercel + Cloud Run + GCP storage
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Chốt tách Cloud Run staging/production; GitHub Actions deploy `dev`/`main` qua candidate smoke-test; Vercel routing tách theo deployment environment. Tài nguyên production và WIF/GitHub Environment vẫn cần provision.
+> **Thay đổi gần nhất:** Ghi nhận Artifact Registry đã tạo nhưng còn trống; CD Cloud Run tách staging/production đã có trong source, WIF/GitHub Environments và tài nguyên production còn cần cấu hình.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Trạng thái
@@ -28,6 +28,7 @@ Xem cấu hình đầy đủ và checklist thực hiện tại [15 — CI/CD: de
 Đã xác nhận từ các lệnh CLI người dùng chạy trong project `rsna-knee-511004`:
 
 - **Cloud Storage:** bucket `gs://rsna-knee-dicom-preview-511004`, region `ASIA-SOUTHEAST1`, Standard; Uniform bucket-level access bật, Public access prevention `enforced`.
+- **Artifact Registry:** Docker repository `knee-review` tại `asia-southeast1`, URI `asia-southeast1-docker.pkg.dev/rsna-knee-511004/knee-review`; Google-managed encryption. Đã tạo nhưng chưa có image (0 MB). Vulnerability scanning chưa bật vì API `containerscanning.googleapis.com` chưa được enable. Repo `cloud-run-source-deploy` là repo riêng.
 - **CORS:** Preview origin đã được thêm vào local template `templates/gcs-cors.json`; người dùng cần xác nhận bucket đã nhận cấu hình bằng `gcloud storage buckets describe`. API Preview session POST trả 200, nên origin đó hiện được backend chấp nhận.
 - **Lifecycle:** chỉ xóa object có prefix `incoming/` từ 1 ngày tuổi; không áp dụng cho dữ liệu study đang hoạt động.
 - **Soft delete:** bucket hiện có retention mặc định 7 ngày. Xóa khỏi app là xóa khỏi vùng object đang hoạt động, nhưng vẫn có thể khôi phục trong thời gian retention và storage của bản đã xóa có thể bị tính phí. Chưa thay đổi policy này.

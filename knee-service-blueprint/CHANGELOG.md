@@ -1,8 +1,16 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Giữ một nút Import study với lựa chọn Files / ZIP hoặc Folder; success toast tự tắt sau 3 giây.
+> **Thay đổi gần nhất:** Ghi nhận Artifact Registry `knee-review` đã tạo; cập nhật trạng thái chuẩn bị Cloud Run staging/production CD.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
+
+## 2026-10-10 — Provision Artifact Registry for Cloud Run CD
+
+### Changed
+
+- Recorded Docker repository `knee-review` in `asia-southeast1` at `asia-southeast1-docker.pkg.dev/rsna-knee-511004/knee-review`.
+- Repository is currently empty (0 MB), uses Google-managed encryption, and has vulnerability scanning disabled because `containerscanning.googleapis.com` is not enabled. The separate `cloud-run-source-deploy` repository is not the CD target.
+- Clarified that WIF/deployer identities, GitHub Environment configuration, and production resources remain outstanding; no container image has been pushed by this setup step.
 
 ## 2026-10-10 — Clarify MRI volume orbit gizmo
 
@@ -11,6 +19,17 @@
 - Removed the black circular backing behind the MRI Volume gizmo; its line artwork now sits on a transparent background.
 - Reframed the three lines as open, dashed horizontal, vertical, and diagonal rotation arcs with small direction arrowheads. Labels no longer use Axial/Sagittal/Coronal, so they cannot be confused with MPR slice planes.
 - Updated the native DICOM/MPR spec, product README, and HTML design board.
+
+## 2026-10-10 — Separate Cloud Run staging and production CD
+
+### Changed
+
+- Added GitHub Actions deploy flow: pushes to `dev` deploy to a dedicated staging Cloud Run service; pushes to `main` deploy to a dedicated production service through separate GitHub Environments.
+- Deploys immutable SHA-tagged images with Workload Identity Federation, no-traffic candidate revisions, health smoke test, and traffic promotion only after the test passes. The existing Cloud Run service is not overwritten by this workflow.
+- Added dynamic Vercel same-origin API rewrites: Preview targets staging and Production targets production via `KNEE_API_ORIGIN`.
+- Restricted staging API routes with a Secret Manager-backed gate header injected by the Vercel Preview rewrite; health endpoint remains available for smoke tests. Production has no gate.
+- Documented separate buckets, Firestore databases, runtime/deployer identities, production approval, manual post-promotion rollback, and remaining one-time GCP setup.
+- Added `FIRESTORE_DATABASE` runtime configuration and tests; excluded temporary Google auth credentials from Git and Docker build context.
 
 ## 2026-10-10 — Cloud upload preview UX and study-folder handling
 

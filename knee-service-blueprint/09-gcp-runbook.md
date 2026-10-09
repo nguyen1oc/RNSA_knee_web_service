@@ -1,12 +1,12 @@
 # 09 — GCP runbook: staging, public app và AI runtime
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Tách mục tiêu Cloud Run staging/production; `dev` là QA nội bộ, `main` là production; CI/CD dùng GitHub Actions + WIF, VM vẫn dành cho GPU/Triton về sau.
+> **Thay đổi gần nhất:** Tách Cloud Run staging/production (`dev` QA, `main` production); ghi nhận Artifact Registry `knee-review` đã tạo nhưng còn trống. WIF/deployer và GitHub Environments là các bước tiếp theo.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 App dùng anonymous temporary session, không có tài khoản/mật khẩu. URL `rnsa-knee-web-service.vercel.app` là frontend; Vercel tự cấp HTTPS cho URL đó nhưng không tự chạy FastAPI. Vercel Preview dùng API staging, Vercel Production dùng API production thông qua same-origin `/api` rewrite.
 
-Staging là môi trường Cloud Run riêng để nhóm QA/manual test nội bộ; production là Cloud Run phục vụ frontend public. VM `knee-review-staging-01` không còn là staging web: giữ private/off và dành GPU/Triton về sau. CD workflow được định nghĩa trong [15 — CI/CD](15-ci-cd-plan.md); cần cấu hình IAM/WIF, GitHub Environments, bucket/database và Vercel env trước khi workflow chạy thành công. Xem [18 — Anonymous session và giới hạn upload](18-anonymous-session-and-upload-limits.md) và [19 — Public preview deployment](19-public-preview-deployment.md).
+Staging là môi trường Cloud Run riêng để nhóm QA/manual test nội bộ; production là Cloud Run phục vụ frontend public. VM `knee-review-staging-01` không còn là staging web: giữ private/off và dành GPU/Triton về sau. Artifact Registry đã tạo; CD workflow được định nghĩa trong [15 — CI/CD](15-ci-cd-plan.md), nhưng cần cấu hình IAM/WIF, GitHub Environments, deployer identities và tài nguyên production trước khi workflow chạy thành công. Xem [18 — Anonymous session và giới hạn upload](18-anonymous-session-and-upload-limits.md) và [19 — Public preview deployment](19-public-preview-deployment.md).
 
 ## Môi trường và pipeline
 

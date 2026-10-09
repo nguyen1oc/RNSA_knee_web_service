@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { AlertCircle, Image as ImageIcon, Info, Sparkles, Trash2, UploadCloud, X } from 'lucide-react'
+import { AlertCircle, Image as ImageIcon, Info, Sparkles, Trash2, X } from 'lucide-react'
 import './styles.css'
 import './upload-progress.css'
 import './viewer-overrides.css'
@@ -17,17 +17,40 @@ import StudyInfoPanel from './components/StudyInfoPanel'
 import StudySidebar from './components/StudySidebar'
 import ViewerTabs from './components/ViewerTabs'
 import ViewerToolbar from './components/ViewerToolbar'
+import ImportStudyMenu from './components/ImportStudyMenu'
 import { uploadStudy } from './uploadStudy'
+
+function readableError(error, fallback) {
+  const message = typeof error?.message === 'string' ? error.message.trim() : ''
+  if (!message) return fallback
+  if (/failed to fetch|networkerror|load failed/i.test(message)) {
+    return 'Cannot reach the API backend. Confirm it is deployed and connected to this website.'
+  }
+  if (/unexpected token|not valid json|json parse/i.test(message)) {
+    return 'The API returned an invalid response. The frontend may not be connected to the FastAPI backend yet.'
+  }
+  return message
+}
 
 const api = async (path, options) => {
   const sessionHeaders = await getSessionHeaders()
   const response = await fetch(path, { ...options, headers: { ...sessionHeaders, ...(options?.headers || {}) } })
+  const responseText = await response.text()
+  let payload = {}
+  try { payload = responseText ? JSON.parse(responseText) : {} } catch { /* handled with a clear API message below */ }
   if (!response.ok) {
-    let message = response.statusText
-    try { message = (await response.json()).detail || message } catch { /* no-op */ }
-    throw new Error(typeof message === 'string' ? message : JSON.stringify(message))
+    const detail = payload?.detail
+    const message = typeof detail === 'string'
+      ? detail
+      : detail ? JSON.stringify(detail) : ''
+    if (message) throw new Error(message)
+    if (response.status === 404) throw new Error('API endpoint not found. Deploy FastAPI and connect it to this Vercel site.')
+    if (response.status === 413) throw new Error('The upload is larger than the current deployment accepts.')
+    throw new Error(response.statusText || `API request failed (HTTP ${response.status}).`)
   }
-  return response.json()
+  try { return responseText ? JSON.parse(responseText) : null } catch {
+    throw new Error('The API returned an invalid response. The frontend may not be connected to the FastAPI backend yet.')
+  }
 }
 
 const tabs = [
@@ -67,6 +90,10 @@ function App() {
   const folderInput = useRef(null)
   const seriesRequest = useRef(0)
 
+  const showError = (error, fallback = 'Something went wrong. Please try again.') => {
+    setNotice({ type: 'error', text: readableError(error, fallback) })
+  }
+
   const planeSeries = useMemo(() => Object.fromEntries(['SAG', 'COR', 'AX'].map((plane) => [
     plane, activeSeries?.plane === plane ? activeSeries : activeStudy?.series.find((series) => series.plane === plane),
   ])), [activeStudy, activeSeries])
@@ -80,7 +107,7 @@ function App() {
       if (target) await openStudy(target, data)
       else { setActiveStudy(null); setLoading(false) }
     } catch (error) {
-      setNotice({ type: 'error', text: error.message })
+      showError(error, 'Could not load the study list. Check the backend connection and retry.')
       setLoading(false)
     }
   }
@@ -98,7 +125,7 @@ function App() {
       if (!requestedSeriesId) setViewerTab('Overview')
       return full
     } catch (error) {
-      setNotice({ type: 'error', text: error.message })
+      showError(error, 'Could not open this study. Check the backend connection and retry.')
     } finally {
       setLoading(false)
     }
@@ -119,7 +146,7 @@ function App() {
       const items = await api(`/api/series/${series.id}/slices`)
       if (request === seriesRequest.current) setSlices(items)
     } catch (error) {
-      setNotice({ type: 'error', text: error.message })
+      showError(error, 'Could not load this series. Check the backend connection and retry.')
     }
   }
 
@@ -138,7 +165,7 @@ function App() {
       .then(() => { if (!cancelled) refresh() })
       .catch((error) => {
         if (cancelled) return
-        setNotice({ type: 'error', text: error.message })
+        showError(error, 'Could not start a temporary workspace. Check the backend connection and retry.')
         setLoading(false)
       })
     return () => { cancelled = true }
@@ -163,7 +190,7 @@ function App() {
       setNotice({ type: 'success', text: `DICOM ingest complete: ${result.accepted_files} file(s) indexed.${rejectedText}` })
       await refresh(result.study_ids[0])
     } catch (error) {
-      setNotice({ type: 'error', text: error.message })
+      showError(error, 'Study import failed. Check the backend connection and retry.')
     } finally {
       setUploading(false)
       setUploadProgress(null)
@@ -183,7 +210,7 @@ function App() {
           setNotice({ type: 'success', text: 'Study deleted.' })
           await refresh(deletingActiveStudy ? undefined : activeStudy?.id, { fallbackToActive: !deletingActiveStudy })
         } catch (error) {
-          setNotice({ type: 'error', text: error.message })
+          showError(error, 'Could not delete this study. Please retry.')
         }
       },
     })
@@ -229,7 +256,7 @@ function App() {
           setNotice({ type: 'success', text: 'Temporary session cleared. A new empty session has started.' })
           await refresh()
         } catch (error) {
-          setNotice({ type: 'error', text: error.message })
+          showError(error, 'Could not clear this temporary workspace. Please retry.')
         } finally {
           setClearingSession(false)
         }
@@ -249,7 +276,7 @@ function App() {
   const focusedSeries = focusedPlane ? planeSeries[focusedPlane] : null
   const focusedItems = seriesSliceMap[focusedSeries?.id] || []
   const focusedSlices = focusedSeries?.id === activeSeries?.id ? slices : focusedItems
-  if (loading && !activeStudy) return <div className="loading-screen"><div className="brand-mark">KR</div><p>Loading local workspace…</p></div>
+  if (loading && !activeStudy) return <div className="loading-screen"><div className="brand-mark">KR</div><p>Opening temporary workspace…</p></div>
 
   const viewerContent = viewerTab === 'Overview' ? (
     <MprViewer series={activeSeries} />
@@ -267,11 +294,11 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand"><div className="brand-mark">KR</div><div><h1>Knee Review</h1><span>Local DICOM workspace</span></div></div>
-        <div className="top-actions"><SessionControls onClear={clearWorkspace} disabled={clearingSession || uploading} /><button className="button primary" onClick={() => fileInput.current?.click()} disabled={uploading}><UploadCloud size={16} /> Import study</button><input ref={fileInput} hidden type="file" accept=".dcm,.zip,application/dicom,application/zip" multiple onChange={upload} /><input ref={folderInput} hidden type="file" webkitdirectory="true" multiple onChange={upload} /></div>
+        <div className="brand"><div className="brand-mark">KR</div><div><h1>Knee Review</h1><span>Temporary DICOM workspace</span></div></div>
+        <div className="top-actions"><SessionControls onClear={clearWorkspace} disabled={clearingSession || uploading} /><ImportStudyMenu onFiles={() => fileInput.current?.click()} onFolder={() => folderInput.current?.click()} disabled={uploading} compact /><input ref={fileInput} hidden type="file" accept=".dcm,.zip,application/dicom,application/zip" multiple onChange={upload} /><input ref={folderInput} hidden type="file" webkitdirectory="true" multiple onChange={upload} /></div>
       </header>
 
-      {notice && notice.type !== 'analyze' && <div className={`notice ${notice.type}`}><span>{notice.type === 'error' ? <AlertCircle size={16} /> : <Info size={16} />}{notice.text}</span><button aria-label="Dismiss notice" onClick={() => setNotice(null)}><X size={15} /></button></div>}
+      {notice && notice.type !== 'analyze' && <div className={`notice ${notice.type}`} role={notice.type === 'error' ? 'alert' : 'status'} aria-live="polite"><span>{notice.type === 'error' ? <AlertCircle size={16} /> : <Info size={16} />}{notice.text || (notice.type === 'error' ? 'Something went wrong. Please try again.' : 'Done.')}</span><button aria-label="Dismiss notice" onClick={() => setNotice(null)}><X size={15} /></button></div>}
 
       <div className="body-layout">
         <StudySidebar
@@ -280,11 +307,8 @@ function App() {
           activeSeriesId={activeSeries?.id}
           expandedStudies={expandedStudies}
           expandedSeries={expandedSeries}
-          uploading={uploading}
           uploadProgress={uploadProgress}
           onRefresh={() => refresh()}
-          onImport={() => fileInput.current?.click()}
-          onImportFolder={() => folderInput.current?.click()}
           onToggleStudy={toggleStudy}
           onToggleSeries={toggleSeries}
           onOpenStudy={(id) => openStudy(id)}
@@ -294,7 +318,7 @@ function App() {
         />
 
         <main className="content">
-          {!activeStudy ? <EmptyWorkspace onImport={() => fileInput.current?.click()} /> : (
+          {!activeStudy ? <EmptyWorkspace onImportFiles={() => fileInput.current?.click()} onImportFolder={() => folderInput.current?.click()} disabled={uploading} /> : (
             <>
               <div className="content-head">
                 <div><div className="title-row"><h2>{activeStudy.display_name}</h2><span className={`source-badge ${activeStudy.source}`}>{activeStudy.source === 'sample' ? 'Example' : 'Imported'}</span></div><p className="subline">{activeStudy.series.length} series · {activeStudy.total_slices} images · UID ending {activeStudy.study_uid.slice(-12)}</p></div>

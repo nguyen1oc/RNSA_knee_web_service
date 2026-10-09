@@ -1,7 +1,7 @@
 # Knee Review — kế hoạch local Docker
 
 > **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Bỏ kế hoạch Firebase/account; chuyển sang temporary anonymous session, TTL, upload caps và cleanup; giữ các feature đã merge vào `dev`.
+> **Thay đổi gần nhất:** Tách Vercel frontend khỏi Cloud Run API; đặt GCS resumable upload, shared metadata và distributed abuse limits làm gates trước public upload.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Cập nhật **05/10/2026** là mốc local viewer ban đầu; temporary session/public-demo planning được chốt ngày 09/10, còn model/Triton deferred. App vertical slice chạy tại `../knee-web`; bộ docs mô tả trạng thái và các bước tiếp theo.
@@ -31,6 +31,7 @@ Bắt đầu bằng [12 — Các bước build local](12-local-docker-build-step
 | [16 Native DICOM/MPR](16-native-dicom-and-mpr.md) | P1 controls, geometry gate, runtime và giới hạn kiểm định | Viewer implementation hiện hành |
 | [17 GCP basics](17-gcp-basics-and-first-deploy.md) | Project, billing, CLI/ADC, IAM, VM, IAP, Terraform, Triton và GKE | Hướng dẫn nhập môn và bước chuẩn bị staging |
 | [18 Temporary workspace](18-anonymous-session-and-upload-limits.md) | Anonymous session, clear/reset, TTL, upload caps và public gates | Current decision; Cloud Run storage/rate limits remain |
+| [19 Public preview](19-public-preview-deployment.md) | Vercel + Cloud Run + GCS, HTTPS, rate limit và rollout gates | Target plan; chưa provision/deploy |
 | [CHANGELOG](CHANGELOG.md) | Lịch sử thay đổi đáng chú ý | Hiện hành |
 | [CONTRIBUTING](../CONTRIBUTING.md) | Commit, branch, push, review và CI/CD | Hiện hành |
 | [15 CI/CD](15-ci-cd-plan.md) | CI baseline và lộ trình staging/autodeploy | CI hiện hành; CD để sau |

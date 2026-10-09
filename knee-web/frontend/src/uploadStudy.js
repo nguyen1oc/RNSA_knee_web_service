@@ -47,14 +47,23 @@ export function uploadStudy(form, onProgress, startedAt = Date.now()) {
       let payload = {}
       try { payload = JSON.parse(request.responseText || '{}') } catch { /* handled below */ }
       if (request.status < 200 || request.status >= 300) {
-        reject(new Error(errorMessage(payload, request.statusText || `Upload failed (${request.status})`)))
+        const fallback = request.status === 404
+          ? 'API endpoint not found. Deploy FastAPI and connect it to this website.'
+          : request.status === 413
+            ? 'The upload is larger than the current deployment accepts.'
+            : request.statusText || `Upload failed (HTTP ${request.status}).`
+        reject(new Error(errorMessage(payload, fallback)))
+        return
+      }
+      if (!payload || typeof payload !== 'object' || !Array.isArray(payload.study_ids)) {
+        reject(new Error('The API returned an invalid upload response. Confirm the frontend is connected to FastAPI.'))
         return
       }
       resolve(payload)
     })
 
     request.addEventListener('error', () => {
-      reject(new Error('Network error during upload. Check the IAP tunnel and retry.'))
+      reject(new Error('Cannot reach the API backend. Confirm it is deployed and connected to this website.'))
     })
     request.addEventListener('abort', () => reject(new Error('Upload was cancelled.')))
     request.send(form)

@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Chốt anonymous temporary sessions; loại bỏ kế hoạch tài khoản demo và đặt capture preset 64/128/512.
+> **Thay đổi gần nhất:** Ghi nhận Vercel frontend riêng, FastAPI chưa kết nối; public upload cần Cloud Run + GCS resumable, shared metadata và distributed rate limiting.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-09 — Anonymous review session replaces demo account
@@ -12,6 +12,16 @@
 - Thêm upload caps/streaming ZIP, cleanup, read-only example và in-app confirmation cho thao tác xóa.
 - Giữ nguyên các feature đã merge vào `dev` (folder import/progress, MRI Volume/MPR/orientation); cập nhật đường public-cloud và acceptance.
 - Capture PNG/JPEG vuông đổi thành `64×64`, `128×128`, `512×512`; `512×512` là mặc định. Entry account-auth bên dưới được giữ làm lịch sử đã supersede.
+
+## 2026-10-09 — Vercel frontend and public API deployment plan
+
+### Changed
+
+- Ghi nhận `rnsa-knee-web-service.vercel.app` là HTTPS frontend đã có; FastAPI chưa được Vercel host/kết nối nên API/import lỗi trên URL đó.
+- Chốt VM staging hiện tại không phải web host; backend public target là Cloud Run, GPU VM sau này dành cho Triton.
+- Ghi rõ upload 431 MiB cần browser-to-Cloud-Storage resumable flow; không proxy qua Vercel Functions/external rewrites hoặc Cloud Run HTTP/1 multipart.
+- Bổ sung yêu cầu shared session metadata, distributed rate limit, HTTPS/cookie/CORS, lifecycle cleanup và public smoke tests.
+- UI sửa import menu và lỗi rỗng: một dropdown chọn DICOM/ZIP hoặc folder, thông báo lỗi luôn có fallback rõ ràng.
 
 ## 2026-10-08 — Multi-user authentication and GPU roadmap
 

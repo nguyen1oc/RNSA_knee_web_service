@@ -1,7 +1,7 @@
 # Knee Review — local DICOM workspace
 
 > **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Capture hỗ trợ preview vuông và preset 64×64, 128×128, 512×512.
+> **Thay đổi gần nhất:** Gộp chọn file/ZIP/folder trong một Import menu; lỗi API có fallback rõ ràng; ghi nhận Vercel frontend tách biệt backend.
 > **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
 
 This is the first local vertical slice for the knee diagnostic web service. Upload accepts individual `.dcm` files, folders, and unencrypted `.zip` archives containing DICOM files.
@@ -9,6 +9,8 @@ The UI is in English and currently supports:
 
 - one seeded, read-only example study; it can be sourced from `series_1`/`series_2` folders or `results.zip` in the mounted examples directory;
 - importing individual `.dcm` files or a folder of `.dcm` files;
+- one Import study menu with explicit `DICOM files or ZIP` and `Folder of DICOM files` choices;
+- non-empty, actionable error banners when API/network responses fail;
 - byte-based upload progress and a separate indexing state while a study is validated;
 - grouping by `StudyInstanceUID` and `SeriesInstanceUID`;
 - browsing series and slices with sagittal/coronal/axial labels when DICOM geometry is available;
@@ -47,7 +49,9 @@ The Dockerfile builds the React frontend in a multi-stage image, so `frontend/di
 
 See [anonymous session and upload-limit plan](../knee-service-blueprint/18-anonymous-session-and-upload-limits.md). There is no login/signup. The backend issues an HttpOnly cookie, scopes every study/data route to that temporary session, and deletes the session's uploads on reset/expiry. `SESSION_COOKIE_SECURE=true` is required behind HTTPS; local HTTP defaults to false.
 
-Current SQLite and local DICOM storage are suitable for local/single-VM staging only. Before public Cloud Run, move DICOM to temporary Cloud Storage and session/study metadata to a shared store; add ingress rate limits and cleanup. Pipeline stages are feature PR → `dev` staging deploy/test → reviewed `dev` to `main` → production; the GitHub workflow currently runs CI only, no auto-deploy.
+The public frontend `https://rnsa-knee-web-service.vercel.app/` is hosted separately from FastAPI; Vercel supplies HTTPS for that frontend URL. This source currently calls relative `/api` routes, so public session/import APIs will not work until a backend URL/routing is configured. See [public preview deployment plan](../knee-service-blueprint/19-public-preview-deployment.md).
+
+Current SQLite and local DICOM storage are suitable for local/single-VM staging only. The existing VM remains private and is reserved for GPU/Triton later, not public web/API hosting. Before public upload, deploy FastAPI separately (Cloud Run target), move DICOM to private Cloud Storage with browser-resumable uploads, move session/study metadata to a shared store, and configure distributed rate limits and cleanup. Do not proxy the 431 MiB example ZIP through a Vercel Function or long-running external rewrite. Pipeline stages are feature PR → `dev` review → Vercel preview/API staging → reviewed `dev` to `main`; the GitHub workflow currently runs CI only, no auto-deploy.
 
 ## CI baseline
 

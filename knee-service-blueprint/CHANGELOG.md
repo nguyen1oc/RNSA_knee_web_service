@@ -1,8 +1,17 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Làm rõ staging hiện tại riêng tư; ghi account bootstrap `admin123 / 123456`, per-user study ownership và cảnh báo shared credential.
+> **Thay đổi gần nhất:** Chốt anonymous temporary sessions; loại bỏ kế hoạch tài khoản demo và đặt capture preset 64/128/512.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
+
+## 2026-10-09 — Anonymous review session replaces demo account
+
+### Changed
+
+- Thay quyết định auth trước đó bằng workspace tạm không đăng nhập; HttpOnly session cookie cô lập upload, hỗ trợ Clear session và TTL.
+- Thêm upload caps/streaming ZIP, cleanup, read-only example và in-app confirmation cho thao tác xóa.
+- Giữ nguyên các feature đã merge vào `dev` (folder import/progress, MRI Volume/MPR/orientation); cập nhật đường public-cloud và acceptance.
+- Capture PNG/JPEG vuông đổi thành `64×64`, `128×128`, `512×512`; `512×512` là mặc định. Entry account-auth bên dưới được giữ làm lịch sử đã supersede.
 
 ## 2026-10-08 — Multi-user authentication and GPU roadmap
 
@@ -10,7 +19,7 @@
 
 - Đề xuất Identity Platform email/password quản lý credential/sign-in/reset; FastAPI xác minh ID token và phân quyền theo UID.
 - PostgreSQL/Cloud SQL chỉ giữ app profile/role, study `owner_uid`, metadata; không lưu password. Invite-only signup cho giai đoạn đầu.
-- Thêm thứ tự rollout auth, cross-user authorization tests, ownership migration, GCS private storage và acceptance gate ở [18](18-auth-and-user-data-plan.md).
+- Đề xuất thứ tự rollout auth, cross-user authorization tests, ownership migration và GCS private storage; quyết định này đã được supersede bởi [18 — Anonymous temporary workspace](18-anonymous-session-and-upload-limits.md).
 - Làm rõ staging hiện tại là một VM `e2-medium` CPU-only; Triton/GPU chưa được tạo. Định hướng benchmark sau này trên GPU VM riêng, kiểm tra quota/zone/giá trước.
 - Cập nhật architecture, GCP runbook, GCP glossary, blueprint README và app README.
 

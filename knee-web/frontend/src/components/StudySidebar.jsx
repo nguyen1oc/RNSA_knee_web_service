@@ -69,7 +69,7 @@ export default function StudySidebar({
 
       <button className="drop-card" onClick={onImport} disabled={uploading}>
         <UploadCloud size={20} />
-        <span><b>{uploading ? 'Import in progress' : 'Import DICOM files / ZIP'}</b><small>Select one or more .dcm files or a .zip archive</small></span>
+        <span><b>{uploading ? 'Import in progress' : 'Import DICOM files / ZIP'}</b><small>Select .dcm files, a folder, or ZIP · temporary browser workspace</small></span>
         <Plus size={17} />
       </button>
       <button className="folder-button folder-import" onClick={onImportFolder} disabled={uploading}>
@@ -78,7 +78,7 @@ export default function StudySidebar({
       {uploadProgress && (
         <div className="upload-progress" role="status" aria-live="polite">
           <div className="upload-progress-heading">
-            <b>{uploadProgress.phase === 'uploading' ? 'Uploading to the VM' : 'Indexing on the VM'}</b>
+            <b>{uploadProgress.phase === 'uploading' ? 'Uploading study' : 'Indexing study'}</b>
             {uploadProgress.phase === 'uploading' && <span>{uploadProgress.percent}%</span>}
           </div>
           {uploadProgress.phase === 'uploading' ? (

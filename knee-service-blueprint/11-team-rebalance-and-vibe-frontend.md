@@ -1,10 +1,10 @@
 # 11 — Hai người build local viewer
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; ownership local hiện hành được giữ nguyên.  
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Clarified no account login but temporary session-based study isolation.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-**Cập nhật 05/10/2026:** thay kế hoạch ngày 30/09 bằng local Docker, upload + viewer + một sample study gồm hai series, không auth và chưa AI/GCP. Scope ở [01](01-product-scope.md), trình tự kỹ thuật ở [12](12-local-docker-build-steps.md).
+**Cập nhật 09/10/2026:** local Docker, upload + viewer + một sample study gồm hai series, không account/login nhưng có anonymous cookie session để isolate dữ liệu; chưa AI/GCP. Scope ở [01](01-product-scope.md), trình tự kỹ thuật ở [12](12-local-docker-build-steps.md).
 
 ## 1. Ownership
 
@@ -53,6 +53,6 @@ Giữ React StrictMode; init/cleanup đối xứng, unsubscribe và release reso
 
 - Có một đường upload → lưu → mở ảnh thật từ D3.
 - Có một sample study thật gồm `series_1` và `series_2` trước nghiệm thu; không tách hai series thành hai ca.
-- Chạy Compose không cần account/auth/GCP/model.
+- Chạy Compose không cần account/login/GCP/model; temporary session cookie dùng để scope dữ liệu.
 - Render và grouping được kiểm chứng, raw data/catalog qua restart và seed rerun không nhân bản.
 - P1 MPR/3D/so đôi chỉ được nhận sau P0 và còn thời gian; không là lời hứa ngầm trong 10 ngày.

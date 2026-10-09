@@ -1,12 +1,12 @@
 # 00 — Workflow local và màn hình cần xây
 
-> **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** Đặt tên nguồn Overview là `MPR source`; đổi nguồn cập nhật cả volume và ba MPR, gizmo xoay bằng ba vòng orbit.
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Giữ MPR source/orbit đã merge; review dùng temporary anonymous session thay cho demo account.
 > **Thay đổi trước đó:** Tab MPR có volume intensity 3D xoay được từ cùng series; đã làm rõ MR/FS, presets và giới hạn camera/MPR.
-> **Lịch sử trước đó:** Panel thông tin hiện đầy đủ Study UID; Capture export các ảnh vuông 512/256/128 px có preview.
+> **Lịch sử trước đó:** Panel thông tin hiện đầy đủ Study UID; Capture có preview, preset mới là 64/128/512 px.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-Phạm vi 05/10/2026: không tài khoản, mật khẩu, IAP hoặc identity gate. Vào thẳng danh sách study. Upload đi qua ingest pipeline; workspace có nút **Analyze** để giữ đúng workflow tương lai, nhưng hiện chỉ hiển thị thông báo “coming soon”; chưa có model, AI panel, score hoặc endpoint inference.
+Phạm vi review hiện tại: không tài khoản hay mật khẩu; vào thẳng temporary workspace theo browser session, upload được cô lập bằng HttpOnly cookie và có thể Clear session. Upload đi qua ingest pipeline; workspace có nút **Analyze** để giữ đúng workflow tương lai, nhưng hiện chỉ hiển thị thông báo “coming soon”; chưa có model, AI panel, score hoặc endpoint inference.
 
 ## 1. User flow
 

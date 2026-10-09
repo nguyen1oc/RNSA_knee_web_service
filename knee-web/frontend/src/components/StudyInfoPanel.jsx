@@ -16,9 +16,9 @@ export default function StudyInfoPanel({ study }) {
         <div><span>Series</span><b>{study.series.length}</b></div>
         <div><span>Images</span><b>{study.total_slices}</b></div>
         <div><span>Geometry</span><b>{validGeometry} / {geometries.length} valid</b></div>
-        <div className="info-row-geometry" title="Cross-series overlays require matching Frame of Reference geometry. MPR eligibility is checked independently for each series."><span>Cross-series geometry</span><b>{mappingSummary}</b>{study.geometry?.status === 'incompatible' && <small>Series use different reference frames; cross-series alignment is unavailable.</small>}</div>
-        <div><span>Overview volume</span><b>Geometry checked per series</b></div>
-        <div className="info-row-study-uid"><span>Study UID</span><b title={study.study_uid}>{study.study_uid}</b></div>
+        <div><span>Cross-series geometry</span><b>{mappingSummary}</b></div>
+        <div><span>MPR</span><b>Geometry checked per series in Overview</b></div>
+        <div><span>Study UID</span><b title={study.study_uid}>…{study.study_uid.slice(-12)}</b></div>
       </div>
       <div className="info-divider" />
       <p className="eyebrow">Ingest pipeline</p>

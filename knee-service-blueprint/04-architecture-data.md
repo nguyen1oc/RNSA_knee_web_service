@@ -1,7 +1,7 @@
 # 04 — Kiến trúc local và lưu trữ
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; kiến trúc local hiện hành được giữ nguyên.  
+> **Cập nhật gần nhất:** 2026-10-08
+> **Thay đổi gần nhất:** Phân biệt rõ app hiện chưa có auth với kiến trúc đích: Identity Platform xác thực, `owner_uid` authorize study, PostgreSQL lưu metadata.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Phạm vi 05/10/2026: không auth, không inference, không cloud. Docker Compose trên máy người dùng.
@@ -39,12 +39,20 @@ API không decode toàn study trong event loop. Worker dùng cùng Python image/
 |---|---|
 | uploads | id, kind, state, created_at, expires_at, accepted_bytes, receipts |
 | import_jobs | id, upload_id, state, stage, lease_until, attempt, error |
-| studies | id, source_kind=dicom, dicom_study_uid, label, source=upload/example, state, inventory_version, deleted_at nullable |
+| studies | id, source_kind=dicom, dicom_study_uid, label, source=upload/example, state, inventory_version, deleted_at nullable; future `owner_uid` for user uploads |
 | series | id, study_id, dicom_series_uid nullable, plane/fs/fluid nullable, label_source, geometry_status, sort_method |
 | assets | id, series_id, dicom_sop_uid, relative_source_path, object_key, checksum, transfer_syntax, rows/columns, frame_count |
 | example_versions | example_id, version, source_checksum, state, import_job_id, study_id nullable |
 
 App IDs là UUID. Không có principals, users, owner_id hoặc fake dev-user. Original path không lấy nguyên filename client; API lookup bằng asset ID. DICOM SOP/frame vẫn giữ provenance.
+
+**Trạng thái hiện tại:** app vẫn không có đăng nhập hoặc ownership; schema ở trên mô tả local single-user. **Trước khi mời nhiều người dùng:** Identity Platform xác thực account, FastAPI kiểm tra token và mọi study API phân quyền bằng UID lấy từ token. PostgreSQL/Cloud SQL (nếu migration) chỉ lưu `identity_uid`, profile/role tối thiểu và metadata/ownership—không lưu password. Xem [18 — Auth and user data plan](18-auth-and-user-data-plan.md).
+
+## Ánh xạ kiến trúc lên GCP (staging đầu tiên)
+
+Phiên bản hiện tại chưa stateless: SQLite và raw DICOM cùng ở `DATA_DIR`, còn example được mount từ host. Để đưa đúng app hiện tại lên cloud với ít thay đổi, chạy nguyên Docker Compose trên một Compute Engine VM và đặt dữ liệu trên durable Persistent Disk. Không dùng Local SSD; không expose cổng app ra public internet. Truy cập staging bằng IAP/SSH tunnel. Chi tiết từng bước và giới hạn nằm ở [09 — GCP runbook](09-gcp-runbook.md).
+
+Khi chuyển sang Cloud Run/multi-instance, cần thay SQLite/local paths bằng PostgreSQL + Cloud Storage trước. Đây là một migration kiến trúc, không chỉ đổi Docker target. Triton/GPU là service/model-serving phase riêng; Kubernetes/GKE chỉ được thêm nếu nhu cầu scale/vận hành biện minh cho nó.
 
 ## Duplicate và commit
 

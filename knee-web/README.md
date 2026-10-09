@@ -1,10 +1,12 @@
 # Knee Review — local DICOM workspace
 
-> **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** Overview đặt MRI Volume ở ô đầu; Study metadata và thông báo Analyze được căn chỉnh trong workspace.
+> **Cập nhật gần nhất:** 2026-10-08
+> **Thay đổi gần nhất:** Ghi rõ multi-user/auth chưa được triển khai; liên kết plan Identity Platform + per-user study ownership; staging VM hiện CPU-only.
 > **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
 
 This is the first local vertical slice for the knee diagnostic web service. Upload accepts individual `.dcm` files, folders, and unencrypted `.zip` archives containing DICOM files.
+
+The current deployment target is still local Docker Compose. For a first private GCP staging, use one Compute Engine VM with a durable disk and the existing Compose setup; do not deploy this SQLite/local-filesystem version unchanged to multi-instance Cloud Run. See [the GCP runbook](../knee-service-blueprint/09-gcp-runbook.md). This staging is for de-identified sample data and is not a clinical/production service.
 The UI is in English and currently supports:
 
 - one seeded, read-only example study; it can be sourced from `series_1`/`series_2` folders or `results.zip` in the mounted examples directory;
@@ -29,7 +31,8 @@ The UI is in English and currently supports:
 - Study information explains cross-series frame mismatches without truncating the status; this blocks cross-series alignment, not necessarily single-series MPR;
 - an Analyze button that clearly reports that the future AI/Triton pipeline is not connected yet;
 - deleting imported studies; the example study is read-only;
-- no accounts, passwords, AI, Triton, GPU, or GCP dependency.
+- no accounts/passwords or per-user isolation in the current build; do not expose this shared catalog to multiple users or use real patient data. The proposed Identity Platform + FastAPI ownership plan is in [auth and user data plan](../knee-service-blueprint/18-auth-and-user-data-plan.md);
+- no AI, Triton, or GPU dependency in the current viewer. The GCP staging VM is CPU-only; a future Triton prototype should use a separately budgeted GPU runtime.
 
 ## Run with Docker
 

@@ -9,7 +9,12 @@ export default function EmptyWorkspace({ onImportFiles, onImportFolder, disabled
       <h2>Start a knee image review</h2>
       <p>Import a study to browse its series and slices. No account or AI analysis is required.</p>
       <ImportStudyMenu onFiles={onImportFiles} onFolder={onImportFolder} disabled={disabled} />
-      <div className="empty-note"><Info size={15} /> Choose Files / ZIP for multiple <b>.dcm</b> files or an archive, or Folder for the full Study folder. A Series folder imports only that Series.</div>
+      <div className="empty-note">
+        <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+        <span style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+          Choose Files / ZIP for multiple <b>.dcm</b> files or an archive, or Folder for the full Study folder. A Series folder imports only that Series.
+        </span>
+      </div>
     </div>
   )
 }

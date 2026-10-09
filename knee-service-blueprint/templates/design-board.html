@@ -82,19 +82,19 @@
 </head>
 <body>
 <main>
-  <section class="kr-panel entry"><h2>P1 native DICOM · Updated 2026-10-06</h2><p>Overview = independent original acquisitions. Direction tabs = native stack + multi-layout. MPR = three linked reconstructed planes from one eligible series.</p><p>Tools: Pointer / pan · Window / Level · Length · Rectangle / Ellipse / Freehand ROI · Arrow + note · Eraser · Capture. Wheel = slices; Ctrl+wheel / right-drag = zoom; Reset = fit and default VOI.</p><p>3D locator is an illustration, not patient anatomy. See <a href="../16-native-dicom-and-mpr.md">P1 specification and limitations</a>. Historical P0 layouts remain below.</p></section>
+  <section class="kr-panel entry"><h2>Viewer and temporary workspace · Updated 2026-10-09</h2><p>Overview = patient-specific MRI Volume + three linked MPR planes from one selected source series. Direction tabs = original acquired stacks; Images / Series = acquisition browser.</p><p>Open workspace without account → upload/view studies scoped to this temporary browser session → Clear session or wait for expiry. Shared example remains read-only. See <a href="../18-anonymous-session-and-upload-limits.md">Temporary session and upload limits</a>.</p><p>MRI Volume uses DICOM voxel intensity, not generic anatomy or segmentation. Three-ring orbit gizmo appears only in that viewport. See <a href="../16-native-dicom-and-mpr.md">viewer specification</a>. Older mockup below is historical.</p></section>
   <div class="intro">
     <div class="eyebrow">Local viewer · Light theme · October 2026</div>
     <h1>Knee Review</h1>
-    <p class="kr-muted">Không gian làm việc tông sáng: nền trắng và xám nhạt, chữ xanh đậm, điểm nhấn xanh y tế. Cả 3D locator và nền các ô ảnh dùng xám sáng; vùng tối trong ảnh MRI thật vẫn theo dữ liệu và display preview.</p>
+    <p class="kr-muted">Workspace tông sáng; các viewport DICOM và MRI Volume dùng nền đen để ảnh và volume đồng nhất. Thông báo upload nằm trong cột nội dung, không phủ ngang sidebar.</p>
   </div>
-    <div class="note">Design board là visual source of truth cho vertical slice Docker tại <code>knee-web/</code>. App thật phải giữ tabs, viewer 4 ô, focused direction viewport, cây Study → Series, panel Study information, ingest pipeline và nút Analyze placeholder.</div>
+    <div class="note">Design board là visual source of truth cho vertical slice Docker tại <code>knee-web/</code>. App thật phải giữ tabs, viewer 4 ô, focused direction viewport, cây Study → Series, panel Study information, ingest pipeline và nút Analyze placeholder. Trong study header, Analyze và Delete study là hai action riêng, có khoảng cách rõ và không dính liền. Delete study và Clear session xác nhận qua modal trong app, không qua hộp thoại browser. Sau khi xóa study đang mở, mở study còn lại đầu tiên hoặc hiển thị workspace rỗng. Capture modal có preview vuông cập nhật theo lựa chọn và preset PNG/JPEG 64×64, 128×128, 512×512 (mặc định 512×512).</div>
 
   <section class="kr-panel entry" aria-labelledby="journey-title">
     <div class="eyebrow">User journey · Bắt đầu từ đây</div>
     <h2 id="journey-title" style="margin-top:8px">Người dùng vào trang như thế nào?</h2>
     <div class="journey" aria-label="Các bước chính"><span>1. Danh sách study</span><span>2. Mở mẫu / Nhập `.dcm`</span><span>3. Expand Study → Series</span><span>4. Tab hướng / Wheel-zoom / Drag-pan</span><span>5. Analyze · Coming soon</span></div>
-    <p class="kr-muted">Vào thẳng trang danh sách trên localhost; không tài khoản hoặc mật khẩu. Giai đoạn hiện tại tập trung upload và viewer.</p>
+    <p class="kr-muted">Không cần tài khoản. Mỗi browser session có workspace tạm riêng, có Clear session và TTL. Feature PR → dev staging → main production.</p>
     <p><a href="../12-local-docker-build-steps.md">Các bước build local bằng Docker</a> · <a href="../13-input-formats-and-example-studies.md">Lưu sample study</a></p>
   </section>
 
@@ -113,7 +113,7 @@
   </section>
 
   <h2>Workspace sau khi chọn một study · S03</h2>
-  <p class="kr-muted" style="margin-bottom:16px">Bố cục minh họa một study giả định có ba hướng, không phải inventory DEMO-001. Trái: cây Study → Series → slice files. Giữa: 3D locator và ảnh. Phải: thông tin nguồn. Single-series MPR có trong P1; patient-specific 3D vẫn để giai đoạn sau.</p>
+  <p class="kr-muted" style="margin-bottom:16px">Mockup lịch sử của P0. Implementation hiện hành đưa MRI Volume + linked MPR lên Overview; các acquisition gốc vẫn mở theo từng tab hướng. Sidebar ở trái; Study information nằm phải.</p>
   <section id="workspace-preview" class="workspace" aria-label="Bố cục viewer đề xuất">
     <header class="appbar">
       <div><span class="brand">Knee Review</span><span class="kr-muted"> / Study minh họa bố cục</span></div>
@@ -137,11 +137,11 @@
         <p class="small kr-muted" style="margin-top:12px">Một hướng có thể có nhiều series. FS/fluid-sensitive có thể là UNKNOWN.</p>
       </aside>
       <div class="viewer">
-        <div class="tabs" aria-label="Tab minh họa"><span class="tab active">Overview</span><span class="tab">Sagittal</span><span class="tab">Coronal</span><span class="tab">Axial</span><span class="tab">MPR</span><span class="tab">Images / Series</span></div>
+        <div class="tabs" aria-label="Tab minh họa"><span class="tab active">Overview</span><span class="tab">Sagittal</span><span class="tab">Coronal</span><span class="tab">Axial</span><span class="tab">Images / Series</span></div>
         <div class="row toolbar"><span class="kr-button">Drag / Pan</span><span class="kr-button">Wheel / Pinch zoom</span><span class="kr-button">Slice 16 / 32</span><span class="kr-button">Fit / Reset</span></div>
-        <p class="small kr-muted">Overview keeps four readable slots for comparison, preserving each image aspect ratio. Click an image card to make its series active without changing tabs; only that active card receives Slice, zoom, pan and Reset controls. Open moves to the direction-focused tab. Sagittal, Coronal and Axial fit the full image; zoom starts at 100% fit, scales around the viewport center without an artificial max, pan remains explicit, and each card plus the toolbar expose Reset view. Images / Series is the acquisition browser, not another 4-up copy.</p>
+        <p class="small kr-muted">Overview selects one MPR source series and reconstructs three linked planes plus an MRI volume. Source must pass geometry validation; direction tabs continue to show original acquisitions. MRI Volume has independent orbit/zoom controls and colored slice-plane overlays.</p>
         <div class="viewgrid">
-          <div class="viewport"><div class="vp-title">3D locator · P1</div><div class="placeholder"><span class="large">3D</span><span class="small">Khung định hướng và các mặt phẳng<br>chưa mapping anatomy bệnh nhân</span></div><div class="vp-footer">Geometry validation required for slice picking</div></div>
+          <div class="viewport"><div class="vp-title">3D · MRI Volume</div><div class="placeholder"><span class="large">MRI</span><span class="small">DICOM voxel volume<br>three linked slice planes</span></div><div class="vp-footer">Drag to rotate · wheel follows selected plane</div></div>
           <div class="viewport active"><div class="vp-title" style="color:var(--kr-axis-sag)">SAG · Ảnh gốc · Đang chọn</div><div class="placeholder"><span class="large">SAG</span><span class="small">Vùng hiển thị DICOM<br>Mở ở lát giữa để có preview đại diện</span></div><div class="vp-footer">Lát giữa / 32 · Zoom 100%</div></div>
           <div class="viewport"><div class="vp-title" style="color:var(--kr-axis-cor)">COR · Ảnh gốc</div><div class="placeholder"><span class="large">COR</span><span class="small">Series chọn độc lập</span></div><div class="vp-footer">Lát 14 / 28 · Zoom 100%</div></div>
           <div class="viewport"><div class="vp-title" style="color:var(--kr-axis-ax)">AX · Ảnh gốc</div><div class="placeholder"><span class="large">AX</span><span class="small">Không đồng bộ theo slice index</span></div><div class="vp-footer">Lát 12 / 24 · Zoom 100%</div></div>
@@ -177,9 +177,9 @@
       <li><strong>D1–3: Luồng chạy được.</strong> Docker → Upload/index DICOM → Mở một series → Lướt lát.</li>
       <li><strong>D4: Examples.</strong> Seed có version/checksum; mở mẫu từ danh sách.</li>
       <li><strong>D5–6: Workspace tree và display.</strong> Cây Study → Series → slice, 4 ô Overview, focused direction tabs, wheel/pinch zoom, drag-pan, Contrast/Brightness/Invert/Reset và Analyze placeholder.</li>
-      <li><strong>D7–10: Persistence và bàn giao.</strong> Xóa study upload, restart, QA, README local; ZIP/MPR/3D/AI để phase sau.</li>
+      <li><strong>D7–10: Persistence và bàn giao.</strong> Xóa study upload, restart, QA, README local; model AI/Triton để phase sau.</li>
     </ol>
-    <p class="kr-muted">MPR/3D làm sau khi local P0 hoàn tất và geometry phù hợp. Các mẫu thật cần được cung cấp và index trước khi gọi demo hoàn chỉnh.</p>
+    <p class="kr-muted">MPR/volume yêu cầu geometry phù hợp; study không đủ điều kiện vẫn xem được native acquisition stacks. Đây là research viewer, chưa được thẩm định lâm sàng.</p>
   </section>
 
   <div class="sections">

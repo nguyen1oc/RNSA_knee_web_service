@@ -1,5 +1,64 @@
 # Changelog — Knee Review
 
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Capture presets changed to square 64/128/512; 512×512 remains the default.
+
+## 2026-10-09 — Smaller capture size presets
+
+- Changed the square PNG/JPEG export options to `64×64`, `128×128`, and `512×512`, with `512×512` selected by default.
+- Kept the capture preview square and centered in narrow layouts; compacted metadata for 64/128px exports so it does not overwhelm the image.
+- Updated the README, viewer/design specifications, acceptance checklist, native DICOM notes, and HTML design board. The previous 256/512/1024 presets are retained below as historical change log entries.
+
+## 2026-10-09 — Previous capture preview and export sizes
+
+- Restored a live preview inside the capture dialog; it regenerates from the rendered viewport when format, size, annotation or metadata options change.
+- Added exact square output presets `256×256`, `512×512`, and `1024×1024`; keep W/L, pan, zoom and optional annotations in the export. Metadata is included within the selected square canvas.
+- Updated viewer specs, local acceptance checks, README and HTML design board.
+
+## 2026-10-09 — Fix post-delete refresh selection
+
+## 2026-10-09 — Fix post-delete refresh selection
+
+- Refresh no longer falls back to the deleted active study ID after its DELETE succeeds.
+- Select the first remaining study, or show the empty workspace if none remain; deleting a non-active study continues to preserve the current selection.
+- Documented the selection behavior in the UI workflow/design notes.
+
+## 2026-10-09 — In-app confirmation popups
+
+## 2026-10-09 — Replace browser confirmation dialogs
+
+- Replaced native `window.confirm` prompts—which showed browser text such as “localhost says”—with an accessible, branded confirmation modal for Delete study and Clear session.
+- The modal explains which local files are removed, offers Cancel and an explicit destructive action, and prevents duplicate submission while work is in progress.
+- Updated the design-system guidance and HTML design board.
+
+## 2026-10-09 — Separate study header actions
+
+## 2026-10-09 — Study action spacing
+
+- Added a consistent gap and no-wrap behavior for Analyze and Delete study so the actions remain visually distinct at narrow and desktop widths.
+- Updated the design-system note and HTML design board to match the live study header.
+
+## 2026-10-09 — Overview MRI Volume + linked MPR restored
+
+- The active dev-based branch did not include the earlier MRI Volume viewer feature, so Overview showed the old orientation locator and the MPR/volume UI appeared missing.
+- Restored native 3D MRI Volume, colored MPR slice overlays, slice-plane drag, independent volume zoom, and three-ring orientation gizmo into Overview. The source selector identifies the single series feeding the volume; direction tabs continue to show original acquisitions.
+- Removed the separate MPR tab; Overview is now the MPR workspace. Ingest notices align within the workspace content column instead of spanning the study sidebar.
+- Updated product, viewer, workflow, QA and HTML design-board docs. This is voxel-intensity visualization, not anatomy segmentation and not clinically validated.
+
+## 2026-10-09 — Anonymous temporary workspace (current)
+
+- Replaced account login with an unguessable, HttpOnly browser-session cookie; every study/series/DICOM/image route checks the session owner. The shared example stays read-only.
+- Added Clear session deletion, 60-minute idle / 4-hour absolute expiry and cleanup on startup/next request.
+- Stream ZIP/DICOM members to staging disk; enforce 600 MiB request, 800 MiB expanded/session, 200 MiB per DICOM, and 500-file defaults. These accommodate current `results.zip` with headroom.
+- Added session-isolation/reset/expiry tests and upload-cap tests. Split page session handling, session controls, server session tokens and upload staging into small modules.
+- Public Cloud Run still requires GCS temp objects, shared session metadata, HTTPS, ingress rate limiting and cleanup; current VM staging remains private via IAP.
+- CI does not deploy automatically; keep feature PR → `dev` staging test → reviewed `main` production.
+
+## 2026-10-09 — Earlier account-auth prototype (superseded before release)
+
+- Briefly implemented Firebase email/password and UID-scoped ownership while considering persistent per-account study storage.
+- Product direction changed to no accounts and temporary uploads; Firebase login code and its docs were removed. No cloud account or data migration was made.
+
 > **Cập nhật gần nhất:** 2026-10-07
 > **Thay đổi gần nhất:** Chốt feature branch → PR vào dev; merge dev vào main chỉ khi deploy.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.

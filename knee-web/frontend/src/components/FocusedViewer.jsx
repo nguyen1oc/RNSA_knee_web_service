@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, Trash2 } from 'lucide-react'
 import NativeViewport from './NativeViewport'
 import NativeToolPicker from './NativeToolPicker'
@@ -20,6 +20,10 @@ export default function FocusedViewer({ series, slices, currentIndex, onActiveSl
     if (currentIndex != null) setIndices((value) => ({ ...value, [active]: currentIndex }))
   }, [currentIndex])
   const choose = (cell) => { setActive(cell); onActiveSliceChange(indexFor(cell)) }
+  const previewCapture = useCallback((options) => {
+    const preview = viewports.current[active]?.preview
+    return preview ? preview(options) : Promise.reject(new Error('Wait for the selected viewport to finish loading.'))
+  }, [active])
   return <>
     <div className="native-tools">
       <LayoutPicker value={layout} onChange={(value) => { setLayout(value); setActive(0); setIndices({}); onActiveSliceChange(0) }} />
@@ -36,7 +40,7 @@ export default function FocusedViewer({ series, slices, currentIndex, onActiveSl
         onIndex={(index) => { setIndices((value) => ({ ...value, [cell]: index })); if (active === cell) onActiveSliceChange(index) }} />)}
     </div>
     <p className="native-help">Measurements and notes stay in this browser session only. Eraser removes one mark; double-click an arrow to edit its note. Verify calibration before interpreting measurements.</p>
-    <CaptureModal open={capture} series={series} slicePosition={indexFor(active) + 1} annotationCount={viewports.current[active]?.annotationCount() || 0}
+    <CaptureModal open={capture} series={series} slicePosition={indexFor(active) + 1} annotationCount={viewports.current[active]?.annotationCount() || 0} onPreview={previewCapture}
       onClose={() => setCapture(false)} onExport={async (options) => {
         try { await viewports.current[active]?.capture(options); setCapture(false) }
         catch (exception) { setError(exception.message) }

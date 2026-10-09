@@ -1,7 +1,7 @@
 # 14 — Metrics đánh giá local viewer
 
-> **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** Thêm acceptance cho native DICOM và single-series MPR; xem viewer spec 16.
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Capture acceptance yêu cầu preview và ba kích thước square 64/128/512.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Cập nhật 05/10/2026. Các metric dưới đây đánh giá service local sau khi build; chúng không đo độ chính xác model, vì inference/Triton chưa nằm trong scope.
@@ -54,7 +54,7 @@ Cập nhật 05/10/2026. Các metric dưới đây đánh giá service local sau
 | UX | Preview annotation tools | Chọn dropdown Length/Rectangle/Ellipse/Freehand/Arrow + note; vẽ trong viewport; kiểm tra label và editor; đổi slice | Overlay đúng viewport + slice; Length/shape có px hoặc mm khi PixelSpacing hợp lệ; Arrow + note mở editor inline; không đổi DICOM nguồn |
 > Wheel slice test uses the default `Pointer` tool; “Pan” in the older row above is historical wording.
 | UX | Delete preview marks | Vẽ nhiều mark trên cùng slice, bấm `Undo mark`, rồi `Clear slice marks`; đổi slice kiểm tra mark cũ | Undo xóa đúng mark cuối; Clear xóa toàn bộ mark của slice hiện tại; không xóa mark ở slice khác |
-| UX | Image capture | Mở Capture, đổi PNG/JPEG, native/1024/2048/custom, bật/tắt annotation và metadata | Download đúng format/size; overlay theo lựa chọn; filename có hướng và slice |
+| UX | Image capture | Mở Capture, đổi PNG/JPEG và 64×64/128×128/512×512, bật/tắt annotation và metadata | Preview cập nhật đúng lựa chọn; download đúng format/kích thước; overlay theo lựa chọn; filename có hướng và slice; 512×512 là mặc định |
 | UX | Crosshair gating | Kiểm tra study geometry incompatible/unknown và nút Crosshair | Nút disabled, có lý do `Requires mapped MPR geometry`; không giả reference line khi chưa mapping-ready |
 | UX | Overview layout | Trong Overview chọn `3D four-up`, `3D primary`, `3D main`; kiểm tra locator và ba native direction cards | Bố cục đổi đúng, không thay đổi series/slice state; locator luôn có nhãn orientation-only |
 | UX | Design-board parity | So layout tabs, 4-slot viewer, Study information panel với `design-board.html` ở 1440×900 | Không mất region/chức năng; sai lệch được ghi trong report |

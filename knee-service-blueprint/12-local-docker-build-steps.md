@@ -1,10 +1,10 @@
 # 12 — Build local từng bước: upload, viewer, 1 example study, Docker
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; bổ sung liên kết quy ước commit/CI/CD.  
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Documented anonymous session, upload ownership/caps and commit/CI links.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-Ngày chốt phạm vi: **05/10/2026**. Kế hoạch này đã có vertical slice đầu tiên tại `../knee-web`: FastAPI + SQLite + React build tĩnh, Docker Compose, sample study và upload/view DICOM. Upload hiện nhận file/thư mục `.dcm` và archive `.zip` không mã hóa; MPR/3D thật, worker indexing và AI/cloud vẫn là phần tiếp theo. Tài liệu này cùng file 13 thay thế lịch AI/cloud ở file 07 và phiên bản file 11 ngày 30/09.
+Ngày chốt phạm vi ban đầu: **05/10/2026**. Local vertical slice hiện có FastAPI + SQLite + React build tĩnh, Docker Compose, sample study, upload/view DICOM và Overview MRI Volume + linked MPR. AI/Triton/GCP vẫn để phase sau.
 
 ## 1. Kết quả cần có
 
@@ -12,7 +12,7 @@ Mở `http://localhost:8080` → thấy một sample study gồm hai series và 
 
 - React + TypeScript + Tailwind; Cornerstone cho DICOM `.dcm`.
 - FastAPI, SQLite, một worker index; chạy bằng Docker Compose trên máy local.
-- Không tài khoản, mật khẩu, IAP, JWT, dev identity hoặc owner/group. Một catalog chung của bản cài local.
+- Không username/password/account/provider. Backend cấp temporary HttpOnly cookie để isolate từng browser; không dùng một catalog chung cho study upload.
 - Chưa build model/checkpoint, preprocessing AI, Triton, AI panel hoặc GCP. Analyze chỉ là CTA placeholder, không gọi backend inference.
 - Input trong giai đoạn này chỉ là DICOM `.dcm`; TIFF, NIfTI, PNG/JPG, NPY, video và PDF chưa thuộc supported matrix.
 
@@ -45,7 +45,7 @@ Mở `http://localhost:8080` → thấy một sample study gồm hai series và 
 
 Step 3 là mốc đầu tiên: **upload thật → một stack thật**. Không cần chờ dựng xong mọi màn hình. Sau đó seed, tree/display controls, ZIP ingest và delete có thể làm song song khi contract ổn định.
 
-MPR/crosshair/khung 3D là P1 sau step 9; không là điều kiện nghiệm thu local. Ô trên trái của overview hiện 3D locator/khung định hướng, không hiển thị khối giả như dữ liệu bệnh nhân và chưa mapping click → patient slice.
+MRI Volume/MPR yêu cầu series qua geometry gate; nếu chưa đạt, fallback sang native stack và hiển thị lý do. Volume render voxel DICOM, không dùng generic anatomy model.
 
 ## 4. Cấu trúc app dự kiến và trạng thái hiện tại
 
@@ -77,8 +77,8 @@ Current implemented vertical slice:
 - a newly opened series starts on its middle representative slice so the first viewport is not an edge slice;
 - tabs, 4-slot viewer and Study information panel mirror `templates/design-board.html`;
 - Analyze CTA is visible and returns an explicit “AI/Triton not connected” notice;
-- no auth, AI, Triton, GPU or GCP;
-- 3D card is an orientation locator placeholder, not patient-specific 3D.
+- no account/login, AI, Triton, GPU or GCP; temporary HttpOnly session cookie isolates uploads;
+- Overview's MRI Volume uses patient DICOM voxels; it is not a generic anatomy model or segmentation.
 
 `dicom-viewer/` hiện là viewer browser-only, không có API upload/persistence. Có thể đối chiếu hành vi và tái sử dụng logic sau review; không coi `npm start` của repo đó là service Docker mới.
 

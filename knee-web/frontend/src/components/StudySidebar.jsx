@@ -67,7 +67,7 @@ export default function StudySidebar({
 
       <button className="drop-card" onClick={onImport} disabled={uploading}>
         <UploadCloud size={20} />
-        <span><b>{uploading ? 'Ingesting…' : 'Import DICOM study'}</b><small>Choose .dcm files, a folder, or a .zip</small></span>
+        <span><b>{uploading ? 'Ingesting…' : 'Import DICOM study'}</b><small>Choose .dcm files, a folder, or ZIP · up to 600 MiB</small></span>
         <Plus size={17} />
       </button>
 
@@ -89,13 +89,13 @@ export default function StudySidebar({
             sliceMap={activeStudyId === study.id ? sliceMap : {}}
           />
         )) : (
-          <div className="empty-state"><Database size={24} /><p>No studies yet</p><small>Import DICOM files to start a local review.</small></div>
+          <div className="empty-state"><Database size={24} /><p>No studies yet</p><small>Import DICOM files for this temporary browser session.</small></div>
         )}
       </div>
 
       <div className="library-foot">
         <button className="folder-button" onClick={onImportFolder}><FolderOpen size={15} /> Import folder</button>
-        <p>Pipeline: validate · metadata · group · sort · preview.</p>
+        <p>Temporary data · clears on reset or after inactivity.</p>
       </div>
     </aside>
   )

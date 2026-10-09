@@ -1,20 +1,19 @@
 # 16 — P1: Native DICOM và MPR
 
-> **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** Cho phép drag crosshair và cập nhật branch workflow dev/main.
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Capture modal preview và export vuông 64×64/128×128/512×512, mặc định 512×512.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Phạm vi
 
-UI tiếng Anh, theme sáng, viewport đen. Không auth, AI, Triton hoặc GCP. Chỉ chạy trên localhost với dữ liệu nghiên cứu đã khử định danh. Đây chưa phải thiết bị/phần mềm chẩn đoán được kiểm định.
+UI tiếng Anh, theme sáng, viewport đen. Không có login/account, AI, Triton hoặc GCP. Backend vẫn dùng anonymous cookie để cô lập study tạm; đây không phải identity/security đầy đủ cho production. Chỉ dùng dữ liệu nghiên cứu đã khử định danh. Đây chưa phải thiết bị/phần mềm chẩn đoán được kiểm định.
 
 | Màn hình | Dữ liệu và hành vi |
 |---|---|
-| Overview | Các acquisition SAG/COR/AX độc lập. Click chọn card, Open mới sang tab hướng. Không crosshair giữa những series chưa đăng ký không gian. |
+| Overview | Patient-specific MRI Volume + ba mặt phẳng axial/sagittal/coronal dựng đồng bộ từ **một MPR source** đủ geometry. Có layout `3D four-up`, `3D primary`, `3D main`; source chọn ở toolbar. |
 | Sagittal / Coronal / Axial | Stack gốc của acquisition đang chọn; Layout 1×1, 2×2 hoặc custom tối đa 4×4. Mỗi card giữ slice/camera riêng. |
-| MPR | Tái tạo axial/sagittal/coronal từ **một** series có geometry hợp lệ; crosshair liên kết tọa độ ba mặt phẳng. |
 | Images / Series | Inventory acquisition và metadata; thumbnail PNG vẫn chỉ là preview. |
-| 3D locator | Minh họa hướng, không có anatomy bệnh nhân. Volume rendering 3D và segmentation thuộc phase tiếp theo. |
+| MRI Volume | Ray-cast từ voxel DICOM của MPR source, không phải model giải phẫu/segmentation. Ba mặt phẳng màu biểu diễn slice vị trí hiện tại; gizmo ba vòng màu chỉ nằm trong viewport volume. |
 
 Không cần ba acquisition gốc cùng FrameOfReferenceUID để tạo MPR. Điều kiện cùng FrameOfReferenceUID áp dụng giữa các lát **trong series được dựng volume**. FS/fluid/fat vẫn là đặc điểm acquisition, không phải hiệu ứng bật/tắt để biến đổi một sequence sang sequence khác.
 
@@ -27,8 +26,10 @@ Không cần ba acquisition gốc cùng FrameOfReferenceUID để tạo MPR. Đi
 - Window / Level: chọn tool rồi kéo trên ảnh. W/L hiển thị bằng giá trị VOI thực, không dùng CSS brightness/contrast.
 - Length/Rectangle ROI/Ellipse ROI/Freehand ROI dùng Cornerstone tools và tọa độ ảnh. Đơn vị vật lý chỉ có ý nghĩa khi metadata spacing hợp lệ; phải kiểm chuẩn với phantom/reference trước dùng lâm sàng.
 - Arrow + note: vẽ rồi nhập text inline, double-click sửa text. Eraser xóa một mark; Clear slice marks xóa các mark trên slice hiện tại. Annotation là state browser-session, không persist server hay DICOM SR.
-- Capture trong tab hướng: PNG/JPEG, native/1024/2048/custom 1600 px, tùy chọn annotation/metadata. Chụp viewport đã render nên giữ W/L, pan, zoom; không thay pixel DICOM gốc.
-- MPR: chọn series ở Active series → MPR → chờ load → Crosshair. Bấm/di chuyển giao điểm làm hai mặt phẳng còn lại đi tới cùng vị trí. Pan/WL là chế độ khác, right-drag zoom. Không rotation/slab-thickness controls trong P1.
+- Capture trong tab hướng: preview theo lựa chọn PNG/JPEG, vuông 64×64/128×128/512×512 (mặc định 512×512), tùy chọn annotation/metadata. Chụp viewport đã render nên giữ W/L, pan, zoom; không thay pixel DICOM gốc. 64/128 chỉ phù hợp xuất ảnh nhỏ, không phải độ phân giải chẩn đoán.
+- Overview: chọn `MPR source` → chờ geometry/volume load → Crosshair. Tương tác một MPR plane cập nhật giao điểm các plane còn lại; scroll từng plane đi qua lát. Volume hiển thị ba cutting planes; kéo plane để thay đổi vị trí slice.
+- MRI Volume: left-drag nền đen xoay tự do; kéo vòng gizmo đỏ/vàng/xanh lá xoay quanh trục tương ứng; nút +/− zoom riêng volume. Chọn plane trong legend rồi wheel trên volume để scroll plane đó. Camera không làm xoay các plane.
+- MPR tools: Crosshair, Window / Level, Pan và Reset; right-drag zoom. Chưa có slab-thickness control.
 
 ## Luồng kỹ thuật
 
@@ -50,7 +51,8 @@ MPR hủy phần load chưa bắt đầu khi đổi series/tab, dispose engine/t
 - `imaging/volume.js`: geometry request, bounded preloading và volume lifecycle.
 - `imaging/capture.js`: canvas + annotation SVG export.
 - `components/NativeViewport.jsx`: một native stack/card.
-- `FocusedViewer`, `OverviewGrid`, `LayoutPicker`, `NativeToolPicker`, `MprViewer`: layout và controls.
+- `FocusedViewer`, `LayoutPicker`, `NativeToolPicker`, `MprViewer`, `VolumeOrientationGizmo`: layout, native MPR volume, orbit interaction và controls.
+- `imaging/slicePlanes.js`: project vị trí ba MPR planes lên bounds MRI volume.
 - `backend/volume_geometry.py`: pure geometry gate, test synthetic độc lập dữ liệu thật.
 
 ## Kiểm tra và hạn chế
@@ -61,4 +63,4 @@ MPR hủy phần load chưa bắt đầu khi đổi series/tab, dispose engine/t
 - Manual geometry gate: phantom có tọa độ biết trước cho crosshair, physical distances/area, oblique stack và anisotropic data. Chưa có xác nhận độ chính xác lâm sàng.
 - Multi-frame chưa có frame-level indexing nên ngoài phạm vi. MPR không trộn FS/non-FS/echo khác nhau.
 - `npm audit --omit=dev` hiện báo dependency gián tiếp trong Cornerstone/VTK/dcmjs (adm-zip, fflate, uuid). Không chạy `audit fix --force` để downgrade/bẻ API. Cần xử lý và đánh giá reachability trước public deployment; runtime ZIP upload hiện ở Python, không qua adm-zip browser.
-- Chưa lưu annotation lâu dài, chưa DICOM SR, chưa patient-specific 3D rendering. Những mục này không được gọi là hoàn thành P1.
+- Chưa lưu annotation lâu dài hoặc DICOM SR; MRI Volume hiện là intensity rendering, không có anatomy segmentation/surface mesh. Không tuyên bố độ chính xác chẩn đoán/lâm sàng.

@@ -1,10 +1,10 @@
 # 02 — Viewer và DICOM
 
-> **Cập nhật gần nhất:** 2026-10-07
-> **Thay đổi gần nhất:** P1 native DICOM/WL/tools và single-series MPR. Chi tiết hiện hành trong [16](16-native-dicom-and-mpr.md).
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Capture preview and square 64/128/512 export presets.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-> Phạm vi 05/10/2026: chỉ DICOM `.dcm` cho local viewer. Nút Analyze có mặt để giữ workflow nhưng chỉ báo “coming soon”; chưa có AI panel/model. Các đoạn mô tả MPR bên dưới đã có implementation P1; patient-specific 3D vẫn deferred. Các mô tả PNG/CSS bên dưới giữ làm lịch sử P0 và không thay thế doc 16. Seed và input theo [13](13-input-formats-and-example-studies.md).
+> Phạm vi local: chỉ DICOM `.dcm`; Analyze là placeholder, chưa có AI/model. Overview có MRI Volume + linked MPR theo doc 16. Các đoạn PNG/CSS bên dưới là lịch sử P0, không thay thế implementation hiện tại.
 
 ## Mô hình thông tin
 
@@ -28,15 +28,15 @@ Desktop mục tiêu ≥1280×800; khuyến nghị 1440×900. Sidebar 248 px thu 
 
 | Tab | Nội dung |
 |---|---|
-| Tổng quan | Snapshot 4 ô để so sánh nhanh; 3D locator ở trên trái, ba ô SAG/COR/AX có rail dọc xám để scrub slice theo từng series và fit theo aspect ratio gốc, panel phải hiển thị study + ingest pipeline |
+| Tổng quan | MRI Volume + ba MPR planes cùng dựng từ một source series có geometry hợp lệ; crosshair và slice position liên kết; Study information bên phải |
 | Sagittal / Coronal / Axial | Hướng được chọn trở thành focused viewer; Layout dropdown có preset `1x1/2x2` và custom grid tối đa `4x4` hiển thị nhiều lát của cùng series |
 | Images / Series | Browser các acquisition/series với lát đại diện và metadata; chọn một series rồi chuyển sang tab hướng để đọc chi tiết |
 | Stack / Series | Một stack cho DICOM chưa xác định hướng; không ép vào ba hướng |
-| MPR — P1 | Chưa hiện tab ở local P0; khi triển khai chọn một volume hợp lệ để tái tạo |
+| MPR source | Chọn trong toolbar Overview; geometry gate quyết định volume có dựng được hay không |
 
 Sidebar dùng tree: Study row → Series row → danh sách ngắn các filename slice khi expand. Mỗi series vẫn có thumbnail/description, hướng, FS, fluid-sensitive, số frame và trạng thái load. Không liệt kê hàng nghìn tên DICOM mặc định; chỉ hiện vài filename đại diện và tổng số slice. Không có badge “AI đang dùng” hoặc score trong phase local; Analyze chỉ là CTA placeholder.
 
-Focused direction hiện có một Layout dropdown: chọn nhanh `1x1`/`2x2`, hoặc rê chuột trên bảng border `4x4` để preview vùng `1x1`–`4x4` rồi click để áp dụng. Mỗi viewport cùng series có rail slice dọc ở mép phải ảnh, zoom/reset/pan riêng và `Sync slices` tùy chọn; footer giữ tên series và chỉ số `current / total` để không che rail. Khi focused view mở series mới, các viewport bắt đầu từ slice 1 và tăng dần theo từng ô, không nhảy mặc định vào slice giữa. Wheel trên viewport active đổi lát (`scroll down = next`, `scroll up = previous`) và chặn scroll lan ra trang; rail là cách kéo chính để scrub, có min ở trên cùng và max ở dưới cùng. Zoom dùng nút trong từng viewport hoặc toolbar của viewport active; mức thấp nhất là fit 100%, không đặt max nhân tạo. Tool được gom vào một dropdown, mặc định Pointer; Pointer dùng để chọn viewport, đổi slice và pan sau khi zoom. Các tool vẽ gồm Length, Rectangle, Ellipse, Freehand và Arrow + note. Length/shape hiện px nếu chưa có calibration, hoặc mm/dimension khi PixelSpacing hợp lệ. Arrow + note mở inline editor sau khi kéo mũi tên. Mark có `Undo mark` và `Clear slice marks`, đồng thời chỉ gắn với slice hiện tại để không trôi sang lát khác. Capture xuất viewport active thành PNG/JPEG với lựa chọn kích thước, include annotations và include slice/orientation metadata.
+Focused direction hiện có một Layout dropdown: chọn nhanh `1x1`/`2x2`, hoặc rê chuột trên bảng border `4x4` để preview vùng `1x1`–`4x4` rồi click để áp dụng. Mỗi viewport cùng series có rail slice dọc ở mép phải ảnh, zoom/reset/pan riêng và `Sync slices` tùy chọn; footer giữ tên series và chỉ số `current / total` để không che rail. Khi focused view mở series mới, các viewport bắt đầu từ slice 1 và tăng dần theo từng ô, không nhảy mặc định vào slice giữa. Wheel trên viewport active đổi lát (`scroll down = next`, `scroll up = previous`) và chặn scroll lan ra trang; rail là cách kéo chính để scrub, có min ở trên cùng và max ở dưới cùng. Zoom dùng nút trong từng viewport hoặc toolbar của viewport active; mức thấp nhất là fit 100%, không đặt max nhân tạo. Tool được gom vào một dropdown, mặc định Pointer; Pointer dùng để chọn viewport, đổi slice và pan sau khi zoom. Các tool vẽ gồm Length, Rectangle, Ellipse, Freehand và Arrow + note. Length/shape hiện px nếu chưa có calibration, hoặc mm/dimension khi PixelSpacing hợp lệ. Arrow + note mở inline editor sau khi kéo mũi tên. Mark có `Undo mark` và `Clear slice marks`, đồng thời chỉ gắn với slice hiện tại để không trôi sang lát khác. Capture mở modal có preview cập nhật theo format/size/annotation/metadata, xuất PNG/JPEG vuông ở `64×64`, `128×128` hoặc `512×512`.
 
 DICOM ingest dùng full pixel data, rescale và Window Center/Width nếu metadata có; nếu thiếu thì fallback percentile preview có nhãn. Thiếu geometry thì plane/FS/fluid là UNKNOWN, tắt MPR/crosshair vật lý/thước mm. Không thay DICOM full-depth bằng thumbnail. Loader/assets phải được bundle local để không lệ thuộc CDN lúc mở ảnh.
 
@@ -81,7 +81,7 @@ Với nhóm có orientation nhất quán: normal = cross(rowDirection, columnDir
 
 | Multi-view layout | Mở một Layout dropdown, chọn `1x1`, `2x2` hoặc hover/click vùng trong bảng 4×4 để chọn `1x1`–`4x4`; mỗi viewport có rail dọc và zoom/reset riêng; `Sync slices` đưa các viewport về cùng index |
 | Preview measurement | Dropdown mặc định Pointer, có Length/Rectangle/Ellipse/Freehand/Arrow + note; Length và shape hiện số đo px hoặc mm nếu có PixelSpacing; có Undo mark/Clear slice marks; gắn với viewport + slice hiện tại, không sửa pixel nguồn |
-| Capture | PNG/JPEG, native/1024/2048/custom size; có thể kèm overlay và slice/orientation metadata |
+| Capture | Preview trực tiếp; PNG/JPEG, 64×64/128×128/512×512; có thể kèm overlay và slice/orientation metadata |
 
 State theo study + series + viewport: SOP/frame, camera, zoom, pan, window/level, inversion và slice position. Footer mỗi image card hiển thị `current / total`; Slice toolbar luôn điều khiển active series/viewport. Overview ưu tiên fit theo aspect ratio để so sánh; focused direction có layout nhiều viewport cùng hướng. Click card chọn active mà không đổi tab; `Open` chuyển tab hướng. `Reset view` và toolbar `Reset` đưa camera về fit mặc định. Đổi tab rồi quay lại giữ state trong phiên. Persist layout/annotation tuỳ chọn, không cần persist toàn bộ camera trong MVP.
 

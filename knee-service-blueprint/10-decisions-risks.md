@@ -1,21 +1,23 @@
 # 10 — Quyết định, giả định và nguồn
 
-> **Cập nhật gần nhất:** 2026-10-06  
-> **Thay đổi gần nhất:** Chuẩn hóa metadata tài liệu; các quyết định hiện hành được giữ nguyên.  
+> **Cập nhật gần nhất:** 2026-10-09
+> **Thay đổi gần nhất:** Superseded shared-catalog/no-auth decision with anonymous temporary-session isolation and upload caps.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-## Quyết định hiện hành 05/10/2026
+## Quyết định hiện hành 09/10/2026
 
-Các quyết định này ưu tiên hơn bảng lịch sử bên dưới. Scope local được yêu cầu trực tiếp: không tạo tài khoản, không auth, chưa làm model/GCP.
+Các quyết định này ưu tiên hơn bảng lịch sử bên dưới. Scope local/public-review hiện tại: không tạo tài khoản hay login; dùng anonymous session cookie để cô lập uploads. Chưa làm model/GCP.
 
 | ID | Quyết định | Tác động |
 |---|---|---|
 | ADR-15 | Local Docker trước: web/api/index worker/seed | Thay lịch AI/cloud tại ADR-14; dùng file 11–12 hiện hành |
-| ADR-16 | Không auth/IAP/dev identity, catalog chung | Thay ADR-13; không principals/owner checks, chỉ publish localhost |
+| ADR-16 | Không username/password/provider; temporary HttpOnly session cookie, owner-scoped uploads | Thay ADR-13 và catalog chung; cookie là session boundary, không phải account login |
 | ADR-17 | DICOM `.dcm` files/folders for local P0; ZIP deferred | Validate header/pixel; không giả geometry/FS/fluid |
 | ADR-18 | Một sample study có `series_1`/`series_2` qua seed idempotent | Source read-only ngoài image, DB/raw trong named volume |
 | ADR-19 | Checkpoint, aggregation, Triton, GCP hoãn | ADR-04/05/10 không còn blocker phase local |
-| ADR-20 | Study giữ đến khi xóa, staging incomplete 24h | Thay TTL study 7 ngày tại ADR-11 |
+| ADR-20 | Upload study xóa được ngay/Clear session; session expires after 60m idle or 4h absolute | Supersedes persistent-until-delete and 24h staging assumptions |
+| ADR-21 | Request 600 MiB, expanded/session 800 MiB, DICOM 200 MiB, 500-file caps | Bounded streaming ingestion; configurable; not a production abuse-control substitute |
+| ADR-22 | Overview là MRI Volume + linked MPR từ một geometry-eligible series; không còn tab MPR riêng | Direction tabs giữ original acquisition; 3D là voxel intensity rendering, không anatomy model/segmentation |
 
 ### Rủi ro cần giải quyết trong phase local
 

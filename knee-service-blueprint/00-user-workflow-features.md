@@ -61,7 +61,7 @@ Example label/count lấy từ backend. “Study đã nhập” có empty state 
 
 ## 4. Workspace và capabilities
 
-DICOM giữ layout tổng quan 4 ô: trên trái là 3D locator/khung định hướng chưa gắn anatomy bệnh nhân, ba ô còn lại SAG/COR/AX nếu có series đúng hướng. Bố cục có tabs theo hướng và panel Study information bên phải. Tab **Overview** là snapshot để so sánh nhanh các hướng, nên các ô lớn hơn và ảnh tự fit theo aspect ratio gốc để nhìn đồng thời cả 4 ô; không kéo méo ảnh và không phải nơi đọc chi tiết. Tab **Sagittal**, **Coronal** hoặc **Axial** chuyển hướng tương ứng thành một viewport lớn để đọc stack đó, mặc định fit toàn bộ ảnh trong viewport. Tab **Images / Series** là browser của các acquisition: hiển thị từng series, lát đại diện, plane, số lát và FS/fluid metadata để chọn series; nó không phải bản sao của Overview. Không có hướng nào thì viewport hiện “No [direction] series”. Có nhiều series cùng hướng thì chọn từng series; không chia study thành đúng 6 series.
+Overview hiện chọn một series đủ geometry làm MPR source, dựng patient-specific MRI Volume cùng ba mặt phẳng axial/sagittal/coronal liên kết. `3D four-up`, `3D primary`, `3D main` chỉ đổi bố cục. Tab **Sagittal**, **Coronal** hoặc **Axial** vẫn mở stack gốc acquisition tương ứng; các acquisition không bị ghép lẫn vào một volume. Tab **Images / Series** là browser để chọn series và metadata. Nếu MPR source không đủ geometry, hiện lý do và người dùng vẫn xem được stack gốc.
 
 DICOM không xác định được hướng thì mở bằng stack lớn và không ép vào SAG/COR/AX. Người dùng vẫn chọn series, lướt ảnh và zoom/pan.
 

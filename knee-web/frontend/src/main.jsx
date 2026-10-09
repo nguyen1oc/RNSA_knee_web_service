@@ -3,12 +3,14 @@ import { createRoot } from 'react-dom/client'
 import { AlertCircle, ArrowLeft, Image as ImageIcon, Info, Sparkles, Trash2, UploadCloud, X } from 'lucide-react'
 import './styles.css'
 import './viewer-overrides.css'
+import { clearTemporarySession, getSessionHeaders, initializeSession } from './session'
+import SessionControls from './components/SessionControls'
+import ConfirmationDialog from './components/ConfirmationDialog'
 
 import MprViewer from './components/MprViewer'
 import './native-viewer.css'
 import EmptyWorkspace from './components/EmptyWorkspace'
 import FocusedViewer from './components/FocusedViewer'
-import OverviewGrid from './components/OverviewGrid'
 import SeriesBrowser from './components/SeriesBrowser'
 import StudyInfoPanel from './components/StudyInfoPanel'
 import StudySidebar from './components/StudySidebar'
@@ -16,7 +18,8 @@ import ViewerTabs from './components/ViewerTabs'
 import ViewerToolbar from './components/ViewerToolbar'
 
 const api = async (path, options) => {
-  const response = await fetch(path, options)
+  const sessionHeaders = await getSessionHeaders()
+  const response = await fetch(path, { ...options, headers: { ...sessionHeaders, ...(options?.headers || {}) } })
   if (!response.ok) {
     let message = response.statusText
     try { message = (await response.json()).detail || message } catch { /* no-op */ }
@@ -30,9 +33,16 @@ const tabs = [
   { label: 'Sagittal', plane: 'SAG' },
   { label: 'Coronal', plane: 'COR' },
   { label: 'Axial', plane: 'AX' },
-  { label: 'MPR' },
   { label: 'Images / Series' },
 ]
+
+function chooseInitialMprSource(series = []) {
+  return [...series].sort((a, b) => {
+    const geometryRank = Number(b.geometry_status === 'valid') - Number(a.geometry_status === 'valid')
+    const orientationRank = Number(b.plane === 'SAG') - Number(a.plane === 'SAG')
+    return geometryRank || orientationRank || b.slice_count - a.slice_count
+  })[0]
+}
 
 function App() {
   const [studies, setStudies] = useState([])
@@ -41,9 +51,11 @@ function App() {
   const [slices, setSlices] = useState([])
   const [seriesSliceMap, setSeriesSliceMap] = useState({})
   const [sliceIndex, setSliceIndex] = useState(null)
-  const [overviewSliceIndices, setOverviewSliceIndices] = useState({})
   const [viewerTab, setViewerTab] = useState('Overview')
   const [loading, setLoading] = useState(true)
+  const [clearingSession, setClearingSession] = useState(false)
+  const [confirmation, setConfirmation] = useState(null)
+  const [confirming, setConfirming] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [notice, setNotice] = useState(null)
   const [expandedStudies, setExpandedStudies] = useState(new Set())
@@ -56,12 +68,12 @@ function App() {
     plane, activeSeries?.plane === plane ? activeSeries : activeStudy?.series.find((series) => series.plane === plane),
   ])), [activeStudy, activeSeries])
 
-  const refresh = async (openId) => {
+  const refresh = async (openId, { fallbackToActive = true } = {}) => {
     setLoading(true)
     try {
       const data = await api('/api/studies')
       setStudies(data)
-      const target = openId || activeStudy?.id || data[0]?.id
+      const target = openId || (fallbackToActive ? activeStudy?.id : null) || data[0]?.id
       if (target) await openStudy(target, data)
       else { setActiveStudy(null); setLoading(false) }
     } catch (error) {
@@ -78,8 +90,7 @@ function App() {
       setActiveStudy(full)
       setExpandedStudies((current) => new Set(current).add(id))
       const preferred = full.series.find((series) => series.id === requestedSeriesId)
-        || full.series.find((series) => series.plane === 'SAG')
-        || full.series[0]
+        || chooseInitialMprSource(full.series)
       await selectSeries(preferred, { switchToDirection: false })
       if (!requestedSeriesId) setViewerTab('Overview')
       return full
@@ -98,7 +109,7 @@ function App() {
       setViewerTab(series.plane === 'SAG' ? 'Sagittal' : series.plane === 'COR' ? 'Coronal' : series.plane === 'AX' ? 'Axial' : 'Images / Series')
       setSliceIndex(0)
     } else {
-      setSliceIndex(overviewSliceIndices[series.id] ?? null)
+      setSliceIndex(null)
     }
     setSlices(seriesSliceMap[series.id] || [])
     try {
@@ -118,7 +129,17 @@ function App() {
     return () => { cancelled = true }
   }, [activeStudy])
 
-  useEffect(() => { refresh() }, [])
+  useEffect(() => {
+    let cancelled = false
+    initializeSession()
+      .then(() => { if (!cancelled) refresh() })
+      .catch((error) => {
+        if (cancelled) return
+        setNotice({ type: 'error', text: error.message })
+        setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
 
   const upload = async (event) => {
     const files = [...(event.target.files || [])]
@@ -142,14 +163,21 @@ function App() {
 
   const deleteStudy = async (study) => {
     if (study.source === 'sample') return
-    if (!window.confirm(`Delete “${study.display_name}”? This removes the local DICOM files.`)) return
-    try {
-      await api(`/api/studies/${study.id}`, { method: 'DELETE' })
-      setNotice({ type: 'success', text: 'Study deleted.' })
-      await refresh(activeStudy?.id === study.id ? undefined : activeStudy?.id)
-    } catch (error) {
-      setNotice({ type: 'error', text: error.message })
-    }
+    setConfirmation({
+      title: 'Delete this study?',
+      description: `“${study.display_name}” and its local DICOM files will be removed from this temporary workspace. This cannot be undone.`,
+      confirmLabel: 'Delete study',
+      onConfirm: async () => {
+        const deletingActiveStudy = activeStudy?.id === study.id
+        try {
+          await api(`/api/studies/${study.id}`, { method: 'DELETE' })
+          setNotice({ type: 'success', text: 'Study deleted.' })
+          await refresh(deletingActiveStudy ? undefined : activeStudy?.id, { fallbackToActive: !deletingActiveStudy })
+        } catch (error) {
+          setNotice({ type: 'error', text: error.message })
+        }
+      },
+    })
   }
 
   const analyzeStudy = () => setNotice({ type: 'info', text: 'Analyze is reserved for the upcoming AI pipeline. Triton inference is not connected in this local viewer yet.' })
@@ -175,9 +203,38 @@ function App() {
     ? (sliceIndex === null ? Math.floor((slices.length - 1) / 2) : Math.min(sliceIndex, slices.length - 1))
     : 0
   const currentSlice = slices[currentIndex]
-  const activateSeries = (series) => {
-    if (!series || activeSeries?.id === series.id) return
-    selectSeries(series, { switchToDirection: false })
+  const clearWorkspace = () => {
+    setConfirmation({
+      title: 'Clear this temporary session?',
+      description: 'All studies you uploaded in this browser session and their local DICOM files will be deleted. The shared example study will remain.',
+      confirmLabel: 'Clear session',
+      onConfirm: async () => {
+        setClearingSession(true)
+        try {
+          await clearTemporarySession()
+          setStudies([])
+          setActiveStudy(null)
+          setActiveSeries(null)
+          setSlices([])
+          setSeriesSliceMap({})
+          setNotice({ type: 'success', text: 'Temporary session cleared. A new empty session has started.' })
+          await refresh()
+        } catch (error) {
+          setNotice({ type: 'error', text: error.message })
+        } finally {
+          setClearingSession(false)
+        }
+      },
+    })
+  }
+  const cancelConfirmation = () => { if (!confirming) setConfirmation(null) }
+  const runConfirmation = async () => {
+    if (!confirmation || confirming) return
+    setConfirming(true)
+    try { await confirmation.onConfirm() } finally {
+      setConfirming(false)
+      setConfirmation(null)
+    }
   }
   const focusedPlane = viewerTab === 'Sagittal' ? 'SAG' : viewerTab === 'Coronal' ? 'COR' : viewerTab === 'Axial' ? 'AX' : null
   const focusedSeries = focusedPlane ? planeSeries[focusedPlane] : null
@@ -186,23 +243,6 @@ function App() {
   if (loading && !activeStudy) return <div className="loading-screen"><div className="brand-mark">KR</div><p>Loading local workspace…</p></div>
 
   const viewerContent = viewerTab === 'Overview' ? (
-      <OverviewGrid
-      planeSeries={planeSeries}
-      activeSeries={activeSeries}
-      currentSlice={currentSlice}
-      slices={slices}
-        currentIndex={currentIndex}
-        overviewSliceIndices={overviewSliceIndices}
-        onOverviewSliceChange={(seriesId, index) => {
-          setOverviewSliceIndices((current) => ({ ...current, [seriesId]: index }))
-          if (seriesId === activeSeries?.id) setSliceIndex(index)
-        }}
-      seriesSliceMap={seriesSliceMap}
-      selectSeries={selectSeries}
-      activateSeries={activateSeries}
-      studyGeometry={activeStudy.geometry}
-    />
-  ) : viewerTab === 'MPR' ? (
     <MprViewer series={activeSeries} />
   ) : viewerTab === 'Images / Series' ? (
     <SeriesBrowser study={activeStudy} activeSeriesId={activeSeries?.id} sliceMap={seriesSliceMap} onSelect={(series) => selectSeries(series, { switchToDirection: false })} />
@@ -219,10 +259,8 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand"><div className="brand-mark">KR</div><div><h1>Knee Review</h1><span>Local DICOM workspace</span></div></div>
-        <div className="top-actions"><span className="status-dot"><i /> Local only</span><button className="button primary" onClick={() => fileInput.current?.click()} disabled={uploading}><UploadCloud size={16} /> Import study</button><input ref={fileInput} hidden type="file" accept=".dcm,.zip,application/dicom,application/zip" multiple onChange={upload} /><input ref={folderInput} hidden type="file" webkitdirectory="true" multiple onChange={upload} /></div>
+        <div className="top-actions"><SessionControls onClear={clearWorkspace} disabled={clearingSession || uploading} /><button className="button primary" onClick={() => fileInput.current?.click()} disabled={uploading}><UploadCloud size={16} /> Import study</button><input ref={fileInput} hidden type="file" accept=".dcm,.zip,application/dicom,application/zip" multiple onChange={upload} /><input ref={folderInput} hidden type="file" webkitdirectory="true" multiple onChange={upload} /></div>
       </header>
-
-      {notice && <div className={`notice ${notice.type}`}><span>{notice.type === 'error' ? <AlertCircle size={16} /> : <Info size={16} />}{notice.text}</span><button aria-label="Dismiss notice" onClick={() => setNotice(null)}><X size={15} /></button></div>}
 
       <div className="body-layout">
         <StudySidebar
@@ -244,6 +282,7 @@ function App() {
         />
 
         <main className="content">
+          {notice && <div className={`notice ${notice.type}`}><span>{notice.type === 'error' ? <AlertCircle size={16} /> : <Info size={16} />}{notice.text}</span><button aria-label="Dismiss notice" onClick={() => setNotice(null)}><X size={15} /></button></div>}
           {!activeStudy ? <EmptyWorkspace onImport={() => fileInput.current?.click()} /> : (
             <>
               <div className="content-head">
@@ -254,9 +293,9 @@ function App() {
               <div className="viewer-shell">
                 <section className="viewer-pane" aria-label="DICOM viewer">
                   <ViewerTabs tabs={tabs} activeTab={viewerTab} onChange={changeTab} />
-                  <ViewerToolbar activeStudy={activeStudy} activeSeries={activeSeries} selectSeries={(series) => selectSeries(series, { switchToDirection: !['Overview', 'MPR', 'Images / Series'].includes(viewerTab) })} currentIndex={currentIndex} slices={slices} setSliceIndex={setSliceIndex} showZoom={false} showSlices={viewerTab !== 'MPR'} />
+                  <ViewerToolbar activeStudy={activeStudy} activeSeries={activeSeries} seriesLabel={viewerTab === 'Overview' ? 'MPR source' : 'Active series'} selectSeries={(series) => selectSeries(series, { switchToDirection: !['Overview', 'Images / Series'].includes(viewerTab) })} currentIndex={currentIndex} slices={slices} setSliceIndex={setSliceIndex} showZoom={false} showSlices={false} />
                   {viewerContent}
-                  <div className="viewer-footer"><span><ImageIcon size={14} /> {currentSlice?.filename || 'Select a series to view images'}</span><span>Native DICOM · Research use only · Not validated for diagnosis</span></div>
+                  <div className="viewer-footer"><span><ImageIcon size={14} /> {viewerTab === 'Overview' ? `Synchronized MPR · ${activeSeries?.description || 'Select an active series'}` : currentSlice?.filename || 'Select a series to view images'}</span><span>Native DICOM · Research use only · Not validated for diagnosis</span></div>
                 </section>
                 <StudyInfoPanel study={activeStudy} />
               </div>
@@ -264,6 +303,7 @@ function App() {
           )}
         </main>
       </div>
+      <ConfirmationDialog confirmation={confirmation} busy={confirming || clearingSession} onCancel={cancelConfirmation} onConfirm={runConfirmation} />
     </div>
   )
 }

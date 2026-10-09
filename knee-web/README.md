@@ -1,7 +1,7 @@
 # Knee Review — local DICOM workspace
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Gộp menu import/lỗi API rõ ràng; bổ sung backend Cloud Run path, rate limit upload và ghi nhận GCP resources đã provision.
+> **Thay đổi gần nhất:** Một nút Import study có lựa chọn Files / ZIP hoặc Folder; ingest success toast tự tắt sau 3 giây.
 > **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
 
 This is the first local vertical slice for the knee diagnostic web service. Upload accepts individual `.dcm` files, folders, and unencrypted `.zip` archives containing DICOM files.

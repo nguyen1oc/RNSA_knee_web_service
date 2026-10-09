@@ -1,7 +1,7 @@
 # 13 — Input DICOM và lưu một example study
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Thêm bounded streaming ingestion và temporary-session retention/quotas.
+> **Cập nhật gần nhất:** 2026-10-10
+> **Thay đổi gần nhất:** Một nút Import study mở hai lựa chọn Files / ZIP hoặc Folder; toast ingest thành công tự tắt.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Áp dụng cho giai đoạn local ngày 05/10/2026. “Study” DICOM là nhóm theo StudyInstanceUID; một thư mục chỉ là cách chọn nhiều file, không tự quyết định số study. ZIP không mã hóa được mở ở staging và các member `.dcm` được group theo UID.
@@ -21,7 +21,9 @@ Validation dựa trên parser/header thực, không chỉ extension hoặc MIME 
 
 ## 2. Folder mapping và hướng mở rộng ZIP
 
-Browser folder picker gửi `File` và relative path; không cấp cho backend quyền đọc filesystem client. Frontend dùng directory picker được browser hỗ trợ và có fallback chọn nhiều file `.dcm`. Server sinh tên storage riêng. ZIP members được stream từ archive sang staging disk theo chunks; chỉ lấy member `.dcm`, bỏ qua thư mục, không giải nén nested/encrypted archive và không dùng member path để ghi trực tiếp.
+Một nút **Import study** mở menu có hai lựa chọn: **Files / ZIP** mở file picker nhận nhiều `.dcm` hoặc ZIP; **Folder** mở directory picker. Browser dùng native picker mode khác nhau cho file và folder, vì vậy menu cho người dùng chọn thao tác nhưng vẫn giữ một nút import duy nhất. Browser folder picker gửi `File` và relative path; không cấp cho backend quyền đọc filesystem client. Server sinh tên storage riêng. ZIP members được stream từ archive sang staging disk theo chunks; chỉ lấy member `.dcm`, bỏ qua thư mục, không giải nén nested/encrypted archive và không dùng member path để ghi trực tiếp.
+
+Thông báo ingest thành công hiển thị dạng toast cố định ở góc dưới-phải và tự đóng sau 3 giây; lỗi giữ lại đến khi người dùng chủ động dismiss.
 
 DICOM: tên folder không đáng tin để suy study/hướng. Hai folder có cùng StudyInstanceUID vẫn là một study; hai study trong cùng folder vẫn tách.
 

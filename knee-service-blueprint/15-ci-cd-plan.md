@@ -1,7 +1,7 @@
 # 15 — CI/CD: dev staging → main production
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Hỗ trợ lần deploy đầu tạo Cloud Run service mới trước smoke test; deploy các revision sau vẫn dùng no-traffic candidate rồi promote.
+> **Thay đổi gần nhất:** Sửa nhận diện phản hồi `Cannot find service` của gcloud để lần deploy đầu đi đúng nhánh khởi tạo; deploy sau vẫn dùng no-traffic candidate rồi promote.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Mục tiêu và ý nghĩa môi trường

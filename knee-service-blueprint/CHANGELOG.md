@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Sửa Cloud Run CD xử lý lần deploy đầu tiên khi service chưa tồn tại; giữ cơ chế candidate no-traffic cho lần sau.
+> **Thay đổi gần nhất:** Nhận diện thông báo `Cannot find service` khi kiểm tra Cloud Run để deploy lần đầu không bị dừng sớm.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-10 — Handle first Cloud Run deployment
@@ -9,6 +9,7 @@
 ### Fixed / Changed
 
 - Cloud Run CD now detects whether the target service exists. The initial deploy creates the service without unsupported `--no-traffic`, then smoke-tests its URL; later deploys keep the current revision serving traffic until candidate health passes.
+- The existence check recognizes both `NOT_FOUND` and gcloud's `Cannot find service` output.
 - CI/CD documentation now calls out the first-deploy limitation: no prior revision exists to preserve if its smoke test fails.
 
 ## 2026-10-10 — Use Google mirror for Docker base images

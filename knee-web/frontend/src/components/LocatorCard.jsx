@@ -1,27 +1,16 @@
 import { Info } from 'lucide-react'
+import KneeReferenceModel from './KneeReferenceModel'
 
 export default function LocatorCard({ activeSeries }) {
   return (
     <article className="viewer-card locator-card">
       <div className="card-head">
-        <div><span className="card-kicker">Orientation</span><h3>3D locator</h3></div>
-        <span className="planned-badge">Placeholder</span>
+        <div><span className="card-kicker">Reference anatomy</span><h3>3D locator</h3></div>
+        <span className="planned-badge">Not patient-specific</span>
       </div>
-      <div className="locator-stage">
-        <div className="locator-cube">
-          <div className="cube-face cube-front" />
-          <div className="cube-face cube-side" />
-          <div className="cube-face cube-top" />
-          <span className="axis-label axis-x">R</span>
-          <span className="axis-label axis-y">A</span>
-          <span className="axis-label axis-z">S</span>
-        </div>
-        <div className="crosshair crosshair-h" />
-        <div className="crosshair crosshair-v" />
-        <span className="locator-caption">{activeSeries ? `${activeSeries.plane} series selected` : 'Select a series'}</span>
-      </div>
+      <KneeReferenceModel />
       <div className="card-foot">
-        <span><Info size={13} /> Orientation illustration only · use MPR for linked patient planes</span>
+        <span><Info size={13} /> Generic model · not aligned to this study. <a href="https://3d.nih.gov/entries/3DPX-021004" target="_blank" rel="noreferrer">Human Reference Atlas · CC BY 4.0</a></span>
       </div>
     </article>
   )

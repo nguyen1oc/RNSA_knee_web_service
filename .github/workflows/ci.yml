@@ -136,14 +136,16 @@ jobs:
           docker build --tag "$IMAGE_URI" ./knee-web
           docker push "$IMAGE_URI"
 
-      - name: Deploy candidate without user traffic
+      - name: Deploy candidate revision
+        id: deploy
         shell: bash
         run: |
           secret_args=()
           if [[ "$GITHUB_REF_NAME" == "dev" ]]; then
             secret_args+=(--update-secrets "STAGING_GATE_TOKEN=${STAGING_GATE_SECRET_NAME}:latest")
           fi
-          gcloud run deploy "$CLOUD_RUN_SERVICE" \
+
+          deploy_args=(
             --image "$IMAGE_URI" \
             --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
@@ -155,10 +157,30 @@ jobs:
             --concurrency 1 \
             --max 1 \
             --timeout 3600s \
-            --no-traffic \
-            --tag "$CANDIDATE_TAG" \
             "${secret_args[@]}" \
-            --update-env-vars="^@^METADATA_BACKEND=firestore@GOOGLE_CLOUD_PROJECT=${GCP_PROJECT_ID}@FIRESTORE_DATABASE=${FIRESTORE_DATABASE}@DICOM_BUCKET=${DICOM_BUCKET}@CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}@SESSION_COOKIE_SECURE=true@MAX_UPLOAD_MIB=600@MAX_EXPANDED_MIB=800@MAX_SESSION_MIB=800@MAX_DICOM_FILE_MIB=200@MAX_DICOM_FILES=500"
+            "--update-env-vars=^@^METADATA_BACKEND=firestore@GOOGLE_CLOUD_PROJECT=${GCP_PROJECT_ID}@FIRESTORE_DATABASE=${FIRESTORE_DATABASE}@DICOM_BUCKET=${DICOM_BUCKET}@CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}@SESSION_COOKIE_SECURE=true@MAX_UPLOAD_MIB=600@MAX_EXPANDED_MIB=800@MAX_SESSION_MIB=800@MAX_DICOM_FILE_MIB=200@MAX_DICOM_FILES=500"
+          )
+
+          describe_error="$RUNNER_TEMP/cloud-run-service-describe.err"
+          if gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" --region "$GCP_REGION" >/dev/null 2>"$describe_error"; then
+            service_exists=true
+          elif grep -q "NOT_FOUND" "$describe_error"; then
+            service_exists=false
+          else
+            cat "$describe_error" >&2
+            exit 1
+          fi
+
+          if [[ "$service_exists" == true ]]; then
+            echo "Existing Cloud Run service: deploy without traffic, then smoke-test and promote."
+            gcloud run deploy "$CLOUD_RUN_SERVICE" "${deploy_args[@]}" \
+              --no-traffic --tag "$CANDIDATE_TAG"
+          else
+            echo "First deployment: create the service, then smoke-test its initial revision."
+            gcloud run deploy "$CLOUD_RUN_SERVICE" "${deploy_args[@]}"
+          fi
+          echo "service_exists=$service_exists" >> "$GITHUB_OUTPUT"
 
       - name: Smoke-test candidate revision
         id: smoke
@@ -166,9 +188,14 @@ jobs:
         run: |
           candidate_url=""
           for attempt in {1..12}; do
-            candidate_url="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
-              --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json \
-              | jq -r --arg tag "$CANDIDATE_TAG" '.status.traffic[]? | select(.tag == $tag) | .url' | head -n 1)"
+            service_json="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
+              --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json)"
+            if [[ "${{ steps.deploy.outputs.service_exists }}" == true ]]; then
+              candidate_url="$(jq -r --arg tag "$CANDIDATE_TAG" \
+                '.status.traffic[]? | select(.tag == $tag) | .url' <<<"$service_json" | head -n 1)"
+            else
+              candidate_url="$(jq -r '.status.url // empty' <<<"$service_json")"
+            fi
             [[ -n "$candidate_url" && "$candidate_url" != "null" ]] && break
             sleep 5
           done
@@ -180,6 +207,7 @@ jobs:
             "$candidate_url/api/health" | jq -e '.status == "ok" and .service == "knee-review"'
 
       - name: Promote tested revision to 100 percent traffic
+        if: steps.deploy.outputs.service_exists == 'true'
         shell: bash
         run: |
           gcloud run services update-traffic "$CLOUD_RUN_SERVICE" \

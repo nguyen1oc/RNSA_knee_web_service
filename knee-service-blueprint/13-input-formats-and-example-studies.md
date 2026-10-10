@@ -1,7 +1,7 @@
 # 13 — Input DICOM và lưu một example study
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Provision `results.zip` thành example dùng chung trên staging: 284 DICOM objects trong GCS và metadata 5 series trong Firestore.
+> **Thay đổi gần nhất:** Provision cùng example public vào cả staging và production; mỗi môi trường dùng bucket/Firestore riêng, không tự seed khi deploy.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Áp dụng cho giai đoạn local ngày 05/10/2026. “Study” DICOM là nhóm theo StudyInstanceUID; một thư mục chỉ là cách chọn nhiều file, không tự quyết định số study. ZIP không mã hóa được mở ở staging và các member `.dcm` được group theo UID.
@@ -47,13 +47,15 @@ Tất cả header kiểm tra là Explicit VR Little Endian, single-frame. Đây 
 
 ## 4. Lưu source sample và runtime như thế nào?
 
-**Trạng thái triển khai (2026-10-10):** `dicom-viewer/files/results.zip` vẫn là source fixture local; local Docker mount thư mục này thành `/examples` và seed vào SQLite + volume `knee_data`. Trên staging, script one-time `backend/provision_example.py` đã provision study `sample-knee`: **284 DICOM objects** tại `gs://rsna-knee-dicom-preview-511004/examples/sample-knee/` và **5 series** cùng metadata trong Firestore `(default)`, với `source=sample` và không gắn session owner. Người dùng xác nhận archive là public RSNA challenge data. Cloud Run không đọc archive từ máy/repo, không COPY DICOM/ZIP vào image, và `seed_sample()` vẫn skip cloud mode; restart/revision mới không upload trùng. GCS prefix `examples/` tách khỏi upload `incoming/`; cleanup session không xóa example, endpoint delete từ chối sample.
+**Trạng thái triển khai (2026-10-10):** `dicom-viewer/files/results.zip` vẫn là source fixture local; local Docker mount thư mục này thành `/examples` và seed vào SQLite + volume `knee_data`. Script one-time `backend/provision_example.py` đã provision study `sample-knee` ở cả hai môi trường: staging có **284 DICOM objects / 5 series** tại `gs://rsna-knee-dicom-preview-511004/examples/sample-knee/` và Firestore `(default)`; production có **284 DICOM objects / 5 series** tại `gs://rsna-knee-dicom-production-511004/examples/sample-knee/` và Firestore `knee-review-production`. Cả hai dùng `source=sample`, không gắn session owner. Archive là public RSNA challenge data. Cloud Run không đọc archive từ máy/repo, không COPY DICOM/ZIP vào image, và `seed_sample()` vẫn skip cloud mode; vì vậy deployment/revision mới không tự seed. GCS prefix `examples/` tách khỏi upload `incoming/`; cleanup session không xóa example, endpoint delete từ chối sample. Production API đã được kiểm tra bằng temporary session: `/api/studies` trả `sample-knee`; session kiểm tra đã được xóa sau đó.
 
 Provision/reconcile lại khi cần, từ thư mục `knee-web`, bằng ADC có quyền ghi Firestore và Storage:
 
 ```powershell
 gcloud auth application-default login
 python -m backend.provision_example --project rsna-knee-511004 --database "(default)" --bucket rsna-knee-dicom-preview-511004
+# Production: dùng archive giống nhau, nhưng chỉ định đúng database và bucket production.
+python -m backend.provision_example --project rsna-knee-511004 --database knee-review-production --bucket rsna-knee-dicom-production-511004
 ```
 
 Script dùng Firestore ID và GCS object names xác định theo DICOM UID, archive SHA-256 để nhận ra cùng nguồn, chạy lại cùng ZIP là no-op khi metadata/objects đã đầy đủ, tự ghi tiếp nếu lần trước bị ngắt giữa chừng, và từ chối ghi đè nếu `sample-knee` đã tồn tại với nguồn khác. Nó chỉ dọn stale objects bên trong prefix riêng của example. Không đổi/xóa prefix đó bằng tay khi chưa kiểm tra metadata.

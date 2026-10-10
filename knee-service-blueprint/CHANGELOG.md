@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Rút gọn traffic tag Cloud Run theo SHA để tránh vượt giới hạn độ dài service + tag.
+> **Thay đổi gần nhất:** Provision shared example vào production bucket/Firestore và xác minh API production trả sample.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-10 — Shorten Cloud Run candidate traffic tag
@@ -11,6 +11,15 @@
 - Candidate traffic tags now use `ci-` plus the first 12 characters of the commit SHA, while image tags keep the full SHA.
 - This keeps the Cloud Run service-name + traffic-tag combination within its 46-character limit and fixes the staging deployment failure.
 - The smoke-test step reads the exact candidate tag emitted by the deploy step.
+
+## 2026-10-10 — Provision shared example in production
+
+### Added / Verified
+
+- Ran the idempotent example provisioner against Firestore `knee-review-production` and GCS bucket `rsna-knee-dicom-production-511004` using the same public `results.zip` as staging.
+- Production now has shared read-only `sample-knee`: 5 series and 284 DICOM objects under `examples/sample-knee/`; no session owner is assigned.
+- Verified production `/api/health`; through the Vercel production domain, created a temporary session and confirmed `/api/studies` returns the sample; deleted that temporary session after the check.
+- Updated the deployment and example-study docs: Cloud Run does not seed sample data automatically, and each environment must be provisioned independently. Production API routing via Vercel is verified; browser upload with direct GCS remains to be accepted.
 
 ## 2026-10-10 — Clarify production Vercel/API bootstrap order
 

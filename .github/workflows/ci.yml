@@ -74,9 +74,33 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+  terraform-staging:
+    name: Terraform staging fmt and validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: knee-web/terraform/staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.5"
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive
+
+      - name: Initialize providers without remote state
+        run: terraform init -backend=false -input=false -lockfile=readonly
+
+      - name: Validate configuration
+        run: terraform validate -no-color
+
   deploy-cloud-run:
     name: Deploy Cloud Run (${{ github.ref_name }})
-    needs: [backend, frontend]
+    needs: [backend, frontend, terraform-staging]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}

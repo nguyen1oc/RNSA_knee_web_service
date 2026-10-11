@@ -1,10 +1,10 @@
-# 14 — Metrics đánh giá local viewer
+# 14 — Metrics đánh giá viewer và load test
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Capture acceptance yêu cầu preview và ba kích thước square 64/128/512.
+> **Cập nhật gần nhất:** 2026-10-11
+> **Thay đổi gần nhất:** Bổ sung kế hoạch k6 load test cho Vercel → Cloud Run, metric Cloud Monitoring và hiện trạng telemetry của app.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-Cập nhật 05/10/2026. Các metric dưới đây đánh giá service local sau khi build; chúng không đo độ chính xác model, vì inference/Triton chưa nằm trong scope.
+Các mục dưới đây tách metric đúng dữ liệu/UX viewer, benchmark local và tải của website cloud. Chúng không đo độ chính xác model, vì inference/Triton chưa nằm trong scope.
 
 ## 1. Bộ metric tối thiểu cần ghi
 
@@ -67,7 +67,45 @@ Cập nhật 05/10/2026. Các metric dưới đây đánh giá service local sau
 - Ghi timestamp `upload_started`, `upload_completed`, `index_started`, `index_ready`, `delete_requested`, `delete_started`, `delete_finished`, `first_image_rendered`.
 - Không dùng `progress=100%` làm mốc READY. READY là khi manifest và raw assets đã commit, query được và mở được ảnh.
 
-## 3. Bộ test chạy trước bàn giao
+## 3. Load test cloud website (Vercel → Cloud Run)
+
+### Metric nào đã có và metric nào chưa có?
+
+Không nhầm **metric dữ liệu/viewer** với **metric hiệu năng hệ thống**:
+
+| Nơi | Hiện trạng | Dùng để đánh giá |
+|---|---|---|
+| Study/Series UI và API payload | Có: số series/slices, rows × columns, plane, geometry status/valid series, pipeline stage status | Tính đầy đủ và khả năng đọc của study; không đo tốc độ website |
+| Viewer measurement tools | Có: length/annotation và các công cụ đo trên ảnh | Đo/ghi chú trên viewport; không phải monitoring metric |
+| Backend app telemetry | Chưa thấy custom request histogram, RPS dashboard, frontend RUM/Core Web Vitals hoặc OpenTelemetry/k6 script trong source hiện tại | Chưa có metric app-level để báo p95/error theo endpoint hay trải nghiệm người dùng |
+| Cloud Run / Cloud Monitoring | Cloud Run có built-in metrics tự thu thập: request count/latency, instance count, CPU/memory utilization, startup latency, concurrent requests và billable instance time | Theo dõi backend khi test; mở Cloud Run service → Metrics hoặc Cloud Monitoring Metrics Explorer |
+| Firestore / GCS | Dùng dịch vụ thật cho metadata/object; theo dõi operation/usage, bytes và billing trong Google Cloud | Phát hiện tải đọc/ghi/egress và chi phí tăng khi test |
+
+`/api/health` chỉ là smoke check, không đại diện trải nghiệm viewer. Hiện chưa chạy load test cloud và chưa có kết quả p50/p95 được xác nhận. Các số hiển thị như `5 series`, `284 slices` là inventory của study mẫu, không phải benchmark.
+
+### Cách chạy an toàn
+
+1. Chỉ bắt đầu trên **staging/Preview đã giới hạn người truy cập**; không chạy stress test trên production. Chỉ dùng sample public hoặc dữ liệu đã de-identify.
+2. Đo baseline một VU trước. Sau đó ramp nhẹ: **1 VU × 1 phút → 5 VUs × 2 phút → 10 VUs × 2 phút → ramp down**. Đây là profile khởi đầu, không phải tuyên bố hệ thống chịu được 10 người dùng thực.
+3. Dừng ngay nếu 5xx/error rate tăng rõ, p95 tăng hơn gấp đôi baseline liên tiếp, API bắt đầu timeout/429 bất thường, hoặc CPU/memory/chi phí tăng nhanh. Không vượt qua rate limit để tạo tải.
+4. Chạy luồng đọc trước: mở trang → tạo session → list/open sample study → tải một vài DICOM/slice. Tách test upload thành lượt riêng, chỉ dùng ZIP nhỏ và ít VUs; không lặp ZIP mẫu ~430 MiB.
+5. Sau mỗi lượt, xóa session test, lưu k6 output và khung thời gian để đối chiếu với Cloud Run/Firestore/GCS metrics. Nếu Vercel Deployment Protection chặn test runner, dùng cấu hình QA được cấp phép; không public token gate để né protection.
+
+### Metric cần ghi
+
+| Nhóm | Metric | Ghi chú |
+|---|---|---|
+| k6/API | Request rate (req/s), p50/p95/p99 latency theo endpoint, failed-request rate và status code | Đừng chỉ xem average; tách `/api/sessions`, list/open study, slice/DICOM và upload/finalize |
+| k6/workflow | Iteration duration, checks passed/failed, VUs, bytes sent/received | Mô phỏng session cookie riêng theo VU; kiểm tra response content/status đúng chứ không chỉ trả nhanh |
+| Browser thật | Navigation/LCP, thời gian ảnh DICOM đầu tiên render, thời gian MPR ready, slice-change latency, memory sau khi đổi study lặp lại | Protocol-level k6 tải HTTP nhưng không đo decode/render pixels hoặc thao tác canvas; dùng một lượng nhỏ browser VUs để đo UX |
+| Cloud Run | Request count/latency, instance count, CPU, memory, startup latency, maximum concurrent requests, billable instance time | Đối chiếu đúng service/revision và cùng time window với k6 |
+| Firestore/GCS | Reads/writes/deletes, bytes/object operations và chi phí/quota | Upload test tốn tài nguyên thật; theo dõi billing sau test |
+
+Đặt thresholds trong k6 sau khi có baseline và SLO đã thống nhất. Ví dụ ngưỡng khởi đầu có thể là failed requests `<1%`, nhưng phải loại trừ status 4xx vốn là expected behavior của test case; chưa chốt latency target cho staging. k6 phân biệt checks (đúng chức năng) với thresholds (pass/fail về hiệu năng). Tham khảo [k6 API load testing](https://grafana.com/docs/k6/latest/testing-guides/api-load-testing/) và [Cloud Run monitoring](https://docs.cloud.google.com/run/docs/monitoring).
+
+**Giới hạn cấu hình hiện tại:** workflow Cloud Run đặt `max instances = 1` và `concurrency = 1` để khống chế chi phí. Vì thế test sẽ sớm thấy request queue/latency khi có request đồng thời; ghi nhận đây là cấu hình hiện tại, không tự tăng limit hoặc test tới mức gây hóa đơn bất ngờ.
+
+## 4. Bộ test chạy trước bàn giao
 
 1. Seed `results.zip`: xác nhận một `study_id`, 5 series và 284 assets; mở cây Study → Series → DICOM.
 2. Upload lại một ZIP làm study user; so catalog, order và số ảnh với example.
@@ -84,7 +122,7 @@ Cập nhật 05/10/2026. Các metric dưới đây đánh giá service local sau
 13. Trong focused tab kiểm tra một Layout dropdown với preset/custom tới 4x4, hover preview, slice slider/prev/next, wheel navigation, Sync slices, dropdown tools/metrics, annotation editor và Capture PNG/JPEG.
 14. Chạy `python -m pytest -q`; tất cả test ZIP, seed, read-only delete và cleanup phải pass.
 
-## 4. Release gate
+## 5. Release gate
 
 Block bàn giao nếu có: sai Study/Series UID, sai slice order, ảnh cũ dưới tên series mới, mất file sau restart, xóa nhầm sample/study khác, cleanup báo thành công nhưng file còn lại, job treo RUNNING, hoặc lỗi import bị bỏ qua không báo.
 

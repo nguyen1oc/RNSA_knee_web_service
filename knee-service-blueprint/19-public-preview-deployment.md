@@ -101,6 +101,7 @@ gcloud run deploy knee-review-api --source . --project=rsna-knee-511004 --region
 - Cấu hình Vercel WAF 10/10 phút cho `POST /api/sessions` (ban đầu Log, kiểm tra false positive, rồi chuyển Block). Đây là lớp edge, không phải code FastAPI.
 - Cấu hình Firestore TTL và Cloud Scheduler bên dưới; verify chính xác service account OIDC.
 - Chạy integration test với bucket/database thật, test hai browser profile, upload DICOM/ZIP, refresh, delete/Clear, session expiry và kiểm tra hóa đơn/quota.
+- Chạy load test tăng dần trên staging theo [14 — Metrics viewer và load test](14-local-metrics-and-acceptance.md); ghi k6 và Cloud Monitoring cùng time window, không flood ZIP lớn hoặc vượt rate limit.
 - Example đã được seed riêng vào staging và production; khi thay/khôi phục bucket hoặc database, chạy lại lệnh provision trong [13 — Input DICOM và example study](13-input-formats-and-example-studies.md). Cloud mode không tự seed DICOM lúc khởi động.
 
 ## Cấu hình rate limit và cleanup trên GCP

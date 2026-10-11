@@ -26,7 +26,7 @@ Bắt đầu bằng [12 — Các bước build local](12-local-docker-build-step
 | [11 Hai người](11-team-rebalance-and-vibe-frontend.md) | Ownership, ngân sách và lịch 10 ngày | Local hiện hành |
 | [12 Build steps](12-local-docker-build-steps.md) | Làm từng bước và giải thích Triton | Điểm bắt đầu |
 | [13 Input/examples](13-input-formats-and-example-studies.md) | Format, grouping, seed và storage | Hiện hành |
-| [14 Metrics](14-local-metrics-and-acceptance.md) | Đánh giá đúng dữ liệu, xóa, restart, hiệu năng và UX | Hiện hành |
+| [14 Metrics](14-local-metrics-and-acceptance.md) | Đánh giá dữ liệu/UX viewer, benchmark local và cloud load test | Hiện hành |
 | [15 CI/CD](15-ci-cd-plan.md) | CI baseline và lộ trình staging/autodeploy | CI hiện hành; CD để sau |
 | [16 Native DICOM/MPR](16-native-dicom-and-mpr.md) | P1 controls, geometry gate, runtime và giới hạn kiểm định | Viewer implementation hiện hành |
 | [17 GCP basics](17-gcp-basics-and-first-deploy.md) | Project, billing, CLI/ADC, IAM, VM, IAP, Terraform, Triton và GKE | Hướng dẫn nhập môn và bước chuẩn bị staging |

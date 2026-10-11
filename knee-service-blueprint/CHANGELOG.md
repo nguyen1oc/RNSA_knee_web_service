@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Provision shared example vào production bucket/Firestore và xác minh API production trả sample.
+> **Thay đổi gần nhất:** Ghi kế hoạch load test Vercel/Cloud Run và phân biệt metric viewer với metric hiệu năng.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-10 — Shorten Cloud Run candidate traffic tag
@@ -20,6 +20,15 @@
 - Production now has shared read-only `sample-knee`: 5 series and 284 DICOM objects under `examples/sample-knee/`; no session owner is assigned.
 - Verified production `/api/health`; through the Vercel production domain, created a temporary session and confirmed `/api/studies` returns the sample; deleted that temporary session after the check.
 - Updated the deployment and example-study docs: Cloud Run does not seed sample data automatically, and each environment must be provisioned independently. Production API routing via Vercel is verified; browser upload with direct GCS remains to be accepted.
+
+## 2026-10-11 — Document cloud website load testing
+
+### Documented
+
+- Added a cautious staging-only k6 ramp profile and test order for the Vercel → Cloud Run viewer, with a separate, low-volume upload test and explicit stop conditions.
+- Listed k6 request/error/latency/workflow metrics, browser-render metrics, Cloud Run built-in metrics, and Firestore/GCS usage to correlate.
+- Clarified that current study/series/geometry/pipeline values and viewer measurement tools are not performance telemetry; the repo has no custom app-level RPS/p95 or browser RUM instrumentation, and no cloud load test results have been captured yet.
+- Updated the metrics guide and index; recorded current Cloud Run `max instances = 1` and `concurrency = 1` as a conservative test constraint.
 
 ## 2026-10-10 — Clarify production Vercel/API bootstrap order
 

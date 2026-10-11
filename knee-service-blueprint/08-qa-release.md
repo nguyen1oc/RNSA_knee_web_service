@@ -51,6 +51,6 @@ Fixture gốc: một sample study gồm hai series + các bộ lỗi nhỏ/synth
 
 Chặn bàn giao khi: sample study/series không mở được nhưng tuyên bố READY, import/view sai study/order/geometry, mất committed data, seed nhân bản, xóa nhầm sample, MPR volume bị dựng dù geometry gate reject, hoặc upload silently fails. MPR/3D cần được QA theo gate trong doc 16; không tuyên bố sẵn sàng lâm sàng.
 
-Report dùng [template](templates/test-report-template.md): version, máy/browser, fixture, expected/actual, lỗi còn lại và evidence. Benchmark riêng first image cold/warm, import/index, slice cached, memory và delete; cách tính xem [14 — Metrics local](14-local-metrics-and-acceptance.md); không lấy timing mock làm kết quả.
+Report dùng [template](templates/test-report-template.md): version, máy/browser, fixture, expected/actual, lỗi còn lại và evidence. Benchmark riêng first image cold/warm, import/index, slice cached, memory, delete và cloud load; cách tính xem [14 — Metrics viewer và load test](14-local-metrics-and-acceptance.md); không lấy timing mock làm kết quả.
 
 Demo: mở app không cần tài khoản → kiểm tra cookie session → mở sample → upload ZIP/DICOM → expand Study/Series → kiểm tra session isolation bằng browser profile thứ hai → Clear session → kiểm tra upload biến mất, sample còn → thử cap/file lỗi. Không có bước inference/cloud.

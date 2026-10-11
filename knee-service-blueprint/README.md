@@ -1,7 +1,7 @@
 # Knee Review — kế hoạch local Docker
 
-> **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Cập nhật trạng thái Cloud Run/GCS/Firestore provisioning và các gates còn lại cho public preview.
+> **Cập nhật gần nhất:** 2026-10-12
+> **Thay đổi gần nhất:** Ghi nhận staging Terraform state có 5 resource; CI chạy fmt/validate, plan/apply chưa tự động.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Cập nhật **05/10/2026** là mốc local viewer ban đầu; temporary session/public-demo planning được chốt ngày 09/10, còn model/Triton deferred. App vertical slice chạy tại `../knee-web`; bộ docs mô tả trạng thái và các bước tiếp theo.
@@ -32,6 +32,7 @@ Bắt đầu bằng [12 — Các bước build local](12-local-docker-build-step
 | [17 GCP basics](17-gcp-basics-and-first-deploy.md) | Project, billing, CLI/ADC, IAM, VM, IAP, Terraform, Triton và GKE | Hướng dẫn nhập môn và bước chuẩn bị staging |
 | [18 Temporary workspace](18-anonymous-session-and-upload-limits.md) | Anonymous session, clear/reset, TTL, upload caps và public gates | Current decision; Cloud Run storage/rate limits remain |
 | [19 Public preview](19-public-preview-deployment.md) | Vercel + Cloud Run + GCS, Firestore, HTTPS, rate limit và rollout gates | Bucket, database và IAM provisioned; Cloud Run/deployment gates remain |
+| [Terraform staging](terraform/staging/README.md) | Remote state GCS, import an toàn tài nguyên staging và review plan | Đã apply 5 resource; CI fmt/validate, plan vẫn local |
 | [CHANGELOG](CHANGELOG.md) | Lịch sử thay đổi đáng chú ý | Hiện hành |
 | [CONTRIBUTING](../CONTRIBUTING.md) | Commit, branch, push, review và CI/CD | Hiện hành |
 | [15 CI/CD](15-ci-cd-plan.md) | CI baseline và lộ trình staging/autodeploy | CI hiện hành; CD để sau |

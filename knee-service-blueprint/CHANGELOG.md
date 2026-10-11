@@ -1,8 +1,17 @@
 # Changelog — Knee Review
 
-> **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Rút gọn traffic tag Cloud Run theo SHA để tránh vượt giới hạn độ dài service + tag.
+> **Cập nhật gần nhất:** 2026-10-12
+> **Thay đổi gần nhất:** Ghi nhận staging Terraform apply thành công và thêm CI fmt/validate.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
+
+## 2026-10-12 — Terraform staging state and CI checks
+
+### Added / Verified
+
+- Created and configured the private GCS backend bucket `rsna-knee-tfstate-511004` with versioning; Terraform staging state uses prefix `knee-web/staging`.
+- Adopted the existing staging DICOM bucket, Artifact Registry repository, runtime service account, and two runtime IAM bindings. The reviewed apply imported 5 resources and set deletion guards; a later `terraform state list` confirmed all five are recorded, and `terraform plan` reported no changes.
+- Added CI checks for Terraform formatting, provider initialization with `-backend=false`, and validation. The job needs no GCP access and blocks Cloud Run deployment if configuration checks fail.
+- Remote Terraform `plan`/`apply` are not automated; they require a separately reviewed least-privilege identity and an approval workflow.
 
 ## 2026-10-10 — Shorten Cloud Run candidate traffic tag
 

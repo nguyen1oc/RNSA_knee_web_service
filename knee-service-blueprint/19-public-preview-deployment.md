@@ -1,16 +1,16 @@
 # 19 — Public preview: Vercel + Cloud Run + GCP storage
 
 > **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Ghi rõ bootstrap order cho Vercel `KNEE_API_ORIGIN`: Cloud Run production phải được tạo và health-check trước khi nối frontend.
+> **Thay đổi gần nhất:** Seed `sample-knee` riêng vào production GCS/Firestore và xác minh API trả example qua temporary session.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Trạng thái
 
 - Frontend production là `https://rnsa-knee-web-service.vercel.app/`; branch feature có Preview `https://rnsa-knee-web-service-git-fe-7a5d7b-locntmasterc-5002s-projects.vercel.app/`. Vercel chỉ host React, không tự host FastAPI.
 - **Staging = QA preview nội bộ**, phục vụ deploy từ `dev`; **production = backend public cho người dùng**, phục vụ deploy từ `main` sau review. VM không còn là web staging.
-- Backend cloud path đã được code: Firestore repository, private GCS adapter, temporary sessions, upload trực tiếp resumable, finalize/index, đọc/xóa theo quyền sở hữu; quota upload/finalize phân tán và endpoint cleanup có xác minh OIDC. Cần chạy lại CI sau thay đổi; adapter tests dùng fake, chưa phải integration test với GCP thật.
+- Backend cloud path đã được code: Firestore repository, private GCS adapter, temporary sessions, upload trực tiếp resumable, finalize/index, đọc/xóa theo quyền sở hữu; quota upload/finalize phân tán và endpoint cleanup có xác minh OIDC. CI production đã deploy thành công; adapter tests dùng fake, chưa phải integration test đầy đủ với GCP thật.
 - Staging bucket/Firestore, WIF/deployer, GitHub staging Environment/gate, Vercel Preview routing và Cloud Run `knee-review-api-staging` đã được xác nhận; `/api/health` trả `ok`. Public RSNA `results.zip` đã được provision thành shared `Example Knee Study` (284 DICOM, 5 series) trong staging GCS/Firestore.
-- Workflow CD tách service `knee-review-api-staging` / `knee-review-api-production` đã được xác nhận chạy trên staging. Production resources, runtime/deployer identities, IAM và WIF main-only đã được tạo. **GitHub Environment `production` chưa có variables** (người dùng vừa xác nhận); Cloud Run production service/API URL và Vercel Production `KNEE_API_ORIGIN` cũng còn thiếu. Không trỏ Vercel production sang staging; hoàn tất Environment variables, deploy Cloud Run rồi thêm API origin và redeploy frontend. Vercel frontend build có thể tạm fail do env thiếu trong lần bootstrap đầu, nhưng không làm hỏng deployment frontend thành công hiện tại.
+- Workflow CD tách service `knee-review-api-staging` / `knee-review-api-production`; GitHub Actions production run `38007225118` thành công. Cloud Run production URL `https://knee-review-api-production-jnbsqra6ma-as.a.run.app`, revision `knee-review-api-production-00001-zbj` đang nhận 100% traffic và `/api/health` trả `ok`. Production GCS/Firestore đã được seed bằng cùng public `results.zip`: `sample-knee`, 5 series/284 DICOM. Đã kiểm tra qua domain Vercel production: `/api/health` trả `ok`, tạo temporary session được và `/api/studies` trả example; session test đã được xóa. Browser upload end-to-end chưa được xác nhận.
 - Service cũ `knee-review-api` vẫn giữ nguyên, không bị workflow mới ghi đè. Cleanup Scheduler/TTL và full upload end-to-end chưa được xác nhận.
 - Hướng đích: Vercel → FastAPI Cloud Run → Firestore (session/study metadata) + private Cloud Storage (DICOM). VM hiện có không tham gia web request; để dành cho GPU/Triton khi có model.
 - Local Docker tiếp tục dùng SQLite và filesystem để giữ workflow phát triển hiện có.
@@ -31,16 +31,16 @@ Xem cấu hình đầy đủ và checklist thực hiện tại [15 — CI/CD: de
 - **Cloud Storage:** bucket `gs://rsna-knee-dicom-preview-511004`, region `ASIA-SOUTHEAST1`, Standard; Uniform bucket-level access bật, Public access prevention `enforced`.
 - **Artifact Registry:** Docker repository `knee-review` tại `asia-southeast1`, URI `asia-southeast1-docker.pkg.dev/rsna-knee-511004/knee-review`; GitHub Actions dùng để lưu image theo commit SHA. Vulnerability scanning chưa bật vì API `containerscanning.googleapis.com` chưa được enable. Repo `cloud-run-source-deploy` là repo riêng.
 - **CORS:** Preview origin đã được thêm vào local template `templates/gcs-cors.json`; người dùng cần xác nhận bucket đã nhận cấu hình bằng `gcloud storage buckets describe`. API Preview session POST trả 200, nên origin đó hiện được backend chấp nhận.
-- **Production resources:** Firestore Native database `knee-review-production`, bucket `gs://rsna-knee-dicom-production-511004`, và runtime identity `knee-review-api-production@rsna-knee-511004.iam.gserviceaccount.com` đã được người dùng xác nhận tạo tại `asia-southeast1`. Bucket Standard, Uniform bucket-level access bật, Public access prevention `enforced`, soft-delete retention 7 ngày; CORS chỉ cho `https://rnsa-knee-web-service.vercel.app`; lifecycle chỉ xóa prefix `incoming/` từ 1 ngày tuổi. Runtime có Object Admin trên riêng bucket và Datastore User condition giới hạn database production. Cloud Run service và Vercel API routing production chưa tạo.
+- **Production resources:** Firestore Native database `knee-review-production`, bucket `gs://rsna-knee-dicom-production-511004`, runtime identity `knee-review-api-production@rsna-knee-511004.iam.gserviceaccount.com`, deployer/WIF và Cloud Run service đã được tạo. Bucket Standard, Uniform bucket-level access bật, Public access prevention `enforced`, soft-delete retention 7 ngày; CORS chỉ cho `https://rnsa-knee-web-service.vercel.app`; lifecycle chỉ xóa prefix `incoming/` từ 1 ngày tuổi. Runtime có Object Admin trên riêng bucket và Datastore User condition giới hạn database production.
 - **Lifecycle:** chỉ xóa object có prefix `incoming/` từ 1 ngày tuổi; không áp dụng cho dữ liệu study đang hoạt động.
 - **Soft delete:** bucket hiện có retention mặc định 7 ngày. Xóa khỏi app là xóa khỏi vùng object đang hoạt động, nhưng vẫn có thể khôi phục trong thời gian retention và storage của bản đã xóa có thể bị tính phí. Chưa thay đổi policy này.
 - **Firestore:** database `(default)`, `FIRESTORE_NATIVE`, region `asia-southeast1`, free tier báo bật. Backend client mặc định dùng database này; không cần chọn DB trong từng request.
-- **Example staging:** `results.zip` public đã được nạp thành `sample-knee` (`source=sample`, owner rỗng) với 5 series/284 instances; DICOM ở prefix `gs://rsna-knee-dicom-preview-511004/examples/sample-knee/`. Không nằm trong production và không bị session cleanup xóa.
+- **Example staging + production:** `results.zip` public được nạp riêng thành `sample-knee` (`source=sample`, owner rỗng), 5 series/284 instances ở `gs://rsna-knee-dicom-preview-511004/examples/sample-knee/` và `gs://rsna-knee-dicom-production-511004/examples/sample-knee/`, cùng metadata tương ứng trong Firestore `(default)` và `knee-review-production`. Seed idempotent, là thao tác one-time thủ công; deploy Cloud Run không tự seed. Sample không bị session cleanup xóa và không thể xóa qua app.
 - **Staging service identity:** `knee-review-api@rsna-knee-511004.iam.gserviceaccount.com`; có `roles/datastore.user` với IAM condition chỉ vào Firestore `(default)` và `roles/storage.objectAdmin` trên bucket staging.
 - **Deployer:** tài khoản `gcloud` hiện tại đã có `roles/iam.serviceAccountUser` trên service account để có thể gắn nó khi deploy Cloud Run.
 - Không tạo/tải service-account key JSON. Cloud Run sẽ lấy credential từ service identity/ADC.
-- **Đã xác nhận:** Cloud Run service cũ `knee-review-api` và service CD staging `knee-review-api-staging` hiện có; staging health trả `ok`. Đây chưa phải production API.
-- **Còn làm:** thêm variables vào GitHub Environment `production`, rồi deploy Cloud Run production và xác nhận health. Sau đó đặt `KNEE_API_ORIGIN` trong Vercel Production và redeploy frontend. Vercel build lần đầu có thể fail do origin chưa tồn tại; không điền URL staging. Staging upload/delete đã được người dùng xác nhận thành công sau khi thu hẹp Firestore IAM. Thiết lập Scheduler/TTL, edge protection và upload integration test trước khi chia sẻ rộng. VM GPU/Triton không liên quan.
+- **Đã xác nhận:** Cloud Run service cũ `knee-review-api`, service CD staging `knee-review-api-staging`, và production `knee-review-api-production` đang hoạt động. Production `/api/health` trả `ok`; API list study đã trả shared sample và temporary session test đã được dọn.
+- **Còn làm trước khi chia sẻ rộng:** xác nhận `VITE_DIRECT_GCS_UPLOAD=true` có trong Vercel Production và chạy browser upload/delete bằng dữ liệu de-identified. Chưa xác nhận full browser upload end-to-end, Scheduler/TTL và edge protection. VM GPU/Triton không liên quan.
 
 ## Vì sao cần đổi upload protocol
 
@@ -101,7 +101,7 @@ gcloud run deploy knee-review-api --source . --project=rsna-knee-511004 --region
 - Cấu hình Vercel WAF 10/10 phút cho `POST /api/sessions` (ban đầu Log, kiểm tra false positive, rồi chuyển Block). Đây là lớp edge, không phải code FastAPI.
 - Cấu hình Firestore TTL và Cloud Scheduler bên dưới; verify chính xác service account OIDC.
 - Chạy integration test với bucket/database thật, test hai browser profile, upload DICOM/ZIP, refresh, delete/Clear, session expiry và kiểm tra hóa đơn/quota.
-- Seed example cloud nếu muốn trang mới có study mẫu; Cloud mode hiện không tự seed DICOM mẫu.
+- Example đã được seed riêng vào staging và production; khi thay/khôi phục bucket hoặc database, chạy lại lệnh provision trong [13 — Input DICOM và example study](13-input-formats-and-example-studies.md). Cloud mode không tự seed DICOM lúc khởi động.
 
 ## Cấu hình rate limit và cleanup trên GCP
 

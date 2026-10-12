@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
 import { analysisTargets } from '../analysisResults'
 import './export-results-modal.css'
+import './export-results-print.css'
 
 function exportDate(value) {
   return new Intl.DateTimeFormat('en', { dateStyle: 'long' }).format(new Date(value))

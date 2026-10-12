@@ -1,0 +1,10 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg=INSTALL_LOCAL_AI=1
+      - --tag=${_IMAGE_URI}
+      - .
+images:
+  - ${_IMAGE_URI}
+timeout: 3600s

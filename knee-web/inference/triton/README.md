@@ -91,10 +91,13 @@ endpoint using a Cloud Run ID token. The image tensor is about 9.2 MiB; masks
 add a few hundred bytes. The API returns the same 12 scores and model metadata
 shape as the local runner.
 
-The model service deployment and checkpoint mount are verified ready. The
-remaining acceptance step is an end-to-end Analyze request from the staging
-viewer using a staging study, followed by numerical comparison with the local
-runner. Do not treat the model score as a calibrated probability or diagnosis.
+The model service, checkpoint mount, and one real end-to-end Analyze request
+through the staging API are verified. All 12 scores matched the local runner
+within `atol=5e-4`, `rtol=1e-4`; maximum absolute difference was 0.000259 for
+the one shared sample study. First cold end-to-end call took 63.5 s and the
+next warm call 1.83 s (one observation each, not a benchmark). Repeat on
+representative studies and collect more latency samples before making broader
+claims. Do not treat model scores as calibrated probabilities or diagnoses.
 
 For GitHub Environment `staging`, configure these non-secret variables so
 future `dev` deploys keep the connection:

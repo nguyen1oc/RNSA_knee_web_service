@@ -1,4 +1,5 @@
 import { Info } from 'lucide-react'
+import StudyAcquisitionDetails from './StudyAcquisitionDetails'
 
 export default function StudyInfoPanel({ study }) {
   const stages = study.pipeline?.stages || []
@@ -18,8 +19,9 @@ export default function StudyInfoPanel({ study }) {
         <div><span>Geometry</span><b>{validGeometry} / {geometries.length} valid</b></div>
         <div><span>Cross-series geometry</span><b>{mappingSummary}</b></div>
         <div><span>MPR</span><b>Geometry checked per series in Overview</b></div>
-        <div><span>Study UID</span><b title={study.study_uid}>…{study.study_uid.slice(-12)}</b></div>
+        <div className="info-row-study-uid"><span>Study UID</span><b>{study.study_uid}</b></div>
       </div>
+      <StudyAcquisitionDetails studyId={study.id} />
       <div className="info-divider" />
       <p className="eyebrow">Ingest pipeline</p>
       <ul className="pipeline-list">

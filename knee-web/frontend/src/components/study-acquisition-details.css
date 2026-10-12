@@ -1,0 +1,27 @@
+.acquisition-details {
+  margin: 2px 0 16px;
+  border: 1px solid #e5edf3;
+  border-radius: 7px;
+  background: #fbfdff;
+}
+
+.acquisition-details > summary {
+  padding: 9px 10px;
+  color: #526d83;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.acquisition-details[open] > summary { border-bottom: 1px solid #eaf0f4; }
+.acquisition-empty { margin: 0; padding: 10px; color: #8796a3; font-size: 10px; line-height: 1.45; }
+.acquisition-scanner,.acquisition-series dl { display: grid; gap: 7px; margin: 0; padding: 10px; }
+.acquisition-scanner > div,.acquisition-series dl > div { display: flex; justify-content: space-between; gap: 10px; font-size: 9px; }
+.acquisition-details dt { color: #8b9aa7; }
+.acquisition-details dd { margin: 0; color: #50677c; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.acquisition-series { border-top: 1px solid #eaf0f4; }
+.acquisition-series h4 { display: flex; justify-content: space-between; gap: 8px; margin: 0; padding: 9px 10px 0; color: #526d83; font-size: 9px; }
+.acquisition-series h4 span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acquisition-series h4 small { flex: 0 0 auto; color: #8b9aa7; font-size: 8px; font-weight: 500; }
+.info-row-study-uid { display: grid !important; grid-template-columns: minmax(0, 1fr); align-items: start !important; gap: 6px !important; padding-bottom: 12px !important; }
+.info-row-study-uid b { max-width: none !important; width: 100%; overflow: visible !important; text-overflow: clip !important; white-space: normal !important; overflow-wrap: anywhere; word-break: break-all; text-align: left !important; line-height: 1.45; }

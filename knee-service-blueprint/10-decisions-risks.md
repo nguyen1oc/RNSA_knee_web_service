@@ -70,11 +70,7 @@ Các trạng thái “đã chốt” và owner cloud/model bên dưới là quy�
 
 ## Hiện trạng đã đọc, không phải thẩm định code
 
-- [Viewer local README](../dicom-viewer/README.md): import local, không server inference; uncompressed grayscale, chưa hỗ trợ compressed/multi-frame theo tài liệu.
-- [Slot insights](../slides/SLOT_INSIGHTS.md): sáu nhóm plane × FS, một slot có nhiều candidate.
-- [Overview](../RSNA_Knee_Overview.md): còn schema recovered tách fluid/non-fluid; tên T1 trong tài liệu không đủ để suy từ non-FS.
-- [Inference ResNet34 2.5D](../resnet34_baseline_clean/inference_resnet34_25d_4slot22181616/README.md): bốn slot và fold rank averaging; chưa kiểm tra đầy đủ notebook trong lượt lập docs này.
-- [Kế hoạch viewer EDA cũ](../problem/DICOM_VIEWER_PLAN.md): có chi tiết sort/geometry/crop; mục tiêu local EDA khác service upload/AI hiện tại.
+Các ghi chú ban đầu tham chiếu đến tài liệu nghiên cứu và dữ liệu riêng nằm ngoài nội dung được commit trong repository: `dicom-viewer/README.md`, `slides/SLOT_INSIGHTS.md`, `RSNA_Knee_Overview.md`, `resnet34_baseline_clean/.../README.md` và `problem/DICOM_VIEWER_PLAN.md`. Những đường dẫn này không có trong mọi checkout; không dùng chúng làm hướng dẫn chạy service nếu chưa có các tài liệu tương ứng.
 
 ## Nguồn kỹ thuật để triển khai
 

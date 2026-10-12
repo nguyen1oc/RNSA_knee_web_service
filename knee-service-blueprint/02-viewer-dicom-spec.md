@@ -1,10 +1,9 @@
 # 02 — Viewer và DICOM
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Capture preview and square 64/128/512 export presets.
+> **Tài liệu thiết kế ban đầu:** 2026-10-09. Một số mô tả bên dưới không còn đúng với ứng dụng hiện tại.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-> Phạm vi local: chỉ DICOM `.dcm`; Analyze là placeholder, chưa có AI/model. Overview có MRI Volume + linked MPR theo doc 16. Các đoạn PNG/CSS bên dưới là lịch sử P0, không thay thế implementation hiện tại.
+> **Lưu ý:** Đây là bản đặc tả viewer từ giai đoạn đầu, không phải hướng dẫn vận hành hiện tại. Analyze hiện gửi study tới API; staging dùng Triton. Không dùng mô tả placeholder hoặc fallback ở trang này để kết luận về bản đang chạy. Xem [tài liệu bàn giao](21-project-handover.md), [hợp đồng AI/Triton](06-ai-triton-contract.md) và [thiết kế Triton](20-triton-cloudrun-gpu.md).
 
 ## Mô hình thông tin
 
@@ -34,7 +33,7 @@ Desktop mục tiêu ≥1280×800; khuyến nghị 1440×900. Sidebar 248 px thu 
 | Stack / Series | Một stack cho DICOM chưa xác định hướng; không ép vào ba hướng |
 | MPR source | Chọn trong toolbar Overview; geometry gate quyết định volume có dựng được hay không |
 
-Sidebar dùng tree: Study row → Series row → danh sách ngắn các filename slice khi expand. Mỗi series vẫn có thumbnail/description, hướng, FS, fluid-sensitive, số frame và trạng thái load. Không liệt kê hàng nghìn tên DICOM mặc định; chỉ hiện vài filename đại diện và tổng số slice. Không có badge “AI đang dùng” hoặc score trong phase local; Analyze chỉ là CTA placeholder.
+Thiết kế ban đầu dự kiến sidebar dạng cây Study → Series → slice files. Mô tả AI Analysis là placeholder ở đoạn này thuộc bản thiết kế cũ; hiện Analyze gọi API và staging đã chạy qua Triton. Hãy dùng [tài liệu bàn giao](21-project-handover.md) để biết hành vi đang áp dụng.
 
 Focused direction hiện có một Layout dropdown: chọn nhanh `1x1`/`2x2`, hoặc rê chuột trên bảng border `4x4` để preview vùng `1x1`–`4x4` rồi click để áp dụng. Mỗi viewport cùng series có rail slice dọc ở mép phải ảnh, zoom/reset/pan riêng và `Sync slices` tùy chọn; footer giữ tên series và chỉ số `current / total` để không che rail. Khi focused view mở series mới, các viewport bắt đầu từ slice 1 và tăng dần theo từng ô, không nhảy mặc định vào slice giữa. Wheel trên viewport active đổi lát (`scroll down = next`, `scroll up = previous`) và chặn scroll lan ra trang; rail là cách kéo chính để scrub, có min ở trên cùng và max ở dưới cùng. Zoom dùng nút trong từng viewport hoặc toolbar của viewport active; mức thấp nhất là fit 100%, không đặt max nhân tạo. Tool được gom vào một dropdown, mặc định Pointer; Pointer dùng để chọn viewport, đổi slice và pan sau khi zoom. Các tool vẽ gồm Length, Rectangle, Ellipse, Freehand và Arrow + note. Length/shape hiện px nếu chưa có calibration, hoặc mm/dimension khi PixelSpacing hợp lệ. Arrow + note mở inline editor sau khi kéo mũi tên. Mark có `Undo mark` và `Clear slice marks`, đồng thời chỉ gắn với slice hiện tại để không trôi sang lát khác. Capture mở modal có preview cập nhật theo format/size/annotation/metadata, xuất PNG/JPEG vuông ở `64×64`, `128×128` hoặc `512×512`.
 

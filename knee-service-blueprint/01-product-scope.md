@@ -1,10 +1,10 @@
 # 01 — Phạm vi local viewer
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Thay catalog chung bằng temporary browser workspace, session isolation, TTL và upload caps.
+> **Cập nhật gần nhất:** 2026-10-13
+> **Ghi chú:** Bảng P0/P1 dưới đây mô tả phạm vi phát triển ban đầu. Ứng dụng hiện đã có Analyze qua Triton; xem [21 — tài liệu bàn giao](21-project-handover.md) để biết trạng thái hiện tại.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-Cập nhật 09/10/2026. MVP hiện tại là web xem study chạy local bằng Docker, không có tài khoản/đăng nhập và chưa có AI/GCP. Backend tự tạo temporary session cookie để cô lập dữ liệu giữa các browser; Clear session và TTL xóa study tạm. Analyze vẫn là placeholder. [Workflow](00-user-workflow-features.md), [build steps](12-local-docker-build-steps.md), [temporary workspace](18-anonymous-session-and-upload-limits.md).
+Ứng dụng hiện có bản local và bản cloud. Người dùng không cần tài khoản; backend tạo temporary session cookie để cô lập study giữa các browser. Bản local dùng Docker, SQLite và filesystem. Bản cloud dùng Cloud Run, Firestore và Cloud Storage; Analyze gọi Triton khi môi trường được cấu hình. Người dùng đã xác nhận Analyze production hoạt động, nhưng trạng thái live cần xác minh trên Cloud Run trước mỗi lần phát hành. Tài liệu này giữ phạm vi sản phẩm ban đầu; đọc [21 — tài liệu bàn giao](21-project-handover.md) để xem luồng triển khai hiện tại.
 
 ## P0 cần hoàn thành
 
@@ -20,13 +20,13 @@ Cập nhật 09/10/2026. MVP hiện tại là web xem study chạy local bằng 
 | Persistence + xóa study upload | SQLite/raw data ngoài container; xóa không đụng mẫu gốc |
 | Docker + README + QA | Khởi động local, backup/restore thử, code build và E2E có evidence |
 
-P1 viewer hiện có MRI Volume ray-cast + linked MPR trên một series đủ geometry. Segmentation/mesh, inference, model contract, Triton, GCP/PACS tiếp tục để sau. Không dùng checkpoint/GPU quota làm blocker local.
+Viewer hiện có MRI Volume ray-cast và MPR liên kết trên series đủ geometry. Analyze/Triton đã được nối trong các môi trường cloud theo trạng thái ở trang bàn giao. Segmentation/mesh, kết nối PACS và kiểm định lâm sàng vẫn nằm ngoài phạm vi hiện tại. Bản local có thể chạy inference riêng khi được cấp checkpoint và cấu hình phù hợp.
 
 ## Định dạng và dữ liệu
 
 Ma trận ở [13](13-input-formats-and-example-studies.md). Input P0 là DICOM `.dcm` trong folder hoặc nhiều file. ZIP, NIfTI/TIFF/PNG/JPG/video không thuộc vertical slice hiện tại. Một folder không tương đương một study; mỗi DICOM StudyInstanceUID thành một study.
 
-Hai series fixture hiện có thuộc cùng một study và tạo thành sample duy nhất. Thumbnail chỉ phục vụ danh sách, viewport tải ảnh DICOM đầy đủ.
+Fixture local ban đầu có hai series cùng một study. Example study trên staging đã được ghi nhận có 5 series và 284 ảnh. Các môi trường có thể dùng fixture khác nhau; hãy đọc số liệu từ API thay vì giả định số series cố định. Thumbnail chỉ phục vụ danh sách, viewport tải ảnh DICOM đầy đủ.
 
 ## Phi chức năng
 
@@ -42,4 +42,4 @@ Hai series fixture hiện có thuộc cùng một study và tạo thành sample 
 
 Đo upload, index, ảnh đầu tiên cold/warm và memory khi đổi study 10 lần. Mục tiêu thử cho slice đã cache: p95 ≤100 ms trên 100 lần chuyển và máy/browser ghi trong report; đây chưa là benchmark đạt.
 
-DoD: sample study + cả hai đường nhập folder/files `.dcm` mở ảnh thật; study upload xóa được với xác nhận và không xóa sample; renderer giữ đúng order/series; cây study/series và Analyze placeholder hoạt động; không lỗi dữ liệu sau refresh/recreate; có [report QA](08-qa-release.md). QA phần mềm không xác nhận hiệu quả chẩn đoán.
+DoD ban đầu của viewer: sample study và các đường nhập DICOM mở ảnh thật; study upload xóa được mà không xóa sample; renderer giữ đúng thứ tự; dữ liệu không lỗi sau refresh/restart. Analyze cần được QA riêng: gọi đúng model, trả đủ 12 scores và hiển thị disclaimer. QA phần mềm không xác nhận hiệu quả chẩn đoán.

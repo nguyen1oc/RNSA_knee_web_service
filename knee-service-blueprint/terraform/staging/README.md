@@ -1,111 +1,83 @@
-# Terraform — staging adoption, phase 1
+# Terraform staging — phạm vi và cách vận hành
 
-> **Cập nhật gần nhất:** 2026-10-12
-> **Thay đổi gần nhất:** Đã apply 5 imports vào remote state; CI staging chạy `fmt`/`validate`, chưa bật plan/apply trong GitHub Actions.
+> **Cập nhật:** 13/10/2026. Terraform staging đã quản lý 5 resource. CI chỉ kiểm tra định dạng và cấu hình; CI chưa chạy `plan` hoặc `apply`.
+> Trang này hướng dẫn Terraform staging. Không dùng nó để thay đổi production.
+> Workflow trên `origin/dev` kiểm tra cấu hình trong thư mục staging; workflow trên `origin/main` kiểm tra cấu hình riêng trong `knee-web/terraform/production`. Checkout local đang mở có thể chưa chứa cấu hình production mới nhất.
 
-This directory adopts the already-created staging GCS bucket, Artifact Registry
-repository, Cloud Run runtime service account, and the runtime's existing GCS /
-Firestore permissions. It does not create or delete production resources.
+## Terraform đang quản lý gì?
 
-The Terraform configuration (`.tf` files and provider lockfile) lives with the
-application in `knee-web/terraform/staging`; this blueprint directory holds the
-operational instructions and decision record.
+Terraform giữ cấu hình hạ tầng trong các file `.tf`. Lệnh `terraform plan` so sánh cấu hình với resource/state và cho xem thay đổi dự kiến. Lệnh `terraform apply` mới ghi thay đổi vào GCP.
 
-The Cloud Run service/revisions remain owned by GitHub Actions CD. The Firestore
-database, GitHub Workload Identity Federation/deployer, Secret Manager, Scheduler,
-and Vercel settings are intentionally outside this first adoption pass. They can
-be added only after this plan is clean and the ownership boundaries are agreed.
+Trong staging, Terraform đang quản lý:
 
-## Terraform làm gì trong dự án này?
+1. Bucket DICOM staging.
+2. Artifact Registry repository chứa image.
+3. Runtime service account của API.
+4. Quyền đọc/ghi object trên bucket staging.
+5. Quyền truy cập Firestore staging.
 
-Terraform là Infrastructure as Code: các file `.tf` mô tả cấu hình hạ tầng GCP
-được quản lý. `terraform plan` so sánh cấu hình với hạ tầng/state và chỉ preview;
-`terraform apply` mới ghi nhận import hoặc thực hiện thay đổi. Remote state ở GCS
-là sổ ánh xạ resource Terraform với resource GCP, không phải DICOM hay Firestore.
+Cloud Run revisions và traffic rollout do GitHub Actions quản lý. Terraform không build/deploy application image, không quản lý dữ liệu DICOM, checkpoint, secret, Vercel settings hoặc GitHub WIF trong giai đoạn này.
 
-Phase staging này chỉ adopt bucket DICOM, Artifact Registry, runtime service
-account và hai IAM bindings. GitHub Actions vẫn build image, deploy Cloud Run,
-smoke-test rồi promote traffic. Terraform không tự deploy frontend/backend code
-và không quản lý những resource chưa khai báo trong `.tf`.
+Các file cấu hình nằm trong `knee-web/terraform/staging/`. Tài liệu hướng dẫn nằm ở đây trong `knee-service-blueprint/`.
 
-## Remote state bootstrap and safe first plan
+## Remote state là gì?
 
-Requirements: Terraform CLI 1.5+, `gcloud` ADC for the same project, and access to
-read the existing resources. State is stored remotely in the dedicated private
-GCS bucket `rsna-knee-tfstate-511004`, in region `asia-southeast1`, under prefix
-`knee-web/staging`. The bucket has uniform bucket-level access, public access
-prevention, seven-day soft delete, and Object Versioning enabled. It is separate
-from both DICOM buckets. Do not add a lifecycle rule that deletes Terraform state.
+Terraform dùng state để nhớ resource GCP nào tương ứng với từng khai báo trong file `.tf`. State của staging được lưu riêng trong bucket `gs://rsna-knee-tfstate-511004`, dưới prefix `knee-web/staging`.
 
-The backend is declared in `knee-web/terraform/staging/main.tf`; the backend
-configuration uses literal values because Terraform does not allow input
-variables in a backend block. The successful `terraform init` on 2026-10-12
-confirmed that the local working directory is configured to use the GCS backend.
-The reviewed plan proposed 5 imports and 3 in-place changes to set
-`deletion_policy = "PREVENT"` on the bucket, Artifact Registry repository, and
-runtime service account, with 0 destroys. The user applied that plan; a
-subsequent `terraform state list` confirmed all five expected resources are now
-recorded in remote state.
+Bucket state bật private access, versioning và soft delete. Không đặt lifecycle rule để tự xóa Terraform state. Không đưa file state hoặc `*.tfplan` lên GitHub; `.gitignore` cần bỏ qua chúng. Giữ file `.terraform.lock.hcl` trong Git để CI và máy phát triển cài cùng phiên bản provider.
 
-The repository ignores `.terraform/`, `*.tfstate`, `*.tfstate.*`, `*.tfplan`,
-and `*.tfvars*`; keep `.terraform.lock.hcl` tracked. Ignoring local state files
-does not affect the remote GCS state.
+## Điều kiện trước khi chạy
+
+- Cài Terraform CLI 1.5 trở lên.
+- Đăng nhập Google Cloud CLI bằng đúng tài khoản.
+- Đặt project là `rsna-knee-511004`.
+- Đăng nhập Application Default Credentials (ADC) nếu Terraform cần quyền đọc GCP.
+- Chạy lệnh trong thư mục `knee-web/terraform/staging`.
+
+## Lần khởi tạo và kiểm tra
+
+Từ thư mục gốc của repository, chạy:
 
 ```powershell
 gcloud config set project rsna-knee-511004
 gcloud auth application-default login
-Set-Location knee-web/terraform/staging # from repository root
-# Or, if already in knee-web: Set-Location .\terraform\staging
+Set-Location knee-web/terraform/staging
 terraform init
-terraform fmt
 terraform fmt -check
 terraform validate
-terraform plan -out=staging-protected.tfplan
-terraform show staging-protected.tfplan
+terraform plan -out=staging.tfplan
+terraform show staging.tfplan
 ```
 
-The applied plan imported **5 resources** and changed only the three deletion
-guards in place; it did not add or destroy infrastructure. The HCL sets
-`deletion_policy = "PREVENT"` on the DICOM bucket, Artifact Registry
-repository, and runtime service account. This guards against accidental
-Terraform deletion; it does not prevent edits outside Terraform.
+`terraform init` cài provider và kết nối remote state. `fmt -check` kiểm tra cách viết file; `validate` kiểm tra cấu hình có hợp lệ không. Hai lệnh này không thay đổi GCP.
 
-`terraform plan` previews the named existing-resource imports and reports any
-configuration drift; it does not write the imports to state or change GCP.
-Terraform records imported resources in remote state only if a reviewed plan is
-later applied. **Do not run `terraform apply` just to make the import happen.**
-First inspect the plan for changes to
-bucket CORS, lifecycle, retention, IAM, replacement, or deletion. If the plan
-proposes changes that are not intended, stop and reconcile the HCL with the
-current GCP configuration before considering apply. Never apply a plan that
-destroys/replaces the staging bucket or Firestore data.
+`plan` tạo bản xem trước. Đọc toàn bộ kết quả `terraform show` trước khi quyết định. Nếu plan muốn xóa/thay bucket, thay IAM ngoài dự kiến hoặc thay dữ liệu, dừng lại và điều tra; không chạy apply.
 
-Before any future apply, review the saved plan and verify it contains no
-unexpected add/change/destroy actions. State access must remain restricted to
-the operator and any explicitly authorized Terraform CI identity. Do not use
-the DICOM bucket for state.
+## Đã áp dụng staging
 
-## Terraform CI status
+Resource đã được import vào remote state. Một plan đã được review và apply để bảo vệ bucket, Artifact Registry repository và runtime service account khỏi bị Terraform xóa ngoài ý muốn bằng `deletion_policy = "PREVENT"`. Không có resource nào bị tạo mới hoặc xóa trong lần apply đó. `terraform state list` xác nhận 5 resource:
 
-The repository CI runs `terraform fmt -check -recursive`, initializes the
-provider with `-backend=false`, and runs `terraform validate` for this staging
-configuration. It needs no GCP credentials, does not access remote state, and
-cannot change GCP. A Terraform CI failure blocks the Cloud Run deploy job.
+```text
+google_artifact_registry_repository.api_images
+google_project_iam_member.runtime_firestore_user
+google_service_account.runtime
+google_storage_bucket.staging_dicom
+google_storage_bucket_iam_member.runtime_object_admin
+```
 
-GitHub Actions does **not** yet run `terraform plan` or `terraform apply`.
-Remote plan requires a separate least-privilege WIF identity with permission to
-read/lock the state object and read each managed GCP resource. The current
-staging deployer identity is for Cloud Run CD; do not broaden its permissions
-without an explicit IAM review. Until that identity and IAM are set up, run
-`terraform plan` locally after `terraform init` and inspect the result. Never
-configure CI to auto-apply on every push; apply only after reviewing the plan.
+Trước mỗi lần apply sau này, hãy tạo plan mới, đọc kỹ số lượng `add/change/destroy`, rồi chỉ apply đúng plan đã xem. Không dùng `terraform apply -auto-approve` cho staging hoặc production.
 
-## Explicit ownership boundaries
+## CI hiện làm gì?
 
-- GitHub Actions owns Cloud Run image rollout, candidate revision, health check,
-  and traffic promotion/rollback.
-- Terraform phase 1 owns the existing staging storage/image/runtime foundation.
-- Production, GPU VM/Triton, data seed contents, and app secrets are not managed
-  here.
-- The default allowed bucket CORS origins mirror the observed staging bucket at
-  adoption time; verify them against current Vercel domains before changing them.
+GitHub Actions chạy `terraform fmt -check`, `terraform init -backend=false` và `terraform validate` cho cấu hình staging. CI không dùng GCP credentials, không đọc remote state và không thể thay đổi GCP. CI hiện không chạy `plan` hoặc `apply`.
+
+CI không chạy Terraform production từ thư mục này. Cấu hình production nằm riêng tại `knee-web/terraform/production` trên `origin/dev` và `origin/main`; workflow kiểm tra cấu hình đó khi PR/push nhắm tới `main`. Trước khi apply production, phải dùng backend state production riêng, xem kỹ plan và thực hiện apply có kiểm soát. Không dùng quyền deploy Cloud Run làm quyền Terraform mặc định.
+
+## Ranh giới quyền sở hữu
+
+- Terraform quản lý 5 resource staging đã liệt kê ở trên.
+- GitHub Actions build image, deploy Cloud Run candidate, chạy health check và chuyển traffic.
+- GCS bucket state chỉ lưu Terraform state; không dùng nó để chứa DICOM/checkpoint.
+- Nếu thay đổi resource bằng Google Cloud Console, hãy đối chiếu Terraform plan sau đó để tránh drift.
+
+Xem [21 — tài liệu bàn giao](../../21-project-handover.md) để hiểu kiến trúc tổng thể và khác biệt giữa staging với production.

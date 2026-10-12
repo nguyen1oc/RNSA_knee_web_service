@@ -1,8 +1,9 @@
 # 08 — QA và bàn giao local Docker
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Thêm acceptance cho anonymous session, data isolation, expiry và upload caps.
+> **Tài liệu checklist ban đầu:** 2026-10-09. Các mục dưới đây được viết trước khi nối Triton.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
+> Mục nào nói Analyze chưa có AI là ghi chú cũ. Hãy dùng [21 — tài liệu bàn giao](21-project-handover.md) và [báo cáo tải staging](benchmarks/2026-10-13-staging-load-report.md) để kiểm tra hiện trạng.
 
 Cập nhật 05/10/2026. Mặc định mọi test là NOT_RUN; đây là acceptance plan. Người 1 own upload/storage/Docker, Người 2 own UI/viewer. Model, GCP, IAP không là release gate local.
 
@@ -45,7 +46,7 @@ Fixture gốc: một sample study gồm hai series + các bộ lỗi nhỏ/synth
 - [ ] Samples có nguồn, checksum, thông tin khử định danh được kiểm tra trước demo chia sẻ.
 - [ ] Cache/thumbnail không thay raw originals; display preview không thay DICOM; lỗi disk/codec không để job RUNNING mãi.
 - [ ] Study tree expand/collapse không đổi active series ngoài thao tác chọn label.
-- [ ] Analyze chỉ hiện notice chưa kết nối AI/Triton, không có score giả.
+- [ ] Analyze gọi API thật, trả đủ 12 scores hoặc hiện lỗi rõ ràng; không tạo score giả.
 
 ## Release gate
 

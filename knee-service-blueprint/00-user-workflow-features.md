@@ -1,19 +1,19 @@
 # 00 — Workflow local và màn hình cần xây
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Giữ MPR source/orbit đã merge; review dùng temporary anonymous session thay cho demo account.
+> **Cập nhật gần nhất:** 2026-10-13
+> **Thay đổi gần nhất:** Workflow `dev`/`main` đã được kiểm tra và cấu hình Triton riêng theo môi trường; API health và trạng thái Triton production đã được xác nhận trên GCP ngày 13/10. Xem [21 — tài liệu bàn giao](21-project-handover.md); health/readiness chưa thay thế lượt Analyze end-to-end.
 > **Thay đổi trước đó:** Tab MPR có volume intensity 3D xoay được từ cùng series; đã làm rõ MR/FS, presets và giới hạn camera/MPR.
 > **Lịch sử trước đó:** Panel thông tin hiện đầy đủ Study UID; Capture có preview, preset mới là 64/128/512 px.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-Phạm vi review hiện tại: không tài khoản hay mật khẩu; vào thẳng temporary workspace theo browser session, upload được cô lập bằng HttpOnly cookie và có thể Clear session. Upload đi qua ingest pipeline; workspace có nút **Analyze** để giữ đúng workflow tương lai, nhưng hiện chỉ hiển thị thông báo “coming soon”; chưa có model, AI panel, score hoặc endpoint inference.
+Ứng dụng không yêu cầu tài khoản hoặc mật khẩu. Mỗi browser có temporary workspace; HttpOnly cookie cô lập study đã upload. Analyze gửi yêu cầu theo study tới API. Trên cloud, API chuẩn bị dữ liệu và gọi Triton; local chỉ chạy inference khi đã cấu hình checkpoint. API trả 12 model scores. Giao diện ghi kết quả theo study trong tab hiện tại để người dùng chuyển series hoặc hướng xem mà không mất kết quả; điều này không đồng nghĩa kết quả được lưu lâu dài trên server. Điểm số chưa được calibration và không phải kết luận chẩn đoán. Xem [21 — tài liệu bàn giao](21-project-handover.md) để biết trạng thái môi trường.
 
 ## 1. User flow
 
 ```mermaid
 flowchart TD
     Open([Mở localhost:8080]) --> Home[Danh sách study]
-    Home --> Example[Một study mẫu · 2 series]
+    Home --> Example[Một study mẫu · 5 series]
     Example -->|Mở sample| Viewer[Workspace]
     Home -->|Nhập study| Upload[Chọn file hoặc folder .dcm]
     Upload --> Progress[Validate → metadata → group → sort]
@@ -26,8 +26,9 @@ flowchart TD
     Viewer --> Tree[Expand Study → Series → slice files]
     Tree --> Series[Chọn series và lướt ảnh]
     Series --> Controls[Zoom, pan, chỉnh hiển thị, phóng lớn ô]
-    Viewer --> Analyze[Analyze · coming soon]
-    Analyze --> Notice[Thông báo: AI/Triton chưa kết nối]
+    Viewer --> Analyze[Analyze · gọi API theo study]
+    Analyze --> Scores[AI Analysis · 12 model scores]
+    Scores -->|Study information| Info[Quay lại Study Information]
     Controls --> Series
     Viewer --> Home
 ```
@@ -38,20 +39,20 @@ Không cần upload lại examples mỗi lần vào web. Nếu nguồn mẫu ch�
 
 | Vị trí | Features |
 |---|---|
-| `/studies` | Một example study gồm 2 series; study đã nhập; số series/ảnh, trạng thái, Mở ảnh, Xóa |
+| `/studies` | Example study dùng chung (staging đã ghi nhận 5 series/284 ảnh); study đã nhập; số series/ảnh, trạng thái, Mở ảnh, Xóa |
 | Dialog Nhập study | Chọn một hoặc nhiều file `.dcm`, hoặc thư mục `.dcm`; progress; kết quả/error theo file |
 | `/studies/:id` | Header study, nút Analyze, sidebar cây Study → Series → slice files, tabs, viewer 4 ô, toolbar và panel thông tin |
 | Panel thông tin | Loại nguồn, count, Study UID đầy đủ (tự xuống dòng) và trạng thái từng ingest stage; geometry mismatch căn trái và có giải thích |
 | Xác nhận xóa | Chỉ study upload; example read-only; đang index thì chưa xóa |
 
-Header không có Tài khoản/Đăng xuất. Nút Analyze chỉ là CTA được hiển thị trước; không được tạo score giả, AI result hoặc trạng thái “analyzed”.
+Header không có Tài khoản/Đăng xuất. Nếu inference chưa sẵn sàng hoặc thất bại, giao diện phải báo lỗi rõ ràng; không hiển thị điểm giả. Panel có đường quay lại Study Information.
 
 ## 3. Trang đầu
 
 ```text
 Knee Review                                        [+ Nhập study]
 Study mẫu
-[Demo study · 2 series · Mở ảnh]
+[Demo study · 5 series · Mở ảnh]
 
 Study đã nhập
 Tên           Series/Ảnh       Trạng thái    Mở / Xóa
@@ -84,6 +85,6 @@ Khi mở một series lần đầu, viewer chọn lát đại diện ở giữa 
 
 ## 5. Ưu tiên build
 
-L01 Docker/shell → L02 API/import DICOM + một stack → L03 sample/list → L04 workspace tree + display controls → L05 xóa/persistence → L06 restart/lỗi/QA. Analyze CTA chỉ là placeholder trong local; inference/Triton làm sau. Chi tiết step và acceptance ở [12](12-local-docker-build-steps.md), lịch hai người ở [11](11-team-rebalance-and-vibe-frontend.md).
+Thứ tự L01–L06 dưới đây là kế hoạch build ban đầu cho local viewer, không phải trạng thái hiện tại của AI serving. Luồng Analyze hiện đã được nối với API/Triton ở staging. Chi tiết triển khai hiện tại nằm trong [20 — Triton trên Cloud Run GPU](20-triton-cloudrun-gpu.md); tiêu chí QA lịch sử ở [12](12-local-docker-build-steps.md) và [14](14-local-metrics-and-acceptance.md).
 
-Walkthrough nghiệm thu: mở sample study → expand cây Study/Series → chọn series nguồn ở Overview → kiểm tra volume + ba MPR lấy cùng series, thử crosshair, wheel slice, xoay volume và ba layout → vào tab hướng để đọc acquisition gốc → mở Images / Series để duyệt acquisition → nhập file/folder DICOM → bấm Analyze để kiểm tra thông báo chưa kết nối → xóa study upload → refresh → restart Docker → mở lại sample và kiểm tra seed không nhân bản.
+Walkthrough nghiệm thu viewer: mở sample study → expand Study/Series → chọn nguồn ở Overview → kiểm tra volume và ba MPR → thử crosshair, slice, xoay volume và layout → mở các tab hướng → nhập DICOM → xóa study upload → refresh/restart và kiểm tra dữ liệu mẫu. Walkthrough Analyze riêng: dùng study mẫu đã de-identify, bấm Analyze, xác nhận API trả đủ 12 scores, thử đổi series/tab rồi quay lại kết quả. Không dùng điểm số để đưa ra kết luận y khoa.

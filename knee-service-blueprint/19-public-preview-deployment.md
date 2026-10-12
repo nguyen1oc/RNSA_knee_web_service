@@ -1,227 +1,102 @@
-# 19 — Public preview: Vercel + Cloud Run + GCP storage
+# 19 — Cách ứng dụng chạy trên Vercel và Google Cloud
 
-> **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Seed `sample-knee` riêng vào production GCS/Firestore và xác minh API trả example qua temporary session.
-> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+> **Cập nhật:** 13/10/2026. Trang này mô tả kiến trúc public và cách dữ liệu đi qua hệ thống. Trạng thái revision, workflow và các điểm chưa xác minh nằm ở [21 — tài liệu bàn giao](21-project-handover.md).
 
-## Trạng thái
+## Ứng dụng gồm những phần nào?
 
-- Frontend production là `https://rnsa-knee-web-service.vercel.app/`; branch feature có Preview `https://rnsa-knee-web-service-git-fe-7a5d7b-locntmasterc-5002s-projects.vercel.app/`. Vercel chỉ host React, không tự host FastAPI.
-- **Staging = QA preview nội bộ**, phục vụ deploy từ `dev`; **production = backend public cho người dùng**, phục vụ deploy từ `main` sau review. VM không còn là web staging.
-- Backend cloud path đã được code: Firestore repository, private GCS adapter, temporary sessions, upload trực tiếp resumable, finalize/index, đọc/xóa theo quyền sở hữu; quota upload/finalize phân tán và endpoint cleanup có xác minh OIDC. CI production đã deploy thành công; adapter tests dùng fake, chưa phải integration test đầy đủ với GCP thật.
-- Staging bucket/Firestore, WIF/deployer, GitHub staging Environment/gate, Vercel Preview routing và Cloud Run `knee-review-api-staging` đã được xác nhận; `/api/health` trả `ok`. Public RSNA `results.zip` đã được provision thành shared `Example Knee Study` (284 DICOM, 5 series) trong staging GCS/Firestore.
-- Workflow CD tách service `knee-review-api-staging` / `knee-review-api-production`; GitHub Actions production run `38007225118` thành công. Cloud Run production URL `https://knee-review-api-production-jnbsqra6ma-as.a.run.app`, revision `knee-review-api-production-00001-zbj` đang nhận 100% traffic và `/api/health` trả `ok`. Production GCS/Firestore đã được seed bằng cùng public `results.zip`: `sample-knee`, 5 series/284 DICOM. Đã kiểm tra qua domain Vercel production: `/api/health` trả `ok`, tạo temporary session được và `/api/studies` trả example; session test đã được xóa. Browser upload end-to-end chưa được xác nhận.
-- Service cũ `knee-review-api` vẫn giữ nguyên, không bị workflow mới ghi đè. Cleanup Scheduler/TTL và full upload end-to-end chưa được xác nhận.
-- Hướng đích: Vercel → FastAPI Cloud Run → Firestore (session/study metadata) + private Cloud Storage (DICOM). VM hiện có không tham gia web request; để dành cho GPU/Triton khi có model.
-- Local Docker tiếp tục dùng SQLite và filesystem để giữ workflow phát triển hiện có.
+| Thành phần | Vai trò |
+| --- | --- |
+| Vercel | Phục vụ giao diện React và HTTPS. |
+| FastAPI trên Cloud Run | Quản lý temporary session, kiểm tra quyền của session, đọc metadata, chuẩn bị DICOM và gọi model. |
+| Firestore | Lưu thông tin session/study và các bộ đếm dùng chung giữa API instances. |
+| Cloud Storage | Lưu file DICOM trong bucket riêng tư. Trình duyệt upload trực tiếp bằng resumable upload. |
+| Triton trên Cloud Run GPU | Nạp checkpoint và chạy model; chỉ API được phép gọi service này. |
 
-Xem cấu hình đầy đủ và checklist thực hiện tại [15 — CI/CD: dev staging → main production](15-ci-cd-plan.md). Các lệnh deploy thủ công phía dưới là hướng dẫn lịch sử/khẩn cấp; không chạy chúng để provision production mới.
-
-## Đã chọn
-
-- **Firestore Native mode** cho session, study, series, instance metadata để dữ liệu index còn sau Cloud Run restart. Không chọn Cloud SQL ở MVP vì chưa cần reporting/query quan hệ.
-- **Cloud Storage private bucket** cho byte DICOM và ZIP trung gian. Không lưu DICOM pixel bytes trong Firestore.
-- Không đăng nhập. Mỗi browser có opaque temporary session; mọi API phải authorize owner theo session. Session idle 60 phút, tối đa 4 giờ; Clear xóa metadata và object.
-- VM `knee-review-staging-01` giữ nguyên/off khi không dùng. Không deploy FastAPI vào VM này; GPU VM sẽ chạy Triton sau này. Không cần GPU cho ingest/viewer hiện tại.
-
-## GCP resources đã tạo (2026-10-10)
-
-Đã xác nhận từ các lệnh CLI người dùng chạy trong project `rsna-knee-511004`:
-
-- **Cloud Storage:** bucket `gs://rsna-knee-dicom-preview-511004`, region `ASIA-SOUTHEAST1`, Standard; Uniform bucket-level access bật, Public access prevention `enforced`.
-- **Artifact Registry:** Docker repository `knee-review` tại `asia-southeast1`, URI `asia-southeast1-docker.pkg.dev/rsna-knee-511004/knee-review`; GitHub Actions dùng để lưu image theo commit SHA. Vulnerability scanning chưa bật vì API `containerscanning.googleapis.com` chưa được enable. Repo `cloud-run-source-deploy` là repo riêng.
-- **CORS:** Preview origin đã được thêm vào local template `templates/gcs-cors.json`; người dùng cần xác nhận bucket đã nhận cấu hình bằng `gcloud storage buckets describe`. API Preview session POST trả 200, nên origin đó hiện được backend chấp nhận.
-- **Production resources:** Firestore Native database `knee-review-production`, bucket `gs://rsna-knee-dicom-production-511004`, runtime identity `knee-review-api-production@rsna-knee-511004.iam.gserviceaccount.com`, deployer/WIF và Cloud Run service đã được tạo. Bucket Standard, Uniform bucket-level access bật, Public access prevention `enforced`, soft-delete retention 7 ngày; CORS chỉ cho `https://rnsa-knee-web-service.vercel.app`; lifecycle chỉ xóa prefix `incoming/` từ 1 ngày tuổi. Runtime có Object Admin trên riêng bucket và Datastore User condition giới hạn database production.
-- **Lifecycle:** chỉ xóa object có prefix `incoming/` từ 1 ngày tuổi; không áp dụng cho dữ liệu study đang hoạt động.
-- **Soft delete:** bucket hiện có retention mặc định 7 ngày. Xóa khỏi app là xóa khỏi vùng object đang hoạt động, nhưng vẫn có thể khôi phục trong thời gian retention và storage của bản đã xóa có thể bị tính phí. Chưa thay đổi policy này.
-- **Firestore:** database `(default)`, `FIRESTORE_NATIVE`, region `asia-southeast1`, free tier báo bật. Backend client mặc định dùng database này; không cần chọn DB trong từng request.
-- **Example staging + production:** `results.zip` public được nạp riêng thành `sample-knee` (`source=sample`, owner rỗng), 5 series/284 instances ở `gs://rsna-knee-dicom-preview-511004/examples/sample-knee/` và `gs://rsna-knee-dicom-production-511004/examples/sample-knee/`, cùng metadata tương ứng trong Firestore `(default)` và `knee-review-production`. Seed idempotent, là thao tác one-time thủ công; deploy Cloud Run không tự seed. Sample không bị session cleanup xóa và không thể xóa qua app.
-- **Staging service identity:** `knee-review-api@rsna-knee-511004.iam.gserviceaccount.com`; có `roles/datastore.user` với IAM condition chỉ vào Firestore `(default)` và `roles/storage.objectAdmin` trên bucket staging.
-- **Deployer:** tài khoản `gcloud` hiện tại đã có `roles/iam.serviceAccountUser` trên service account để có thể gắn nó khi deploy Cloud Run.
-- Không tạo/tải service-account key JSON. Cloud Run sẽ lấy credential từ service identity/ADC.
-- **Đã xác nhận:** Cloud Run service cũ `knee-review-api`, service CD staging `knee-review-api-staging`, và production `knee-review-api-production` đang hoạt động. Production `/api/health` trả `ok`; API list study đã trả shared sample và temporary session test đã được dọn.
-- **Còn làm trước khi chia sẻ rộng:** xác nhận `VITE_DIRECT_GCS_UPLOAD=true` có trong Vercel Production và chạy browser upload/delete bằng dữ liệu de-identified. Chưa xác nhận full browser upload end-to-end, Scheduler/TTL và edge protection. VM GPU/Triton không liên quan.
-
-## Vì sao cần đổi upload protocol
-
-Study ZIP mẫu khoảng 431 MiB. Vercel Functions giới hạn request/response body 4.5 MiB; Vercel external rewrites giới hạn proxy duration; Cloud Run HTTP/1 giới hạn request 32 MiB. Vì vậy không gửi ZIP lớn qua Vercel hoặc Cloud Run multipart.
-
-Luồng code: trình duyệt xin API tạo resumable upload session → upload bytes trực tiếp tới GCS theo các chunk 8 MiB → gọi API finalize → backend kiểm tra object, tải vào vùng xử lý tạm, validate/index DICOM, lưu DICOM objects riêng trong bucket → metadata ghi Firestore. Bucket không public; API kiểm tra session ownership trước khi cho đọc/xóa. Khi chọn nhiều `.dcm`/folder, frontend tạo một ZIP không nén trong browser để dùng một upload-init request thay vì một request cho mỗi slice; Series paths được giữ và backend gom study theo `StudyInstanceUID`. Finalize hiện đồng bộ; khi dataset/tải tăng cần tách ingest thành job với polling.
-
-Nguồn giới hạn: [Vercel Functions](https://vercel.com/docs/functions/limitations), [Cloud Run quotas](https://docs.cloud.google.com/run/quotas), [Cloud Storage resumable uploads](https://docs.cloud.google.com/storage/docs/resumable-uploads).
-
-## Cấu hình bucket (đã hoàn tất)
-
-Chọn region `asia-southeast1` (Singapore), Standard storage, bật **Uniform bucket-level access** và **Public access prevention**. Tên bucket phải global-unique; gợi ý `rsna-knee-dicom-preview-511004` rồi kiểm tra tên trước khi tạo. Không cấp `allUsers` hoặc `allAuthenticatedUsers`. CORS phải allow đúng production và Preview origins; template gồm `Content-Range` cho upload chunk và `Range` để frontend đọc vị trí đã nhận. Configure lifecycle chỉ cho prefix `incoming/` (ZIP/DICOM upload chưa finalize), không áp dụng rule xóa theo tuổi lên `sessions/` vì đó là study đang hoạt động. Study được xóa khi user Clear session hoặc hết TTL.
-
-Tạo Firestore Native mode ở `asia-southeast1` nếu project chưa có database; vị trí database không đổi được sau khi tạo. Cloud Run dùng service account riêng, cấp `roles/datastore.user` cho Firestore và `roles/storage.objectAdmin` ở riêng bucket (không cấp project-wide nếu không cần); deployer cần `roles/iam.serviceAccountUser` trên service account. Không tải service-account key xuống máy, không commit key. Cloud Run dùng service identity/ADC.
-
-## Các bước code/deploy (lệnh PowerShell)
-
-### Provision GCP resources
-
-Chạy lệnh sau sau khi merge feature vào `dev`; tên bucket phải global-unique. Nếu Firestore `(default)` đã có, bỏ qua lệnh tạo database và kiểm tra đúng region/mode trước.
-
-```powershell
-gcloud config set project rsna-knee-511004
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com storage.googleapis.com firestore.googleapis.com
-
-$bucket = "rsna-knee-dicom-preview-511004"
-$serviceAccount = "knee-review-api"
-
-gcloud storage buckets create "gs://$bucket" --project=rsna-knee-511004 --location=asia-southeast1 --default-storage-class=STANDARD --uniform-bucket-level-access --public-access-prevention
-gcloud storage buckets update "gs://$bucket" --cors-file="knee-service-blueprint/templates/gcs-cors.json" --lifecycle-file="knee-service-blueprint/templates/gcs-incoming-lifecycle.json"
-gcloud firestore databases create --database="(default)" --location=asia-southeast1 --type=firestore-native --project=rsna-knee-511004
-gcloud iam service-accounts create $serviceAccount --project=rsna-knee-511004 --display-name="Knee Review Cloud Run API"
-gcloud projects add-iam-policy-binding rsna-knee-511004 --member="serviceAccount:$serviceAccount@rsna-knee-511004.iam.gserviceaccount.com" --role=roles/datastore.user
-gcloud storage buckets add-iam-policy-binding "gs://$bucket" --member="serviceAccount:$serviceAccount@rsna-knee-511004.iam.gserviceaccount.com" --role=roles/storage.objectAdmin
+```text
+Browser → Vercel → /api → FastAPI / Cloud Run
+                             ├─ Firestore: session và study metadata
+                             ├─ Cloud Storage: DICOM riêng tư
+                             └─ Triton / Cloud Run GPU: model inference
 ```
 
-### Deploy review API
+Vercel không chạy FastAPI. Vercel rewrite `/api/*` sang Cloud Run để trình duyệt gọi cùng origin; điều này giúp cookie session hoạt động nhất quán. File DICOM lớn đi thẳng từ browser đến Cloud Storage, không đi qua Vercel hay request body của Cloud Run.
 
-Sau khi merge source vào `dev`, từ thư mục repo chạy:
+## Khi người dùng nhập một study
 
-```powershell
-cd knee-web
-gcloud run deploy knee-review-api --source . --project=rsna-knee-511004 --region=asia-southeast1 --platform=managed --allow-unauthenticated --service-account="knee-review-api@rsna-knee-511004.iam.gserviceaccount.com" --memory=4Gi --cpu=2 --concurrency=1 --max=1 --timeout=3600 --set-env-vars="METADATA_BACKEND=firestore,DICOM_BUCKET=rsna-knee-dicom-preview-511004,GOOGLE_CLOUD_PROJECT=rsna-knee-511004,CORS_ALLOWED_ORIGINS=https://rnsa-knee-web-service.vercel.app,SESSION_COOKIE_SECURE=true,MAX_UPLOAD_MIB=600,MAX_EXPANDED_MIB=800,MAX_SESSION_MIB=800"
-```
+1. Trình duyệt yêu cầu API tạo temporary session. API trả HttpOnly cookie; người dùng không cần tạo tài khoản.
+2. Trình duyệt yêu cầu API tạo resumable upload session, sau đó gửi file theo chunk trực tiếp tới bucket riêng tư.
+3. Khi upload xong, API kiểm tra object, giải nén/kiểm tra DICOM, nhóm file theo Study/Series UID và ghi metadata vào Firestore.
+4. Khi người dùng xóa study hoặc session hết hạn, backend xóa object DICOM trước rồi mới xóa metadata. Nếu xóa object lỗi, metadata được giữ lại để có thể retry.
 
-`--allow-unauthenticated` làm API public; study vẫn yêu cầu temporary browser session nhưng hiện chưa có distributed anti-abuse/rate limit. Đây chỉ là review preview, max instances giới hạn 1; chỉ dùng DICOM đã de-identify. Sau deploy, test `/api/health`, rồi lấy service URL để cấu hình Vercel same-origin rewrite `/api/:path*`. Vercel env: `VITE_DIRECT_GCS_UPLOAD=true`, `VITE_API_BASE_URL` để trống; redeploy frontend. Bucket CORS cần cho phép `Content-Range` (request chunk) và expose `Range` (ack chunk).
+Study của người dùng được gắn với temporary session. Shared example study là dữ liệu mẫu dùng chung, chỉ đọc và không bị thao tác Clear session xóa. Session không phải tài khoản lâu dài: người dùng cần tải dữ liệu cần giữ về máy trước khi session hết hạn.
 
-### Rate limits đã triển khai và giới hạn còn lại
+## Khi người dùng bấm Analyze
 
-- `/api/uploads/resumable`: 5 lần/phút và 30 lần/giờ/session; tối đa 3 upload còn `uploading`; tổng file/session vẫn bị chặn ở 800 MiB. Chỉ chuyển pending slot sang `uploaded` sau khi backend xác nhận kích thước object trên GCS.
-- `/api/studies/finalize-upload`: 3 lần/10 phút/session. Giới hạn hiện có 600 MiB/file, 800 MiB/session/expanded và 500 DICOM vẫn áp dụng.
-- Counters nằm trong Firestore `rate_limits`, tăng nguyên tử bằng transaction, ID counter được hash, không lưu IP. Có thể cấu hình Firestore TTL cho `expires_at` sau 2 ngày.
-- GET viewer/slice/image chưa bị throttle để tránh làm hỏng trải nghiệm cuộn lát; theo dõi trước.
-- `/api/sessions` chưa có quota IP trong ứng dụng. Không đọc `X-Forwarded-For` trực tiếp: khi chỉ có Vercel rewrite tới Cloud Run, cần chứng minh được header/IP do trusted proxy đặt và chặn đường gọi vòng ngoài trước khi dùng nó làm khóa. Vercel WAF fixed window có thể cấu hình 10 request/10 phút trên `POST /api/sessions`, nhưng ngưỡng 30/ngày không được thực thi bởi backend hiện tại; không công bố rằng IP cap đã bật cho tới khi cấu hình và kiểm thử edge.
+FastAPI kiểm tra session và study, lấy DICOM từ Cloud Storage, chọn series và tạo tensor theo model contract. Sau đó API gọi Triton bằng danh tính dịch vụ GCP. Triton trả 12 scores; API gửi kết quả về giao diện. Người dùng không gửi checkpoint lên web.
 
-### Checklist còn lại trước public link rộng
+Scores hiện là sigmoid model scores, chưa được calibration và không phải xác suất chẩn đoán. Chúng chỉ để tham khảo; bác sĩ chịu trách nhiệm diễn giải.
 
-- Cấu hình Vercel WAF 10/10 phút cho `POST /api/sessions` (ban đầu Log, kiểm tra false positive, rồi chuyển Block). Đây là lớp edge, không phải code FastAPI.
-- Cấu hình Firestore TTL và Cloud Scheduler bên dưới; verify chính xác service account OIDC.
-- Chạy integration test với bucket/database thật, test hai browser profile, upload DICOM/ZIP, refresh, delete/Clear, session expiry và kiểm tra hóa đơn/quota.
-- Example đã được seed riêng vào staging và production; khi thay/khôi phục bucket hoặc database, chạy lại lệnh provision trong [13 — Input DICOM và example study](13-input-formats-and-example-studies.md). Cloud mode không tự seed DICOM lúc khởi động.
+## Staging và production
 
-## Cấu hình rate limit và cleanup trên GCP
+| | Staging | Production |
+| --- | --- | --- |
+| Mục đích | QA nội bộ trước khi phát hành | Bản public cho người dùng |
+| Nhánh | `dev` | `main` |
+| Frontend | Vercel Preview | Vercel Production: `https://rnsa-knee-web-service.vercel.app/` |
+| API Cloud Run | `knee-review-api-staging` | `knee-review-api-production` |
+| Firestore | `(default)` | `knee-review-production` |
+| Bucket DICOM | `rsna-knee-dicom-preview-511004` | `rsna-knee-dicom-production-511004` |
+| Staging gate | Có; chỉ dành cho Preview/QA | Không dùng |
 
-Mục tiêu là chống upload flood/chi phí bất ngờ mà không làm bác sĩ bị chặn khi nhiều người cùng dùng một Wi-Fi bệnh viện.
+Người dùng đã xác nhận staging Analyze hoạt động qua Triton và báo production cũng đã được nối, kiểm tra. Cấu hình live có thể đổi; trước release hãy kiểm tra traffic/revision trong Cloud Run và `KNEE_API_ORIGIN` trong Vercel.
 
-| Scope | Mức đề xuất ban đầu | Hành động khi vượt |
-|---|---:|---|
-| Tạo temporary session theo IP tin cậy | Chưa bật trong API; mục tiêu ban đầu 10 / 10 phút và 30 / ngày | Cấu hình 10/10 phút ở WAF; daily cap cần edge/shared counter đáng tin trước khi bật |
-| Tạo upload slot theo session | **5 / phút, 30 / giờ; tối đa 3 upload đang truyền** | HTTP 429; upload đã xác minh kích thước chuyển trạng thái `uploaded` |
-| Finalize theo session | **3 / 10 phút**; tối đa 500 DICOM, 600 MiB/file và 800 MiB/session | HTTP 429/413; upload chưa hoàn tất trả 409 |
-| GET study/series/slice/image | Không rate-limit chặt ở vòng đầu vì viewer tải nhiều ảnh; theo dõi 120 req/min/session trước khi điều chỉnh | Chỉ cảnh báo/log ở preview; thêm throttle nếu có scrape/abuse |
+## Dữ liệu và thời gian lưu
 
-Không tin trực tiếp `X-Forwarded-For` do client tự gửi. Cloud Run max instances `1` và concurrency `1` là trần chi phí/đồng thời, không thay thế rate limit. Rate counter Firestore không lưu IP thô; hiện chỉ dùng session ID. Với Vercel WAF, tạo rule match `POST /api/sessions`, limit 10 requests / 10-minute fixed window, key theo client IP do Vercel edge xác định; bắt đầu ở Log rồi Block sau khi kiểm tra. Vercel plan và edge behavior có thể giới hạn daily window; 30/ngày chưa được bảo đảm. Nếu cần đúng mức 30/ngày, dùng trusted edge có shared durable counter (ví dụ Cloud Armor/edge service) và chỉ nhận traffic qua edge đó.
+- Bucket DICOM là private; bật Uniform bucket-level access và Public access prevention.
+- Bucket có soft delete 7 ngày theo lần kiểm tra được ghi nhận. Xóa trong app làm object biến mất khỏi vùng đang dùng, nhưng bản soft-deleted có thể khôi phục trong thời gian retention và có thể phát sinh phí lưu trữ.
+- Lifecycle rule chỉ dọn prefix `incoming/` sau một ngày; không áp dụng quy tắc xóa theo tuổi lên study đang hoạt động.
+- Session có giới hạn idle 60 phút và tối đa 4 giờ theo cấu hình ứng dụng. Cleanup cần xóa DICOM trước metadata.
+- Firestore TTL phù hợp để dọn rate-limit counters; không dùng TTL để xóa study metadata trước khi xóa object GCS.
 
-Rate counter lưu ở collection riêng `rate_limits`, doc ID là SHA-256 của route/session/fixed window, update atomic bằng Firestore transaction; không lưu IP thô. Đặt Firestore TTL trên field Timestamp `expires_at` để dọn counter sau 2 ngày. Response 429 có message thân thiện và `Retry-After`; không áp dụng cùng quota cho từng frame image.
+Source có endpoint cleanup được bảo vệ bằng OIDC. Tuy nhiên, cần kiểm tra Cloud Scheduler job, executions và log để xác nhận lịch cleanup thật sự đã bật ở từng môi trường. Endpoint trong code không tự chạy theo lịch.
 
-### Cleanup đề xuất
+## Giới hạn upload và chống lạm dụng
 
-1. Temporary session: idle 60 phút, absolute 4 giờ như hiện tại. Firestore expiry field nên là Timestamp; định kỳ query session hết hạn.
-2. Cloud Scheduler gọi `POST /internal/cleanup` mỗi 15 phút bằng OIDC service account riêng. Endpoint xác minh chữ ký token, audience, email và `email_verified`; không chỉ kiểm tra URL bí mật.
-3. Theo từng session hết hạn: đọc danh sách DICOM object + pending upload, xóa object GCS trước, rồi xóa instance/series/study/session metadata. Nếu GCS xóa lỗi thì giữ metadata còn lại để lần scheduler sau retry; log số object lỗi và session ID đã hash.
-4. Batch Firestore tối đa 450 writes mỗi lần; cleanup worker có giới hạn mỗi lượt (đề xuất 20 sessions hoặc 2,000 objects) để không chiếm request viewer quá lâu; Cloud Scheduler retry lần sau.
-5. Lifecycle bucket chỉ xóa `incoming/` sau 1 ngày để dọn ZIP/object upload dở dang; không đặt lifecycle trên `sessions/`, vì sẽ xóa study đang hoạt động. Object uploads moved into `sessions/` must never inherit this rule.
-6. Clear session/xóa study thủ công thực hiện cùng quy tắc: xóa blob thành công rồi mới commit xóa metadata; lỗi nào cũng trả trạng thái để retry, không báo đã xóa khi blob còn.
+Cấu hình ứng dụng hiện hướng tới các giới hạn sau:
 
-Ngưỡng trên là cấu hình preview đã chốt; đo upload/chi phí rồi điều chỉnh có chủ đích. Trước khi chia sẻ rộng cần budget alert, max instance 1, edge rate policy, Scheduler cleanup, TTL và test lỗi/retry. Đây là research preview, không gửi PHI.
+| Thao tác | Giới hạn dự kiến |
+| --- | --- |
+| Tạo temporary session | 10 lần/10 phút và 30 lần/ngày theo IP đáng tin cậy |
+| Khởi tạo upload | 5 lần/phút, 30 lần/giờ/session; tối đa 3 upload đang chờ |
+| Finalize upload | 3 lần/10 phút/session |
+| Dữ liệu | Tối đa 600 MiB mỗi request, 800 MiB giải nén/session, 200 MiB mỗi DICOM và 500 DICOM/session |
 
-### Thiết lập Firestore TTL và Cloud Scheduler
+Không tin `X-Forwarded-For` do client tự gửi. Chỉ dùng IP khi request chắc chắn đi qua proxy tin cậy và direct bypass đã bị chặn. Cần kiểm tra Vercel/edge rule và backend counters thực tế trước khi tuyên bố giới hạn theo IP đang có hiệu lực. Cloud Run `max instances` và concurrency giới hạn tài nguyên; chúng không thay thế rate limit.
 
-Chạy sau khi Cloud Run đã deploy. Thay project nếu không dùng project đang cấu hình:
+## Luồng phát hành
 
-```powershell
-$project = "rsna-knee-511004"
-$region = "asia-southeast1"
-$service = "knee-review-api"
-$schedulerAccount = "knee-review-cleaner"
-$serviceUrl = gcloud run services describe $service --project=$project --region=$region --format="value(status.url)"
-$schedulerEmail = "$schedulerAccount@$project.iam.gserviceaccount.com"
+1. Tạo feature branch và mở PR vào `dev`.
+2. CI chạy lint, type-check, test và build. Khi merge vào `dev`, GitHub Actions deploy API staging; Vercel tạo Preview.
+3. QA kiểm tra staging: health, session, upload/view/delete và Analyze bằng study đã de-identify.
+4. Mở PR `dev` vào `main`; reviewer kiểm tra và duyệt.
+5. Khi merge `main`, workflow deploy production theo Environment đã cấu hình. Vercel Production cũng cập nhật từ `main`.
 
-gcloud services enable cloudscheduler.googleapis.com --project=$project
-gcloud iam service-accounts create $schedulerAccount --project=$project --display-name="Knee Review scheduled cleanup"
-gcloud run services add-iam-policy-binding $service --project=$project --region=$region --member="serviceAccount:$schedulerEmail" --role="roles/run.invoker"
-gcloud run services update $service --project=$project --region=$region --update-env-vars="CLEANUP_SCHEDULER_EMAIL=$schedulerEmail,CLEANUP_OIDC_AUDIENCE=$serviceUrl"
-gcloud firestore fields ttls update expires_at --collection-group=rate_limits --enable-ttl --database="(default)" --project=$project
-gcloud scheduler jobs create http knee-review-cleanup --project=$project --location=$region --schedule="*/15 * * * *" --time-zone="Etc/UTC" --uri="$serviceUrl/internal/cleanup" --http-method=POST --oidc-service-account="$schedulerEmail" --oidc-token-audience="$serviceUrl" --attempt-deadline=300s --max-backoff=3600s
-```
+Workflow API dùng Workload Identity Federation thay vì service-account key JSON. CI có bước health-check trước khi promote revision ở các lần deploy đã có service. Nếu lỗi xuất hiện sau khi promote, Cloud Run không tự rollback; xem [15 — CI/CD](15-ci-cd-plan.md).
 
-Nếu Scheduler job đã tồn tại, dùng `gcloud scheduler jobs update http ...` với các tham số tương ứng thay vì `create`. Chạy thử bằng `gcloud scheduler jobs run knee-review-cleanup --location=$region --project=$project`, rồi kiểm tra Executions/logs và Cloud Run logs. Scheduler service account cần `roles/run.invoker`; backend còn kiểm tra đúng email trong `CLEANUP_SCHEDULER_EMAIL`. TTL chỉ áp dụng `rate_limits.expires_at`, không cấu hình TTL cho study/session vì app phải xóa blob GCS trước metadata. Firestore TTL có thể xóa trễ; TTL chỉ là dọn counter, không phải cleanup DICOM.
+**Đối chiếu gần nhất:** workflow trên `origin/dev` (`759c0fb`) và `origin/main` (`07d5f0d`) đã truyền cấu hình Triton riêng theo từng GitHub Environment. Ngày 13/10, hai API và hai Triton service đều có revision sẵn sàng; cả hai API trả health `ok`, Triton production nhận 100% traffic. Checkout local đang mở là branch cũ, nên không dùng workflow local để suy ra trạng thái hai branch mới nhất. Health check chưa thay thế lượt Analyze end-to-end trên production.
 
+## Trước khi chia sẻ rộng
 
-## VM và chi phí
+- Dùng dữ liệu đã de-identify; không upload DICOM có thông tin nhận dạng bệnh nhân.
+- Kiểm tra API và Triton production đang nhận traffic từ đúng revision.
+- Kiểm tra Cloud Scheduler cleanup, Firestore TTL, rate-limit counters và edge protection.
+- Kiểm tra budget alert, quota, bucket retention và log xóa object.
+- Chạy bài tải theo từng bước, ghi p95/lỗi/GPU/chi phí; không suy ra số người dùng tối đa từ một bài test nhỏ.
+- Nêu rõ đây là research viewer, không phải thiết bị chẩn đoán lâm sàng.
 
-VM không phải nơi deploy backend web trong topology này. Có thể giữ VM ở trạng thái stopped khi không cần SSH; boot disk và tài nguyên IP tĩnh vẫn có thể phát sinh phí. Khi bắt đầu Triton, bật VM GPU theo thời gian thử nghiệm, attach GPU, cài NVIDIA Container Toolkit/Triton và hạn chế endpoint inference vào private network/IAM. Tắt VM khi xong; GPU không được cấp tự động bởi Triton.
+## Tài liệu liên quan
 
-## Chưa hoàn tất
-
-Hoàn tất one-time setup để chạy CD staging/production (WIF/IAM, GitHub Environments, production resources, Vercel env), trusted-edge session-creation protection, Cloud Scheduler/Firestore TTL, optional sample-study cloud seeding và end-to-end public smoke test. Bucket/Firestore staging và service `knee-review-api` hiện tại đã được provision; xem trạng thái đầu tài liệu. Không gửi study định danh bệnh nhân lên URL công khai; dự án là research demo, không phải thiết bị chẩn đoán lâm sàng.
-
-### Tài liệu GCP tham khảo
-
-- [Cloud Run service identity](https://docs.cloud.google.com/run/docs/configuring/services/service-identity)
-- [Firestore Native mode: create/manage databases](https://cloud.google.com/firestore/docs/manage-databases)
-- [Cloud Storage CORS](https://docs.cloud.google.com/storage/docs/cross-origin)
-- [Cloud Storage resumable uploads](https://docs.cloud.google.com/storage/docs/resumable-uploads)
-- [Uniform bucket-level access](https://docs.cloud.google.com/storage/docs/uniform-bucket-level-access)
-<details>
-<summary>Earlier deployment plan from 2026-10-09 (superseded; before GCP resources were provisioned)</summary>
-
-#### Earlier plan snapshot
-
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Tách frontend Vercel khỏi FastAPI; xác định Cloud Run/GCS/shared metadata là backend public target, VM GPU chỉ dành cho Triton về sau.
-> **Lịch sử:** [CHANGELOG](CHANGELOG.md)
-
-## Trạng thái hiện tại
-
-- Frontend URL do người dùng cung cấp: `https://rnsa-knee-web-service.vercel.app/`. Vercel đã cung cấp HTTPS; không cần mua tên miền riêng để thử frontend.
-- Vercel hiện chỉ host React. Frontend đang gọi relative `/api/...`, nhưng FastAPI chưa được deploy/kết nối ở Vercel, nên session/import/read API sẽ lỗi. Error banner phải luôn hiện nội dung fallback rõ ràng.
-- FastAPI hiện chạy trong Docker Compose ở máy local hoặc VM staging private; SQLite và DICOM nằm ở local filesystem/named volume. Không public VM đó và không dùng VM GPU làm API host.
-- Target: Vercel static frontend → FastAPI Cloud Run → private Cloud Storage + shared session/study metadata → GPU VM/Triton qua private network khi AI có model.
-
-## Vì sao không chỉ thêm Vercel rewrite rồi deploy
-
-Study mẫu `results.zip` khoảng 431 MiB. Vercel Functions giới hạn request/response body 4.5 MiB; external rewrites có thời gian proxy tối đa 120 giây. Cloud Run HTTP/1 giới hạn request 32 MiB. Do đó không gửi ZIP/DICOM bytes qua Vercel Function hoặc FastAPI request body trên Cloud Run.
-
-Upload public cần browser khởi tạo resumable upload với FastAPI, gửi bytes trực tiếp vào private Cloud Storage, rồi gọi finalize API để xác minh object và enqueue ingest. FastAPI/worker đọc object theo session; không đưa bucket public. Ingest dài phải là job có trạng thái/polling, không giữ một request Vercel proxy mở trong lúc giải nén/index.
-
-Nguồn giới hạn: [Vercel Functions](https://vercel.com/docs/functions/limitations), [Vercel rewrites](https://vercel.com/docs/routing/rewrites), [Cloud Run quotas](https://docs.cloud.google.com/run/quotas), [Cloud Storage resumable upload](https://docs.cloud.google.com/storage/docs/resumable-uploads).
-
-## HTTPS, session và rate limits
-
-- Vercel frontend có HTTPS sẵn; Cloud Run service có HTTPS URL `run.app`. Chưa cần custom domain để thử hai endpoint riêng.
-- Nếu API được gọi trực tiếp cross-origin, CORS phải allow đúng origin Vercel, cookie phải Secure và browser credential behavior phải kiểm thử. Nếu dùng same-origin Vercel rewrite cho API control calls, upload bytes vẫn đi thẳng GCS; keep proxy calls short.
-- Không bật `allow_origins=*` với credentialed requests. Không tin `X-Forwarded-For` tùy mù: chỉ parse client IP theo proxy chain đã xác định và chặn direct bypass nếu rate-limit phụ thuộc proxy.
-- Rate limiting không dùng in-memory map vì Cloud Run scale nhiều instances. Áp dụng distributed per-IP/per-session quotas cho session creation, upload-initiation, finalize và job polling; đặt quota bytes/files/concurrency, expiry cho upload session và project budgets/alerts. Thêm edge WAF/rate-based ban nếu chọn external HTTPS Load Balancer/Cloud Armor.
-- Public uploads chỉ được dùng DICOM đã de-identify. UI thông báo dữ liệu tạm, session 60 phút idle/4 giờ tối đa; nút Clear session xóa objects/metadata. Cloud Storage lifecycle là cleanup dự phòng, không thay cho delete path.
-
-## Các bước triển khai
-
-### P0 — Kết nối giao diện và API theo cách an toàn
-
-1. Hoàn thiện Vercel frontend build: `knee-web/frontend`, build `npm run build`, output `dist`; production branch là `main`, PR preview có thể dùng preview URL.
-2. Tạo private Cloud Storage bucket cho uploads/temp objects, bật lifecycle theo retention đã chốt và CORS chỉ cho Vercel origin + required methods/headers.
-3. Chuyển upload UI sang resumable direct-to-GCS; FastAPI cấp upload session/opaque object key, validate owner/session ở init/finalize và chỉ cho worker đọc object đã finalize.
-4. Chuyển session/study/job metadata từ local SQLite sang shared store (Firestore là MVP candidate; Cloud SQL nếu cần relational reporting). DICOM byte không lưu trong SQL.
-5. Deploy FastAPI/ingest worker riêng trên Cloud Run, attach least-privilege service account, cấu hình exact Vercel origin, HTTPS, health/readiness, timeout/memory/concurrency và upload caps.
-
-### P1 — Rate limits, privacy và public smoke test
-
-1. Chọn nơi rate-limit: shared backend counter (Firestore/Cloud SQL) cho per-IP/per-session, và Cloud Armor nếu đặt external HTTPS Load Balancer trước Cloud Run. Không rate-limit riêng Vercel static page rồi coi như API đã được bảo vệ.
-2. Bật per-session max bytes/files (hiện default 800 MiB expanded, 500 DICOM), per-IP session/init limits, per-session upload/job limits, global concurrency cap, disk/bucket quota alerts và abuse logging không chứa DICOM metadata/PHI.
-3. Thêm object cleanup khi user Clear, session expiry và failed/incomplete upload; kiểm tra TTL + lifecycle.
-4. Từ mạng ngoài test: mở Vercel HTTPS; tạo session; upload study nhỏ và ZIP lớn direct-to-GCS; xem MPR; hai browser sessions không thấy dữ liệu nhau; clear/expiry xóa object; burst requests bị 429; invalid/expired upload URI bị từ chối.
-5. Chỉ sau khi P0/P1 pass mới gửi URL cho reviewers. Không dùng patient-identifiable MRI; đây là research demo, không phải service chẩn đoán lâm sàng.
-
-## Luồng branch/release
-
-`feature → PR dev (CI + Vercel preview) → merge dev → Cloud Run staging + review → PR dev→main → approval production → Cloud Run production + Vercel production`. GitHub Actions dùng Workload Identity Federation, không lưu service-account key trong repository. Production chưa được deploy cho đến khi Environment `production` có đủ variables và reviewer approval.
-
-## Việc còn lại trước khi chia sẻ rộng
-
-Production GitHub Environment variables, Cloud Run production service, Vercel Production API origin, cleanup Scheduler/Firestore TTL, edge protection và end-to-end public smoke test. Local rate-limit middleware chưa được thêm vì không bảo vệ nhiều Cloud Run instances và không phải nơi phù hợp để cấu hình edge HTTPS/rate limits.
-</details>
+- [15 — CI/CD, approval và rollback](15-ci-cd-plan.md)
+- [20 — Triton trên Cloud Run GPU](20-triton-cloudrun-gpu.md)
+- [21 — tài liệu bàn giao](21-project-handover.md)
+- [Benchmark/k6](benchmarks/README.md)

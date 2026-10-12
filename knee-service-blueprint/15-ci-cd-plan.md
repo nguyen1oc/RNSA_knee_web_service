@@ -1,7 +1,7 @@
 # 15 — CI/CD: dev staging → main production
 
-> **Cập nhật gần nhất:** 2026-10-12
-> **Thay đổi gần nhất:** Thêm Terraform production riêng state, import các tài nguyên GCP đã có và CI `fmt`/`validate`; không tự chạy `plan`/`apply`.
+> **Cập nhật gần nhất:** 2026-10-13
+> **Thay đổi gần nhất:** CI chỉ validate Terraform của môi trường đích (`dev` → staging, `main` → production); frontend gọi API Analyze đã deploy.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Mục tiêu và ý nghĩa môi trường
@@ -25,7 +25,9 @@ feature/* → PR dev → CI → merge dev
 
 CI trên PR chạy Ruff, Mypy, pytest, Python compile, frontend tests/build. Docker image được build trong deploy job sau khi merge/push vào `dev` hoặc `main`; nếu build thất bại thì deploy dừng và revision đang phục vụ giữ nguyên. Như vậy PR không cần credential GCP/Docker Hub, còn image đúng với commit được deploy.
 
-CI chạy `terraform fmt -check` và `terraform validate` riêng cho cả staging và production. Terraform init trong CI dùng `-backend=false`, nên không đăng nhập GCP hoặc đọc remote state. CI **không chạy `terraform plan`/`apply`**: remote plan cần WIF identity và IAM tối thiểu cho state bucket cùng quyền đọc các resource; apply luôn cần plan review và phê duyệt riêng. Không tự động apply Terraform khi push.
+CI chạy `terraform fmt -check` và `terraform validate` theo môi trường đích: PR/push vào `dev` chỉ kiểm tra `knee-web/terraform/staging`; PR/push vào `main` chỉ kiểm tra `knee-web/terraform/production`. Job deploy Cloud Run chỉ chờ validation tương ứng với branch đó. Terraform init trong CI dùng `-backend=false`, nên không đăng nhập GCP hoặc đọc remote state. CI **không chạy `terraform plan`/`apply`**: remote plan cần WIF identity và IAM tối thiểu cho state bucket cùng quyền đọc các resource; apply luôn cần plan review và phê duyệt riêng. Không tự động apply Terraform khi push.
+
+Frontend trên Vercel gọi `POST /api/studies/{study_id}/analyze` qua same-origin rewrite. Preview dùng `KNEE_API_ORIGIN` trỏ đến API staging và `KNEE_STAGING_GATE_TOKEN` lấy từ Secret Manager; Production trỏ đến API production. Kết quả chỉ được hiển thị sau khi inference trả thành công, không thay bằng điểm giả lập.
 
 ### Terraform production — phase adopt existing resources
 

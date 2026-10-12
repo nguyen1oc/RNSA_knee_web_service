@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
-> **Cập nhật gần nhất:** 2026-10-12
-> **Thay đổi gần nhất:** Thêm Terraform production riêng state, import tài nguyên hiện có và CI fmt/validate.
+> **Cập nhật gần nhất:** 2026-10-13
+> **Thay đổi gần nhất:** Nối Analyze UI với API/Triton staging và tách Terraform validation theo branch/environment.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-12 — Refresh project READMEs
@@ -12,6 +12,14 @@
 - Removed the stale note that production setup and Vercel API routing were still pending.
 - Clarified that the production Terraform plan is for importing four existing resources and has not been applied; Firestore and Cloud Run remain intentionally outside that Terraform state.
 - Added the research-prototype / not-clinically-validated notice to the project overview.
+
+## 2026-10-13 — Connect Analyze UI and scope Terraform CI by environment
+
+### Added / Changed
+
+- Replaced the Analyze placeholder with a study-level API request, loading state, result panel, and export preview.
+- Limited Terraform staging validation to PRs/pushes targeting `dev`, and production validation to PRs/pushes targeting `main`; Cloud Run deploy waits only for the matching validation job.
+- Documented the Vercel Preview/Production API-origin and staging-gate split.
 
 ## 2026-10-12 — Terraform staging state and CI checks
 

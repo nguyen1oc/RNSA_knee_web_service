@@ -76,6 +76,9 @@ jobs:
 
   terraform-staging:
     name: Terraform staging fmt and validate
+    if: >-
+      (github.event_name == 'pull_request' && github.base_ref == 'dev') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/dev')
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -100,6 +103,9 @@ jobs:
 
   terraform-production:
     name: Terraform production fmt and validate
+    if: >-
+      (github.event_name == 'pull_request' && github.base_ref == 'main') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -125,7 +131,15 @@ jobs:
   deploy-cloud-run:
     name: Deploy Cloud Run (${{ github.ref_name }})
     needs: [backend, frontend, terraform-staging, terraform-production]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+    if: >-
+      always() &&
+      github.event_name == 'push' &&
+      needs.backend.result == 'success' &&
+      needs.frontend.result == 'success' &&
+      (
+        (github.ref == 'refs/heads/dev' && needs.terraform-staging.result == 'success') ||
+        (github.ref == 'refs/heads/main' && needs.terraform-production.result == 'success')
+      )
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     concurrency:

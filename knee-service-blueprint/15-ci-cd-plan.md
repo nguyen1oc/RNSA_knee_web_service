@@ -1,7 +1,7 @@
 # 15 — CI/CD: dev staging → main production
 
-> **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Rút ngắn Cloud Run traffic tag theo 12 ký tự SHA; tên service + tag phải không quá 46 ký tự.
+> **Cập nhật gần nhất:** 2026-10-12
+> **Thay đổi gần nhất:** Thêm Terraform staging `fmt`/`validate` vào CI; remote `plan` và `apply` vẫn cần IAM/approval riêng.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Mục tiêu và ý nghĩa môi trường
@@ -24,6 +24,8 @@ feature/* → PR dev → CI → merge dev
 ```
 
 CI trên PR chạy Ruff, Mypy, pytest, Python compile, frontend tests/build. Docker image được build trong deploy job sau khi merge/push vào `dev` hoặc `main`; nếu build thất bại thì deploy dừng và revision đang phục vụ giữ nguyên. Như vậy PR không cần credential GCP/Docker Hub, còn image đúng với commit được deploy.
+
+CI cũng chạy `terraform fmt -check` và `terraform validate` cho cấu hình staging. Terraform init trong CI dùng `-backend=false`, nên không đăng nhập GCP hoặc đọc remote state. Hiện CI **không chạy `terraform plan`/`apply`**: remote plan cần WIF identity và IAM tối thiểu cho state bucket cùng quyền đọc các resource; apply luôn cần plan review và phê duyệt riêng. Không tự động apply Terraform khi push.
 
 Dockerfile currently uses `mirror.gcr.io/library/node:24-alpine` and `mirror.gcr.io/library/python:3.12-slim` for the Node/Python base images. Both images were successfully pulled from the Google mirror locally on 2026-10-10. This avoids the direct Docker Hub login/token call that was timing out. Google mirror only retains frequently requested images and can evict them; it does not guarantee every tag remains available. If a future build reports a mirror miss, retry later or move to another trusted upstream.
 

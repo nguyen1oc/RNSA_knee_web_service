@@ -1,6 +1,6 @@
 # Triton inference service on Cloud Run GPU
 
-> **Status:** Staging Triton L4 and FastAPI integration are deployed and verified end-to-end (2026-10-12). Production remains disconnected.
+> **Status:** Staging Triton L4 and FastAPI integration are deployed and verified end-to-end (2026-10-12). Production remains disconnected; the production API workflow now requires explicit Triton configuration before deploying.
 
 ## Goal and current status
 
@@ -21,7 +21,75 @@ Cloud Build e7f46c18-9f11-46f8-a354-3a91ed1c119c succeeded for API image `knee-r
 3. **Cloud transport:** complete for one staging sample through the real authenticated API path; the input tensor is about 9.2 MiB and masks add a few hundred bytes.
 4. **Protect model artifacts:** staging uses a dedicated private model bucket, dedicated service identity, read-only bucket access, and invoker access limited to the staging API identity.
 5. **Deploy staging:** Triton L4 is private, min=0/max=1, concurrency 1; FastAPI staging is connected and returned all 12 scores.
-6. **Next:** run the acceptance flow and repeated cold/warm/concurrency measurements on staging. Keep production disconnected until review and explicit production rollout.
+6. **Next:** finish staging acceptance and repeat cold/warm/concurrency measurements, then provision the isolated production Triton service below. Do not point production API at the staging model service.
+
+## Production rollout (manual GPU service, automated API deploy)
+
+Keep the same immutable Triton image and checkpoint SHA as the verified staging model, but use a separate private model bucket, a separate Triton runtime identity, and a separate private Cloud Run service. The DICOM bucket is not the model-artifact bucket. The Triton endpoint must remain IAM-authenticated; only the production FastAPI runtime service account receives `roles/run.invoker`.
+
+The following PowerShell commands create the production model artifact bucket and identity, copy the verified checkpoint, and deploy the private GPU service. GPU resources are billable while an instance is running; `min=0` allows scale-to-zero. Review the Cloud Run cost page and project budget before creating the service.
+
+```powershell
+$project = "rsna-knee-511004"
+$region = "asia-southeast1"
+$modelBucket = "rsna-knee-models-production-511004"
+$tritonService = "knee-triton-production"
+$tritonRuntimeName = "knee-triton-runtime-prod"
+$tritonRuntimeEmail = "$tritonRuntimeName@$project.iam.gserviceaccount.com"
+$apiRuntimeEmail = "knee-review-api-production@rsna-knee-511004.iam.gserviceaccount.com"
+$checkpointSha = "61cdcea1ae8c0377c37495c9fc1f43bbcbff632b4168636440d41d2e4e39f47c"
+$checkpointObject = "resnet34/$checkpointSha/fold_00_best.zip"
+$image = "asia-southeast1-docker.pkg.dev/rsna-knee-511004/knee-review/knee-triton@sha256:b442345a6d8b1e80943f204e78ef91595bea7246b6659db39a06753ccc9989aa"
+
+gcloud config set project $project
+gcloud storage buckets create "gs://$modelBucket" `
+  --project=$project --location=$region `
+  --uniform-bucket-level-access --public-access-prevention
+gcloud iam service-accounts create $tritonRuntimeName `
+  --project=$project --display-name="Knee Review Production Triton Runtime"
+gcloud storage buckets add-iam-policy-binding "gs://$modelBucket" `
+  --member="serviceAccount:$tritonRuntimeEmail" `
+  --role="roles/storage.objectViewer"
+gcloud storage cp `
+  "gs://rsna-knee-models-staging-511004/$checkpointObject" `
+  "gs://$modelBucket/$checkpointObject"
+
+gcloud run deploy $tritonService `
+  --project=$project --region=$region --platform=managed `
+  --image=$image --service-account=$tritonRuntimeEmail `
+  --no-allow-unauthenticated --cpu=4 --memory=16Gi `
+  --gpu=1 --gpu-type=nvidia-l4 --no-cpu-throttling `
+  --min=0 --max=1 --concurrency=1 --timeout=3600s `
+  --set-env-vars="KNEE_CHECKPOINT_PATH=/checkpoint/$checkpointObject" `
+  --add-volume="mount-path=/checkpoint,type=cloud-storage,bucket=$modelBucket,readonly=true"
+
+gcloud run services add-iam-policy-binding $tritonService `
+  --project=$project --region=$region `
+  --member="serviceAccount:$apiRuntimeEmail" `
+  --role="roles/run.invoker"
+```
+
+Use the image digest above, not a mutable `latest` tag. If it is not present in Artifact Registry, rebuild/push the Triton image from the reviewed source first and use the resulting digest. The Cloud Storage mount is read-only and exposes only model artifacts to Triton. Cloud Run L4 requires at least 4 vCPU and 16 GiB memory; those values match the staging service. GPU-backed Cloud Run services can scale to zero, but GPU is billed for the instance lifetime. See [Cloud Run GPU configuration](https://docs.cloud.google.com/run/docs/configuring/services/gpu) and [Cloud Storage volume mounts](https://docs.cloud.google.com/run/docs/configuring/services/cloud-storage-volume-mounts).
+
+After the service becomes ready, retrieve—not guess—its URL:
+
+```powershell
+$tritonUrl = gcloud run services describe $tritonService `
+  --project=$project --region=$region --format="value(status.url)"
+$tritonUrl
+```
+
+Add the following non-secret variables to GitHub → Settings → Environments → `production`:
+
+| Variable | Value |
+| --- | --- |
+| `TRITON_URL` | URL returned for `knee-triton-production` |
+| `AI_CHECKPOINT_SHA256` | `61cdcea1ae8c0377c37495c9fc1f43bbcbff632b4168636440d41d2e4e39f47c` |
+| `AI_CHECKPOINT_EPOCH` | `13` |
+| `AI_DEVICE_LABEL` | `NVIDIA L4` |
+| `TRITON_TIMEOUT_SECONDS` | `180` |
+
+The `main` deployment now fails closed if any of these are missing and injects them into the production FastAPI Cloud Run revision. Only after the Triton service is ready and these variables are set should the reviewed `dev → main` change be merged. GitHub's `production` Environment approval remains the human release gate. Then verify `/api/health`, run Analyze on the de-identified sample in the public production app, confirm all 12 scores, and inspect Cloud Run logs. Keep staging and production URLs, buckets, identities, and model storage separate.
 
 ## Triton model repository contract
 
@@ -39,7 +107,7 @@ The local comparison client is `knee-web/scripts/compare_triton.py`; install its
 
 ## Local build note
 
-The Dockerfile uses NVIDIA Triton 25.10 (`py3`) and the existing PyTorch 2.5.1 / torchvision 0.20.1 model stack. The NVIDIA base image is over 2 GB. The first local pull was very slow and was stopped before the image finished downloading, so no Triton server inference test has passed yet. NGC authentication/API credentials, if requested, must stay out of Git and chat logs.
+The Dockerfile uses NVIDIA Triton 25.10 (`py3`) and the existing PyTorch 2.5.1 / torchvision 0.20.1 model stack. The NVIDIA base image is over 2 GB. A local Triton container run was not completed; the verified server inference test is the Cloud Run staging service described above. NGC authentication/API credentials, if requested, must stay out of Git and chat logs.
 
 ## References
 

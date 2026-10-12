@@ -27,7 +27,8 @@ Bắt đầu bằng [12 — Các bước build local](12-local-docker-build-step
 | [12 Build steps](12-local-docker-build-steps.md) | Làm từng bước và giải thích Triton | Điểm bắt đầu |
 | [13 Input/examples](13-input-formats-and-example-studies.md) | Format, grouping, seed và storage | Hiện hành |
 | [14 Metrics](14-local-metrics-and-acceptance.md) | Đánh giá đúng dữ liệu, xóa, restart, hiệu năng và UX | Hiện hành |
-| [15 CI/CD](15-ci-cd-plan.md) | CI baseline và lộ trình staging/autodeploy | CI hiện hành; CD để sau |
+| [15 CI/CD](15-ci-cd-plan.md) | CI/CD: `dev` → staging, `main` → production, approval và rollback | CI/CD hiện hành |
+| [20 Triton Cloud Run GPU](20-triton-cloudrun-gpu.md) | Triton L4 riêng tư, model artifact, API integration và rollout production | Staging đã verify; production runbook sẵn sàng, chờ tạo GPU service và cấu hình GitHub Environment |
 | [16 Native DICOM/MPR](16-native-dicom-and-mpr.md) | P1 controls, geometry gate, runtime và giới hạn kiểm định | Viewer implementation hiện hành |
 | [17 GCP basics](17-gcp-basics-and-first-deploy.md) | Project, billing, CLI/ADC, IAM, VM, IAP, Terraform, Triton và GKE | Hướng dẫn nhập môn và bước chuẩn bị staging |
 | [18 Temporary workspace](18-anonymous-session-and-upload-limits.md) | Anonymous session, clear/reset, TTL, upload caps và public gates | Current decision; Cloud Run storage/rate limits remain |

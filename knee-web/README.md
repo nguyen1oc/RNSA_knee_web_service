@@ -1,7 +1,7 @@
 # Knee Review — local DICOM workspace
 
-> **Cập nhật gần nhất:** 2026-10-12
-> **Thay đổi gần nhất:** Đồng bộ mô tả triển khai staging/production và CI Terraform; production plan nhận import 4 tài nguyên hiện có, chưa apply.
+> **Cập nhật gần nhất:** 2026-10-13
+> **Thay đổi gần nhất:** Analyze gọi API/Triton staging; production Triton rollout được tách riêng và yêu cầu GitHub production variables.
 > **Lịch sử:** [../knee-service-blueprint/CHANGELOG.md](../knee-service-blueprint/CHANGELOG.md)
 
 This is the first local vertical slice for the knee diagnostic web service. Upload accepts individual `.dcm` files, folders, and unencrypted `.zip` archives containing DICOM files.
@@ -28,12 +28,11 @@ The UI is in English and currently supports:
 - Overview MPR source defaults to an eligible geometry series, can be changed explicitly, and supplies the MRI volume plus linked axial/coronal/sagittal planes; ineligible series show the geometry reason and are not silently combined;
 - an explicit local ingest pipeline: DICOM validation, metadata extraction, UID grouping, geometry-aware sorting, and on-demand preview rendering;
 - real Window / Level drag tool, W/L values, Invert and Reset per native viewport;
-- an Analyze button that clearly reports that the future AI/Triton pipeline is not connected yet;
+- study-level Analyze with loading state, AI result panel and printable results preview; staging calls the private Triton service through FastAPI;
 - deleting imported studies; the example study is read-only;
 - temporary anonymous session; no usernames, passwords, email or account required;
 - the server scopes each upload to an HttpOnly session cookie; Clear session removes uploaded files, and idle sessions expire after 60 minutes (4-hour absolute maximum);
 - upload defaults: 600 MiB request, 800 MiB expanded/session, 200 MiB per DICOM, 500 DICOM files; tune in `.env` only after testing memory/disk;
-- Analyze remains a placeholder; AI, Triton and GPU are not connected.
 
 ## Run with Docker
 
@@ -49,7 +48,7 @@ The Dockerfile builds the React frontend in a multi-stage image, so `frontend/di
 
 See [anonymous session and upload-limit plan](../knee-service-blueprint/18-anonymous-session-and-upload-limits.md). There is no login/signup. The backend issues an HttpOnly cookie, scopes every study/data route to that temporary session, and deletes the session's uploads on reset/expiry. `SESSION_COOKIE_SECURE=true` is required behind HTTPS; local HTTP defaults to false.
 
-Local Docker continues to use SQLite/filesystem. Cloud Run uses Firestore metadata and private, environment-specific GCS buckets with browser-to-GCS resumable uploads. The manually deployed legacy `knee-review-api` is separate from the automated environment services. GitHub Actions maps `dev` to internal staging and `main` to production through separate WIF deployer identities and GitHub Environments; Vercel Preview is for QA and Vercel Production serves the public frontend. The production Cloud Run service, bucket, database, runtime identity and frontend API route are provisioned separately from staging. Production Terraform adopts selected existing resources; it intentionally does not manage the Firestore database or Cloud Run service. Terraform CI runs formatting and validation only—plans and applies remain review-controlled. Full setup, deployment and rollback behavior: [CI/CD plan](../knee-service-blueprint/15-ci-cd-plan.md) and [deployment guide](../knee-service-blueprint/19-public-preview-deployment.md). Cloud adapters have fake-client unit tests, not GCP integration tests. Do not proxy large DICOM/ZIP bodies through Vercel or Cloud Run.
+Local Docker continues to use SQLite/filesystem. Cloud Run uses Firestore metadata and private, environment-specific GCS buckets with browser-to-GCS resumable uploads. GitHub Actions maps `dev` to internal staging and `main` to production through separate WIF deployer identities and GitHub Environments; Vercel Preview is for QA and Vercel Production serves the public frontend. Triton staging is a separate private Cloud Run L4 service and has passed an end-to-end sample inference. Production Triton is a separate rollout: its model bucket/service identity/service and production API variables must be provisioned before merging the AI-enabled API to `main`. Production Terraform adopts selected existing resources; it intentionally does not manage Cloud Run services. Terraform CI runs formatting and validation only—plans and applies remain review-controlled. Full setup, deployment and rollback behavior: [CI/CD plan](../knee-service-blueprint/15-ci-cd-plan.md), [deployment guide](../knee-service-blueprint/19-public-preview-deployment.md), and [Triton rollout](../knee-service-blueprint/20-triton-cloudrun-gpu.md). Cloud adapters have fake-client unit tests, not GCP integration tests. Do not proxy large DICOM/ZIP bodies through Vercel or Cloud Run.
 
 ## CI baseline
 

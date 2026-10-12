@@ -199,7 +199,14 @@ CORS_ALLOWED_ORIGINS=https://<stable-staging-origin> # production origin tương
 WIF_PROVIDER=projects/<number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>
 WIF_SERVICE_ACCOUNT=<deployer>@rsna-knee-511004.iam.gserviceaccount.com
 STAGING_GATE_SECRET_NAME=knee-review-staging-gate  # staging only
+TRITON_URL=https://<private-triton-service-url>    # both environments; distinct service URL per environment
+AI_CHECKPOINT_SHA256=<verified-checkpoint-sha256>  # both environments
+AI_CHECKPOINT_EPOCH=13                             # both environments
+AI_DEVICE_LABEL=NVIDIA L4                          # both environments
+TRITON_TIMEOUT_SECONDS=180                         # both environments
 ```
+
+The deployment workflow requires the Triton/model variables for both `dev` and `main`, and writes them into the matching API revision. Do not set production `TRITON_URL` to the staging service. The production Triton endpoint is IAM-private; only `knee-review-api-production@...` gets `roles/run.invoker`. See the production steps and reviewed image/checkpoint details in [20 — Triton Cloud Run GPU](20-triton-cloudrun-gpu.md#production-rollout-manual-gpu-service-automated-api-deploy).
 
 `WIF_PROVIDER` là resource name đầy đủ; `WIF_SERVICE_ACCOUNT` là email deployer. WIF attribute condition phải giới hạn đúng repository và ref: staging chỉ `refs/heads/dev`, production chỉ `refs/heads/main`. Không trao quyền deploy cho fork PR.
 

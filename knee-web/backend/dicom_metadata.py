@@ -154,6 +154,32 @@ def metadata_from_dataset(ds: Any) -> dict[str, Any]:
     }
 
 
+def acquisition_metadata_from_dataset(ds: Any) -> dict[str, Any]:
+    """Extract non-identifying scanner/sequence fields for study information."""
+
+    def optional_text(name: str, limit: int = 100) -> str | None:
+        value = clean(getattr(ds, name, ""))
+        return value[:limit] or None
+
+    def optional_number(name: str) -> float | None:
+        value = dicom_number(getattr(ds, name, None), default=float("nan"))
+        return value if np.isfinite(value) and value > 0 else None
+
+    return {
+        "modality": optional_text("Modality", 16),
+        "manufacturer": optional_text("Manufacturer"),
+        "manufacturer_model": optional_text("ManufacturerModelName"),
+        "field_strength_t": optional_number("MagneticFieldStrength"),
+        "sequence_name": optional_text("SequenceName"),
+        "scanning_sequence": optional_text("ScanningSequence"),
+        "scan_options": optional_text("ScanOptions"),
+        "repetition_time_ms": optional_number("RepetitionTime"),
+        "echo_time_ms": optional_number("EchoTime"),
+        "slice_thickness_mm": optional_number("SliceThickness"),
+        "spacing_between_slices_mm": optional_number("SpacingBetweenSlices"),
+    }
+
+
 def validate_series_geometry(items: list[tuple[dict[str, Any], Path]]) -> dict[str, Any]:
     geometries = [metadata["geometry"] for metadata, _ in items]
     known = [geometry for geometry in geometries if geometry["status"] != "unknown"]

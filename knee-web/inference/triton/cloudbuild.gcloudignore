@@ -1,0 +1,18 @@
+# Upload only files used by this Triton image build. In particular, keep model
+# checkpoints, DICOM studies, venvs, and the rest of the research workspace out
+# of the Cloud Build source archive.
+*
+!backend/
+backend/*
+!backend/ai/
+backend/ai/*
+!backend/ai/**
+!inference/
+inference/*
+!inference/triton/
+inference/triton/*
+!inference/triton/Dockerfile
+!inference/triton/cloudbuild.yaml
+!inference/triton/model_repository/
+inference/triton/model_repository/*
+!inference/triton/model_repository/**

@@ -10,9 +10,13 @@ RUN npm run build
 
 FROM ${PYTHON_BASE_IMAGE}
 WORKDIR /app
+ARG INSTALL_LOCAL_AI=0
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 COPY backend/requirements.txt ./backend/requirements.txt
 RUN pip install --no-cache-dir -r backend/requirements.txt
+RUN if [ "$INSTALL_LOCAL_AI" = "1" ]; then \
+      pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.5.1 torchvision==0.20.1; \
+    fi
 COPY backend/ ./backend/
 COPY --from=frontend-build /frontend/dist ./frontend/dist
 RUN mkdir -p /app/data

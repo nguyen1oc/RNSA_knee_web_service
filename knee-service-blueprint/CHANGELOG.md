@@ -4,6 +4,15 @@
 > **Thay đổi gần nhất:** Thêm Terraform production riêng state, import tài nguyên hiện có và CI fmt/validate.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
+## 2026-10-12 — Refresh project READMEs
+
+### Documented
+
+- Updated the root and app READMEs to describe the current Vercel + Cloud Run architecture, separate staging/production environments, and Terraform's review-controlled workflow.
+- Removed the stale note that production setup and Vercel API routing were still pending.
+- Clarified that the production Terraform plan is for importing four existing resources and has not been applied; Firestore and Cloud Run remain intentionally outside that Terraform state.
+- Added the research-prototype / not-clinically-validated notice to the project overview.
+
 ## 2026-10-12 — Terraform staging state and CI checks
 
 ### Added / Verified

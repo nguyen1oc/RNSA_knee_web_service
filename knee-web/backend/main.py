@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from backend.api.analysis import build_router as build_analysis_router
 from backend.api.series import build_router as build_series_router
 from backend.api.sessions import build_router as build_session_router
 from backend.api.studies import build_router as build_studies_router
@@ -477,6 +478,7 @@ def startup() -> None:
 
 app.include_router(build_system_router(sys.modules[__name__]))
 app.include_router(build_session_router(sys.modules[__name__]))
+app.include_router(build_analysis_router(sys.modules[__name__]))
 app.include_router(build_studies_router(sys.modules[__name__]))
 app.include_router(build_uploads_router(sys.modules[__name__]))
 app.include_router(build_series_router(sys.modules[__name__]))

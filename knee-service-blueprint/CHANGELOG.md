@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-12
-> **Thay đổi gần nhất:** Ghi nhận staging Terraform apply thành công và thêm CI fmt/validate.
+> **Thay đổi gần nhất:** Thêm Terraform production riêng state, import tài nguyên hiện có và CI fmt/validate.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-12 — Terraform staging state and CI checks
@@ -12,6 +12,16 @@
 - Adopted the existing staging DICOM bucket, Artifact Registry repository, runtime service account, and two runtime IAM bindings. The reviewed apply imported 5 resources and set deletion guards; a later `terraform state list` confirmed all five are recorded, and `terraform plan` reported no changes.
 - Added CI checks for Terraform formatting, provider initialization with `-backend=false`, and validation. The job needs no GCP access and blocks Cloud Run deployment if configuration checks fail.
 - Remote Terraform `plan`/`apply` are not automated; they require a separately reviewed least-privilege identity and an approval workflow.
+
+## 2026-10-12 — Terraform production adoption configuration
+
+### Added
+
+- Added `knee-web/terraform/production` with a separate GCS state prefix `knee-web/production`.
+- Added import blocks for the existing production bucket, runtime service account, bucket IAM member, and database-scoped Firestore IAM member.
+- Added deletion guards for the production bucket and runtime identity. Kept Firestore database, shared Artifact Registry, and Cloud Run outside this state to avoid duplicate ownership or accidental data deletion.
+- Added production Terraform `fmt`/`validate` CI; it does not access GCP state or run `plan`/`apply`.
+- Documented the reviewed manual plan/apply sequence. No production Terraform plan or apply has been run by this change.
 
 ## 2026-10-10 — Shorten Cloud Run candidate traffic tag
 

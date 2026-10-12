@@ -1,7 +1,7 @@
 # 15 — CI/CD: dev staging → main production
 
 > **Cập nhật gần nhất:** 2026-10-12
-> **Thay đổi gần nhất:** Thêm Terraform staging `fmt`/`validate` vào CI; remote `plan` và `apply` vẫn cần IAM/approval riêng.
+> **Thay đổi gần nhất:** Thêm Terraform production riêng state, import các tài nguyên GCP đã có và CI `fmt`/`validate`; không tự chạy `plan`/`apply`.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Mục tiêu và ý nghĩa môi trường
@@ -25,7 +25,33 @@ feature/* → PR dev → CI → merge dev
 
 CI trên PR chạy Ruff, Mypy, pytest, Python compile, frontend tests/build. Docker image được build trong deploy job sau khi merge/push vào `dev` hoặc `main`; nếu build thất bại thì deploy dừng và revision đang phục vụ giữ nguyên. Như vậy PR không cần credential GCP/Docker Hub, còn image đúng với commit được deploy.
 
-CI cũng chạy `terraform fmt -check` và `terraform validate` cho cấu hình staging. Terraform init trong CI dùng `-backend=false`, nên không đăng nhập GCP hoặc đọc remote state. Hiện CI **không chạy `terraform plan`/`apply`**: remote plan cần WIF identity và IAM tối thiểu cho state bucket cùng quyền đọc các resource; apply luôn cần plan review và phê duyệt riêng. Không tự động apply Terraform khi push.
+CI chạy `terraform fmt -check` và `terraform validate` riêng cho cả staging và production. Terraform init trong CI dùng `-backend=false`, nên không đăng nhập GCP hoặc đọc remote state. CI **không chạy `terraform plan`/`apply`**: remote plan cần WIF identity và IAM tối thiểu cho state bucket cùng quyền đọc các resource; apply luôn cần plan review và phê duyệt riêng. Không tự động apply Terraform khi push.
+
+### Terraform production — phase adopt existing resources
+
+Production Terraform nằm tại `knee-web/terraform/production`, dùng cùng private state bucket nhưng prefix riêng `knee-web/production`; tuyệt đối không dùng state `knee-web/staging`. Cấu hình hiện quản lý/adopt các tài nguyên đã tồn tại: bucket `rsna-knee-dicom-production-511004`, runtime service account `knee-review-api-production`, quyền object admin trên bucket và Firestore IAM condition giới hạn database `knee-review-production`. Bucket và service account có deletion guard; bucket không cho Terraform xóa dữ liệu.
+
+Firestore database `knee-review-production` chưa được khai báo thành Terraform resource để tránh vô tình xóa database/dữ liệu. Artifact Registry `knee-review` đang thuộc staging state nên không khai báo/import lần nữa. Cloud Run production service và revisions vẫn do GitHub Actions CD quản lý; không để Terraform cùng sở hữu resource đó.
+
+Các import blocks trong `imports.tf` nhận diện tài nguyên GCP có sẵn. Từ PowerShell, sau khi checkout branch đã chứa cấu hình:
+
+```powershell
+Set-Location knee-web/terraform/production
+terraform init
+terraform fmt -check -recursive
+terraform validate
+terraform plan -out=production.tfplan
+terraform show production.tfplan
+```
+
+Plan đầu tiên dự kiến hiển thị import bốn tài nguyên vào state production. Chỉ apply đúng file plan sau khi kiểm tra không có create/replace/delete và các chỉnh sửa in-place (nếu có) đều mong muốn:
+
+```powershell
+terraform apply production.tfplan
+terraform plan
+```
+
+Apply đầu tiên chỉ ghi nhận/import resources và áp các cấu hình đã duyệt; không chạy tự động từ CI. Plan sau apply nên báo `No changes`. Nếu plan đầu tiên đề nghị thay đổi quyền/CORS/lifecycle ngoài dự kiến, dừng lại và review trước, không apply vội. GCS state prefix khác giúp rollback và thao tác staging/production tách biệt.
 
 Dockerfile currently uses `mirror.gcr.io/library/node:24-alpine` and `mirror.gcr.io/library/python:3.12-slim` for the Node/Python base images. Both images were successfully pulled from the Google mirror locally on 2026-10-10. This avoids the direct Docker Hub login/token call that was timing out. Google mirror only retains frequently requested images and can evict them; it does not guarantee every tag remains available. If a future build reports a mirror miss, retry later or move to another trusted upstream.
 

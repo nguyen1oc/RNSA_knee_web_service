@@ -1,0 +1,36 @@
+name: "knee_resnet34"
+backend: "python"
+max_batch_size: 0
+
+input [
+  {
+    name: "IMAGES"
+    data_type: TYPE_UINT8
+    dims: [ 1, 4, 16, 3, 224, 224 ]
+  },
+  {
+    name: "SLOT_MASK"
+    data_type: TYPE_FP32
+    dims: [ 1, 4 ]
+  },
+  {
+    name: "SLICE_MASK"
+    data_type: TYPE_FP32
+    dims: [ 1, 4, 16 ]
+  }
+]
+
+output [
+  {
+    name: "SCORES"
+    data_type: TYPE_FP32
+    dims: [ 1, 12 ]
+  }
+]
+
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU
+  }
+]

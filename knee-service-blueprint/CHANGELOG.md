@@ -1,8 +1,61 @@
 # Changelog — Knee Review
 
-> **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Provision shared example vào production bucket/Firestore và xác minh API production trả sample.
+> **Cập nhật gần nhất:** 2026-10-13
+> **Thay đổi gần nhất:** Provisioned private Triton production L4; production API awaits environment variables and approved deployment.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
+
+## 2026-10-12 — Refresh project READMEs
+
+### Documented
+
+- Updated the root and app READMEs to describe the current Vercel + Cloud Run architecture, separate staging/production environments, and Terraform's review-controlled workflow.
+- Removed the stale note that production setup and Vercel API routing were still pending.
+- Clarified that the production Terraform plan is for importing four existing resources and has not been applied; Firestore and Cloud Run remain intentionally outside that Terraform state.
+- Added the research-prototype / not-clinically-validated notice to the project overview.
+
+## 2026-10-13 — Connect Analyze UI and scope Terraform CI by environment
+
+### Added / Changed
+
+- Replaced the Analyze placeholder with a study-level API request, loading state, result panel, and export preview.
+- Limited Terraform staging validation to PRs/pushes targeting `dev`, and production validation to PRs/pushes targeting `main`; Cloud Run deploy waits only for the matching validation job.
+- Documented the Vercel Preview/Production API-origin and staging-gate split.
+
+## 2026-10-13 — Prepare private production Triton rollout
+
+### Added / Changed
+
+- Updated Cloud Run API CD so both `dev` and `main` require their environment's Triton URL and model metadata; the production API revision now receives the Triton settings instead of silently deploying disconnected.
+- Documented production isolation: separate private model-artifact bucket, Triton runtime identity and IAM-private L4 service; only the production API runtime identity can invoke it.
+- Added the production provisioning and verification runbook. This documents commands only; no production GPU resource was created by this change.
+
+## 2026-10-13 — Provision private Triton production service
+
+### Added / Verified
+
+- Created the private production model bucket and copied the same SHA-pinned checkpoint used in verified staging.
+- Deployed `knee-triton-production` with the pinned Triton image digest, L4 GPU, 4 vCPU, 16 GiB, scale-to-zero, max one instance, and GPU zonal redundancy disabled.
+- Confirmed `knee_resnet34` version 1 is READY and granted Cloud Run Invoker only to the production API runtime identity.
+- Production FastAPI remains disconnected until GitHub `production` receives the Triton/model variables and the approved `main` deployment succeeds.
+
+## 2026-10-12 — Terraform staging state and CI checks
+
+### Added / Verified
+
+- Created and configured the private GCS backend bucket `rsna-knee-tfstate-511004` with versioning; Terraform staging state uses prefix `knee-web/staging`.
+- Adopted the existing staging DICOM bucket, Artifact Registry repository, runtime service account, and two runtime IAM bindings. The reviewed apply imported 5 resources and set deletion guards; a later `terraform state list` confirmed all five are recorded, and `terraform plan` reported no changes.
+- Added CI checks for Terraform formatting, provider initialization with `-backend=false`, and validation. The job needs no GCP access and blocks Cloud Run deployment if configuration checks fail.
+- Remote Terraform `plan`/`apply` are not automated; they require a separately reviewed least-privilege identity and an approval workflow.
+
+## 2026-10-12 — Terraform production adoption configuration
+
+### Added
+
+- Added `knee-web/terraform/production` with a separate GCS state prefix `knee-web/production`.
+- Added import blocks for the existing production bucket, runtime service account, bucket IAM member, and database-scoped Firestore IAM member.
+- Added deletion guards for the production bucket and runtime identity. Kept Firestore database, shared Artifact Registry, and Cloud Run outside this state to avoid duplicate ownership or accidental data deletion.
+- Added production Terraform `fmt`/`validate` CI; it does not access GCP state or run `plan`/`apply`.
+- Documented the reviewed manual plan/apply sequence. No production Terraform plan or apply has been run by this change.
 
 ## 2026-10-10 — Shorten Cloud Run candidate traffic tag
 

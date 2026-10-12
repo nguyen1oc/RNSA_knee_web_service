@@ -14,3 +14,11 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Terraform local cache/state/plans/variable files; keep .terraform.lock.hcl tracked.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json

@@ -1,0 +1,33 @@
+# Whitelist only the Docker build inputs. Never upload DICOM studies, notebooks,
+# checkpoints, virtual environments, local databases, or the research workspace.
+*
+!Dockerfile
+!.dockerignore
+!backend/
+!backend/**
+!frontend/
+!frontend/**
+backend/data/
+backend/data/**
+frontend/node_modules/
+frontend/node_modules/**
+frontend/dist/
+frontend/dist/**
+**/.venv/
+**/.venv/**
+**/venv/
+**/venv/**
+**/*.dcm
+**/*.dicom
+**/*.zip
+**/*.pt
+**/*.pth
+**/*.ckpt
+**/*.onnx
+**/*.safetensors
+**/*.sqlite*
+**/*.db
+**/*.ipynb
+**/.env
+**/.env.*
+**/gha-creds-*.json

@@ -1,35 +1,42 @@
 from __future__ import annotations
 
 import hmac
-import io
-import json
 import logging
 import os
 import shutil
 import sqlite3
-import tempfile
+import sys
 import time
 import uuid
-import zipfile
 from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-import pydicom
-from fastapi import Cookie, Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import Cookie, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from PIL import Image
 from pydantic import BaseModel, Field
-from starlette.concurrency import run_in_threadpool
 
-from backend.ingest import MAX_SESSION_BYTES, UploadLimitExceeded, stage_and_validate_uploads
-from backend.rate_limits import enforce_finalize_limits, enforce_upload_limits
+from backend.api.analysis import build_router as build_analysis_router
+from backend.api.series import build_router as build_series_router
+from backend.api.sessions import build_router as build_session_router
+from backend.api.studies import build_router as build_studies_router
+from backend.api.system import build_router as build_system_router
+from backend.api.uploads import build_router as build_uploads_router
+from backend.dicom_metadata import (
+    parse_metadata,  # noqa: F401 - injected into example and geometry services
+    parse_metadata_path,  # noqa: F401 - route modules receive this service from main
+    validate_series_geometry,  # noqa: F401 - injected into the geometry backfill service
+)
+from backend.dicom_rendering import render_preview  # noqa: F401
+from backend.example_study import seed_example, seed_example_archive
+from backend.geometry_backfill import refresh_geometry_records as backfill_geometry_records
+from backend.ingest import MAX_SESSION_BYTES, UploadLimitExceeded, stage_and_validate_uploads  # noqa: F401
 from backend.session_token import AnonymousSession, format_timestamp, hash_session_token, new_session_record, utc_now
-from backend.volume_geometry import volume_eligibility
+from backend.study_catalog import StudyCatalog
+from backend.volume_geometry import volume_eligibility  # noqa: F401
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.getenv("DATA_DIR", ROOT / "data"))
@@ -78,7 +85,7 @@ async def protect_cloud_mutations(request: Request, call_next: Any) -> Response:
             return JSONResponse({"detail": "Request origin is not allowed"}, status_code=403)
     return await call_next(request)
 
-GEOMETRY_TOLERANCE = 1e-3
+
 SESSION_IDLE_TTL_MINUTES = max(1, int(os.getenv("SESSION_IDLE_TTL_MINUTES", "60")))
 SESSION_MAX_TTL_HOURS = max(1, int(os.getenv("SESSION_MAX_TTL_HOURS", "4")))
 MAX_UPLOAD_BYTES = max(1, int(os.getenv("MAX_UPLOAD_MIB", "600"))) * 1024 * 1024
@@ -245,8 +252,12 @@ def init_db() -> None:
         if "owner_uid" not in study_columns:
             connection.execute("ALTER TABLE studies ADD COLUMN owner_uid TEXT")
         if "owner_session_id" not in study_columns:
-            connection.execute("ALTER TABLE studies ADD COLUMN owner_session_id TEXT REFERENCES anonymous_sessions(id) ON DELETE CASCADE")
-        connection.execute("CREATE INDEX IF NOT EXISTS idx_studies_session_created ON studies(owner_session_id, created_at)")
+            connection.execute(
+                "ALTER TABLE studies ADD COLUMN owner_session_id TEXT REFERENCES anonymous_sessions(id) ON DELETE CASCADE"
+            )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_studies_session_created ON studies(owner_session_id, created_at)"
+        )
 
 
 def remove_upload_roots(paths: list[str]) -> None:
@@ -385,7 +396,11 @@ def require_series_access(series_id: str, session: AnonymousSession) -> Any:
     if cloud_mode():
         row = metadata_store().get_series(series_id)
         study = metadata_store().get_study(row["study_id"]) if row else None
-        if not row or not study or (study["source"] != "sample" and study.get("owner_session_id") != session.session_id):
+        if (
+            not row
+            or not study
+            or (study["source"] != "sample" and study.get("owner_session_id") != session.session_id)
+        ):
             raise HTTPException(404, "Series not found")
         return {**row, "source": study["source"], "owner_session_id": study.get("owner_session_id")}
     with db() as connection:
@@ -404,7 +419,11 @@ def require_instance_access(instance_id: str, session: AnonymousSession) -> Any:
         row = metadata_store().get_instance(instance_id)
         series = metadata_store().get_series(row["series_id"]) if row else None
         study = metadata_store().get_study(series["study_id"]) if series else None
-        if not row or not study or (study["source"] != "sample" and study.get("owner_session_id") != session.session_id):
+        if (
+            not row
+            or not study
+            or (study["source"] != "sample" and study.get("owner_session_id") != session.session_id)
+        ):
             raise HTTPException(404, "DICOM instance not found")
         return {**row, "source": study["source"], "owner_session_id": study.get("owner_session_id")}
     with db() as connection:
@@ -419,546 +438,34 @@ def require_instance_access(instance_id: str, session: AnonymousSession) -> Any:
     return row
 
 
-def clean(value: Any) -> str:
-    if value is None:
-        return ""
-    return str(value).replace("\x00", "").strip()
-
-
-def dicom_number(value: Any, default: float = 0.0) -> float:
-    """Read a numeric DICOM value, including pydicom multi-value fields."""
-    candidate: Any = value
-    if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
-        candidate = next(iter(value), default)
-    try:
-        return float(candidate)
-    except (TypeError, ValueError):
-        return default
-
-
-def as_float_list(value: Any) -> list[float]:
-    try:
-        return [float(x) for x in value]
-    except (TypeError, ValueError):
-        return []
-
-
-def cross(a: list[float], b: list[float]) -> list[float]:
-    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
-
-
-def unit_vector(values: list[float]) -> list[float] | None:
-    if len(values) != 3:
-        return None
-    norm = float(np.linalg.norm(np.array(values, dtype=float)))
-    if norm <= GEOMETRY_TOLERANCE:
-        return None
-    return [float(value / norm) for value in values]
-
-
-def close_vector(left: list[float] | None, right: list[float] | None) -> bool:
-    return bool(left and right and len(left) == len(right) and np.allclose(left, right, atol=GEOMETRY_TOLERANCE, rtol=0))
-
-
-def geometry_from_dataset(ds: Any) -> dict[str, Any]:
-    iop = as_float_list(getattr(ds, "ImageOrientationPatient", []))
-    ipp = as_float_list(getattr(ds, "ImagePositionPatient", []))
-    spacing = as_float_list(getattr(ds, "PixelSpacing", []))
-    frame_uid = clean(getattr(ds, "FrameOfReferenceUID", "")) or None
-    rows = int(getattr(ds, "Rows", 0) or 0)
-    cols = int(getattr(ds, "Columns", 0) or 0)
-    row_direction = unit_vector(iop[:3]) if len(iop) == 6 else None
-    column_direction = unit_vector(iop[3:]) if len(iop) == 6 else None
-    normal = unit_vector(cross(row_direction, column_direction)) if row_direction and column_direction else None
-    issues: list[str] = []
-    if len(iop) != 6 or not row_direction or not column_direction or abs(float(np.dot(row_direction, column_direction))) > 0.02:
-        issues.append("invalid_orientation")
-    if len(ipp) != 3:
-        issues.append("missing_image_position")
-    if len(spacing) != 2 or any(value <= 0 for value in spacing):
-        issues.append("missing_pixel_spacing")
-    if not rows or not cols:
-        issues.append("missing_dimensions")
-    has_core_geometry = bool(normal and len(ipp) == 3 and len(spacing) == 2 and all(value > 0 for value in spacing) and rows and cols)
-    has_any_geometry = bool(iop or ipp or spacing)
-    status = "valid" if has_core_geometry and not [issue for issue in issues if issue != "missing_frame_of_reference"] else "partial" if has_any_geometry else "unknown"
-    if not frame_uid:
-        issues.append("missing_frame_of_reference")
-    position = float(np.dot(np.array(ipp, dtype=float), np.array(normal, dtype=float))) if len(ipp) == 3 and normal else None
-    return {
-        "status": status,
-        "frame_of_reference_uid": frame_uid,
-        "image_orientation_patient": iop if len(iop) == 6 else None,
-        "image_position_patient": ipp if len(ipp) == 3 else None,
-        "row_direction": row_direction,
-        "column_direction": column_direction,
-        "normal": normal,
-        "pixel_spacing": spacing if len(spacing) == 2 else None,
-        "slice_thickness": float(getattr(ds, "SliceThickness", 0) or 0) or None,
-        "spacing_between_slices": float(getattr(ds, "SpacingBetweenSlices", 0) or 0) or None,
-        "position": position,
-        "issues": sorted(set(issues)),
-    }
-
-
-def plane_for(ds: Any) -> str:
-    iop = as_float_list(getattr(ds, "ImageOrientationPatient", []))
-    if len(iop) != 6:
-        return "UNKNOWN"
-    normal = cross(iop[:3], iop[3:])
-    axis = int(np.argmax(np.abs(normal)))
-    return ["SAG", "COR", "AX"][axis]
-
-
-def physical_position(ds: Any) -> float | None:
-    ipp = as_float_list(getattr(ds, "ImagePositionPatient", []))
-    iop = as_float_list(getattr(ds, "ImageOrientationPatient", []))
-    if len(ipp) != 3 or len(iop) != 6:
-        return None
-    normal = cross(iop[:3], iop[3:])
-    return float(np.dot(np.array(ipp), np.array(normal)))
-
-
-def parse_metadata(raw: bytes) -> dict[str, Any]:
-    return metadata_from_dataset(pydicom.dcmread(io.BytesIO(raw), stop_before_pixels=True, force=False))
-
-
-def parse_metadata_path(path: Path) -> dict[str, Any]:
-    return metadata_from_dataset(pydicom.dcmread(path, stop_before_pixels=True, force=False))
-
-
-def metadata_from_dataset(ds: Any) -> dict[str, Any]:
-    study_uid = clean(getattr(ds, "StudyInstanceUID", ""))
-    series_uid = clean(getattr(ds, "SeriesInstanceUID", ""))
-    if not study_uid or not series_uid:
-        raise ValueError("Missing StudyInstanceUID or SeriesInstanceUID")
-    geometry = geometry_from_dataset(ds)
-    return {
-        "study_uid": study_uid,
-        "series_uid": series_uid,
-        "sop_uid": clean(getattr(ds, "SOPInstanceUID", "")),
-        "description": clean(getattr(ds, "SeriesDescription", "")),
-        "plane": plane_for(ds),
-        "position": geometry["position"],
-        "instance_number": int(getattr(ds, "InstanceNumber", 0) or 0),
-        "rows": int(getattr(ds, "Rows", 0) or 0),
-        "cols": int(getattr(ds, "Columns", 0) or 0),
-        "spacing": geometry["pixel_spacing"] or [],
-        "geometry": geometry,
-        "geometry_status": geometry["status"],
-    }
-
-
-def validate_series_geometry(items: list[tuple[dict[str, Any], Path]]) -> dict[str, Any]:
-    geometries = [metadata["geometry"] for metadata, _ in items]
-    known = [geometry for geometry in geometries if geometry["status"] != "unknown"]
-    if not known:
-        return {"status": "unknown", "mapping_ready": False, "warnings": ["geometry_unavailable"]}
-
-    warnings = sorted({issue for geometry in geometries for issue in geometry["issues"]})
-    complete = all(geometry["status"] == "valid" for geometry in geometries)
-    first = next((geometry for geometry in geometries if geometry["status"] == "valid"), known[0])
-    conflicts: list[str] = []
-    frame_uids = {geometry["frame_of_reference_uid"] for geometry in geometries if geometry["frame_of_reference_uid"]}
-    planes = {metadata["plane"] for metadata, _ in items if metadata["plane"] != "UNKNOWN"}
-    dimensions = {(metadata["rows"], metadata["cols"]) for metadata, _ in items if metadata["rows"] and metadata["cols"]}
-    orientations = [geometry["image_orientation_patient"] for geometry in geometries if geometry["image_orientation_patient"]]
-    spacings = [geometry["pixel_spacing"] for geometry in geometries if geometry["pixel_spacing"]]
-    if len(frame_uids) > 1:
-        conflicts.append("frame_of_reference_mismatch")
-    if len(planes) > 1:
-        conflicts.append("plane_mismatch")
-    if len(dimensions) > 1:
-        conflicts.append("dimension_mismatch")
-    if orientations and any(not close_vector(orientation, orientations[0]) for orientation in orientations[1:]):
-        conflicts.append("orientation_mismatch")
-    if spacings and any(not close_vector(spacing, spacings[0]) for spacing in spacings[1:]):
-        conflicts.append("pixel_spacing_mismatch")
-    positions = sorted(geometry["position"] for geometry in geometries if geometry["position"] is not None)
-    if len(positions) > 1:
-        position_diffs = np.diff(np.array(positions, dtype=float))
-        if any(abs(float(diff)) <= GEOMETRY_TOLERANCE for diff in position_diffs):
-            conflicts.append("duplicate_slice_position")
-        positive_diffs = [abs(float(diff)) for diff in position_diffs if abs(float(diff)) > GEOMETRY_TOLERANCE]
-        slice_spacing = float(np.median(positive_diffs)) if positive_diffs else None
-    else:
-        slice_spacing = None
-    status = "incompatible" if conflicts else "valid" if complete else "partial"
-    warnings = sorted(set(warnings + conflicts))
-    series_geometry_ready = status == "valid"
-    if status == "valid" and not frame_uids:
-        warnings.append("missing_frame_of_reference")
-    return {
-        "status": status,
-        "series_geometry_ready": series_geometry_ready,
-        "mapping_ready": False,
-        "frame_of_reference_uid": next(iter(frame_uids), None),
-        "image_orientation_patient": first["image_orientation_patient"],
-        "normal": first["normal"],
-        "position_range": [positions[0], positions[-1]] if positions else None,
-        "slice_spacing": slice_spacing,
-        "warnings": sorted(set(warnings)),
-    }
-
-
-def summarize_study_geometry(series: list[dict[str, Any]]) -> dict[str, Any]:
-    geometries = [series_item.get("geometry", {}) for series_item in series]
-    valid = [geometry for geometry in geometries if geometry.get("status") == "valid"]
-    frame_uids = {geometry.get("frame_of_reference_uid") for geometry in valid if geometry.get("frame_of_reference_uid")}
-    warnings: list[str] = []
-    if not valid:
-        status = "unknown"
-        warnings.append("no_series_with_valid_geometry")
-    elif len(valid) != len(geometries):
-        status = "partial"
-        warnings.append("some_series_geometry_unavailable")
-    elif len(frame_uids) > 1:
-        status = "incompatible"
-        warnings.append("frame_of_reference_mismatch")
-    else:
-        status = "valid"
-    mapping_ready = status == "valid" and len(valid) >= 2 and len(frame_uids) == 1
-    if status == "valid" and not mapping_ready:
-        warnings.append("cross_series_mapping_requires_shared_frame_of_reference")
-    return {
-        "status": status,
-        "mapping_ready": mapping_ready,
-        "valid_series_count": len(valid),
-        "series_count": len(geometries),
-        "frame_of_reference_uids": sorted(frame_uids),
-        "warnings": sorted(set(warnings)),
-    }
-
-
 def study_name(ds_meta: dict[str, Any], source: str) -> str:
     if source == "sample":
         return "Example Knee Study"
     return f"Imported Study · {ds_meta['study_uid'][-8:]}"
 
 
-def insert_study(
-    *,
-    study_uid: str,
-    display_name: str,
-    source: str,
-    files: list[tuple[dict[str, Any], Path]],
-    study_id: str | None = None,
-    owner_session_id: str | None = None,
-) -> str:
-    study_id = study_id or f"study-{uuid.uuid4().hex[:12]}"
-    grouped: dict[str, list[tuple[dict[str, Any], Path]]] = {}
-    for metadata, path in files:
-        grouped.setdefault(metadata["series_uid"], []).append((metadata, path))
-    if cloud_mode():
-        series_rows: list[dict[str, Any]] = []
-        instance_rows: list[dict[str, Any]] = []
-        store = object_store()
-        for series_uid, items in grouped.items():
-            first = items[0][0]
-            series_id = f"series-{uuid.uuid4().hex[:12]}"
-            series_geometry = validate_series_geometry(items)
-            has_positions = all(item[0]["position"] is not None for item in items)
-            series_rows.append(
-                {
-                    "id": series_id,
-                    "study_id": study_id,
-                    "series_uid": series_uid,
-                    "description": first["description"],
-                    "plane": first["plane"],
-                    "slice_count": len(items),
-                    "rows": first["rows"],
-                    "cols": first["cols"],
-                    "spacing": ",".join(map(str, first["spacing"])),
-                    "sort_method": "physical_position" if has_positions else "instance_number",
-                    "geometry_status": series_geometry["status"],
-                    "geometry_json": json.dumps(series_geometry, separators=(",", ":")),
-                    "preview_status": "lazy",
-                }
-            )
-            ordered = sorted(items, key=lambda item: (item[0]["position"] is None, item[0]["position"] or 0, item[0]["instance_number"]))
-            for metadata, local_path in ordered:
-                instance_id = f"instance-{uuid.uuid4().hex[:12]}"
-                object_name = f"sessions/{owner_session_id or 'examples'}/studies/{study_id}/{series_id}/{instance_id}.dcm"
-                stored_path = store.upload_file(local_path, object_name)
-                instance_rows.append(
-                    {
-                        "id": instance_id,
-                        "series_id": series_id,
-                        "filename": local_path.name,
-                        "path": stored_path,
-                        "size_bytes": local_path.stat().st_size,
-                        "sop_uid": metadata["sop_uid"],
-                        "instance_number": metadata["instance_number"],
-                        "position": metadata["position"],
-                        "rows": metadata["rows"],
-                        "cols": metadata["cols"],
-                        "spacing": ",".join(map(str, metadata["spacing"])),
-                    }
-                )
-        metadata_store().put_study(
-            {
-                "id": study_id,
-                "study_uid": study_uid,
-                "display_name": display_name,
-                "source": source,
-                "created_at": now(),
-                "owner_uid": None,
-                "owner_session_id": owner_session_id,
-            },
-            series_rows,
-            instance_rows,
-        )
-        return study_id
-    with db() as connection:
-        connection.execute(
-            "INSERT OR REPLACE INTO studies(id, study_uid, display_name, source, created_at, owner_session_id) VALUES (?, ?, ?, ?, ?, ?)",
-            (study_id, study_uid, display_name, source, now(), owner_session_id),
-        )
-        for series_uid, items in grouped.items():
-            first = items[0][0]
-            series_id = f"series-{uuid.uuid4().hex[:12]}"
-            series_geometry = validate_series_geometry(items)
-            has_positions = all(item[0]["position"] is not None for item in items)
-            sort_method = "physical_position" if has_positions else "instance_number"
-            geometry_status = series_geometry["status"]
-            connection.execute(
-                "INSERT INTO series(id, study_id, series_uid, description, plane, slice_count, rows, cols, spacing, sort_method, geometry_status, geometry_json, preview_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    series_id,
-                    study_id,
-                    series_uid,
-                    first["description"],
-                    first["plane"],
-                    len(items),
-                    first["rows"],
-                    first["cols"],
-                    ",".join(map(str, first["spacing"])),
-                    sort_method,
-                    geometry_status,
-                    json.dumps(series_geometry, separators=(",", ":")),
-                    "lazy",
-                ),
-            )
-            ordered = sorted(items, key=lambda item: (item[0]["position"] is None, item[0]["position"] or 0, item[0]["instance_number"]))
-            for metadata, path in ordered:
-                connection.execute(
-                    "INSERT INTO instances(id, series_id, filename, path, sop_uid, instance_number, position, rows, cols, spacing) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        f"instance-{uuid.uuid4().hex[:12]}",
-                        series_id,
-                        path.name,
-                        str(path),
-                        metadata["sop_uid"],
-                        metadata["instance_number"],
-                        metadata["position"],
-                        metadata["rows"],
-                        metadata["cols"],
-                        ",".join(map(str, metadata["spacing"])),
-                    ),
-                )
-    return study_id
+def _catalog() -> StudyCatalog:
+    return StudyCatalog(sys.modules[__name__])
 
 
-def study_payload(study_row: sqlite3.Row) -> dict[str, Any]:
-    if cloud_mode():
-        series_rows = metadata_store().list_series(study_row["id"])
-        result_series = []
-        for series_row in series_rows:
-            instance_rows = metadata_store().list_instances(series_row["id"])
-            try:
-                geometry = json.loads(series_row.get("geometry_json") or "{}")
-            except json.JSONDecodeError:
-                geometry = {}
-            geometry.setdefault("status", series_row.get("geometry_status") or "unknown")
-            geometry.setdefault("mapping_ready", False)
-            result_series.append(
-                {
-                    "id": series_row["id"],
-                    "series_uid": series_row["series_uid"],
-                    "description": series_row.get("description") or "DICOM series",
-                    "plane": series_row["plane"],
-                    "slice_count": len(instance_rows),
-                    "rows": series_row.get("rows"),
-                    "cols": series_row.get("cols"),
-                    "spacing": [float(x) for x in (series_row.get("spacing") or "").split(",") if x],
-                    "sort_method": series_row.get("sort_method") or "instance_number",
-                    "geometry_status": geometry["status"],
-                    "geometry": geometry,
-                    "preview_status": series_row.get("preview_status") or "lazy",
-                }
-            )
-    else:
-        with db() as connection:
-            series_rows = connection.execute("SELECT * FROM series WHERE study_id = ? ORDER BY rowid", (study_row["id"],)).fetchall()
-            result_series = []
-            for series_row in series_rows:
-                count = connection.execute("SELECT COUNT(*) AS count FROM instances WHERE series_id = ?", (series_row["id"],)).fetchone()["count"]
-                try:
-                    geometry = json.loads(series_row["geometry_json"] or "{}")
-                except json.JSONDecodeError:
-                    geometry = {}
-                geometry.setdefault("status", series_row["geometry_status"] or "unknown")
-                geometry.setdefault("mapping_ready", False)
-                result_series.append(
-                    {
-                        "id": series_row["id"],
-                        "series_uid": series_row["series_uid"],
-                        "description": series_row["description"] or "DICOM series",
-                        "plane": series_row["plane"],
-                        "slice_count": count,
-                        "rows": series_row["rows"],
-                        "cols": series_row["cols"],
-                        "spacing": [float(x) for x in (series_row["spacing"] or "").split(",") if x],
-                        "sort_method": series_row["sort_method"] or "instance_number",
-                        "geometry_status": geometry["status"],
-                        "geometry": geometry,
-                        "preview_status": series_row["preview_status"] or "lazy",
-                    }
-                )
-    study_geometry = summarize_study_geometry(result_series)
-    return {
-        "id": study_row["id"],
-        "study_uid": study_row["study_uid"],
-        "display_name": study_row["display_name"],
-        "source": study_row["source"],
-        "created_at": study_row["created_at"],
-        "series": result_series,
-        "total_slices": sum(series["slice_count"] for series in result_series),
-        "geometry": study_geometry,
-        "pipeline": {
-            "status": "READY",
-            "stages": [
-                {"key": "validate", "label": "DICOM validation", "status": "complete"},
-                {"key": "metadata", "label": "Metadata extraction", "status": "complete"},
-                {"key": "group", "label": "Study / Series grouping", "status": "complete"},
-                {"key": "sort", "label": "Geometry-aware slice sort", "status": "complete"},
-                {"key": "preview", "label": "Pixel preview rendering", "status": "on_demand"},
-            ],
-        },
-    }
+def insert_study(**kwargs: Any) -> str:
+    return _catalog().insert_study(**kwargs)
+
+
+def study_payload(study_row: Any) -> dict[str, Any]:
+    return _catalog().payload(study_row)
 
 
 def seed_sample() -> None:
-    if cloud_mode():
-        # Cloud examples should be provisioned as reviewed, immutable bucket data.
-        return
-    if not EXAMPLES_DIR.exists():
-        return
-    archive = next(
-        (
-            candidate
-            for candidate in [EXAMPLES_DIR / "results.zip", EXAMPLES_DIR / "result.zip"]
-            if candidate.is_file()
-        ),
-        None,
-    )
-    with db() as connection:
-        sample_row = connection.execute("SELECT id FROM studies WHERE source = 'sample' LIMIT 1").fetchone()
-        if sample_row:
-            sample_paths = connection.execute(
-                "SELECT path FROM instances WHERE series_id IN (SELECT id FROM series WHERE study_id = ?)",
-                (sample_row["id"],),
-            ).fetchall()
-            if sample_paths and all(Path(row["path"]).is_file() for row in sample_paths):
-                return
-            if archive is None:
-                return
-            connection.execute("DELETE FROM studies WHERE id = ?", (sample_row["id"],))
-    if archive is not None:
-        seed_sample_archive(archive)
-        return
-    dicom_files = sorted(EXAMPLES_DIR.rglob("*.dcm"))
-    if not dicom_files:
-        return
-    parsed: list[tuple[dict[str, Any], Path]] = []
-    for path in dicom_files:
-        try:
-            parsed.append((parse_metadata(path.read_bytes()), path.resolve()))
-        except Exception:
-            continue
-    if not parsed:
-        return
-    study_uids = {item[0]["study_uid"] for item in parsed}
-    if len(study_uids) != 1:
-        return
-    insert_study(study_uid=next(iter(study_uids)), display_name="Example Knee Study", source="sample", files=parsed, study_id="sample-knee")
+    seed_example(sys.modules[__name__])
 
 
 def seed_sample_archive(archive: Path) -> None:
-    sample_root = STORAGE_DIR / "sample-archive"
-    shutil.rmtree(sample_root, ignore_errors=True)
-    sample_root.mkdir(parents=True, exist_ok=True)
-    parsed: list[tuple[dict[str, Any], Path]] = []
-    try:
-        with zipfile.ZipFile(archive) as source:
-            members = [member for member in source.infolist() if not member.is_dir() and member.filename.lower().endswith(".dcm")]
-            for index, member in enumerate(members):
-                raw = source.read(member)
-                try:
-                    metadata = parse_metadata(raw)
-                except Exception:
-                    continue
-                target = sample_root / f"slice-{index:05d}.dcm"
-                target.write_bytes(raw)
-                parsed.append((metadata, target.resolve()))
-    except (zipfile.BadZipFile, OSError, RuntimeError):
-        shutil.rmtree(sample_root, ignore_errors=True)
-        return
-    if not parsed or len({item[0]["study_uid"] for item in parsed}) != 1:
-        shutil.rmtree(sample_root, ignore_errors=True)
-        return
-    insert_study(study_uid=parsed[0][0]["study_uid"], display_name="Example Knee Study", source="sample", files=parsed, study_id="sample-knee")
+    seed_example_archive(sys.modules[__name__], archive)
 
 
 def refresh_geometry_records() -> None:
-    """Backfill geometry for rows created before the geometry manifest existed."""
-    if cloud_mode():
-        return
-    with db() as connection:
-        series_rows = connection.execute("SELECT * FROM series ORDER BY rowid").fetchall()
-        for series_row in series_rows:
-            instance_rows = connection.execute("SELECT * FROM instances WHERE series_id = ? ORDER BY rowid", (series_row["id"],)).fetchall()
-            parsed: list[tuple[dict[str, Any], Path]] = []
-            for instance_row in instance_rows:
-                path = Path(instance_row["path"])
-                if not path.is_file():
-                    continue
-                try:
-                    metadata = parse_metadata(path.read_bytes())
-                except Exception:
-                    continue
-                parsed.append((metadata, path))
-                connection.execute(
-                    "UPDATE instances SET sop_uid = ?, instance_number = ?, position = ?, rows = ?, cols = ?, spacing = ? WHERE id = ?",
-                    (
-                        metadata["sop_uid"],
-                        metadata["instance_number"],
-                        metadata["position"],
-                        metadata["rows"],
-                        metadata["cols"],
-                        ",".join(map(str, metadata["spacing"])),
-                        instance_row["id"],
-                    ),
-                )
-            if not parsed:
-                continue
-            first = parsed[0][0]
-            geometry = validate_series_geometry(parsed)
-            sort_method = "physical_position" if all(metadata["position"] is not None for metadata, _ in parsed) else "instance_number"
-            connection.execute(
-                "UPDATE series SET plane = ?, rows = ?, cols = ?, spacing = ?, sort_method = ?, geometry_status = ?, geometry_json = ?, slice_count = ? WHERE id = ?",
-                (
-                    first["plane"],
-                    first["rows"],
-                    first["cols"],
-                    ",".join(map(str, first["spacing"])),
-                    sort_method,
-                    geometry["status"],
-                    json.dumps(geometry, separators=(",", ":")),
-                    len(instance_rows),
-                    series_row["id"],
-                ),
-            )
+    backfill_geometry_records(sys.modules[__name__])
 
 
 @app.on_event("startup")
@@ -969,504 +476,12 @@ def startup() -> None:
     refresh_geometry_records()
 
 
-@app.get("/api/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "service": "knee-review"}
-
-
-@app.post("/internal/cleanup")
-def scheduled_cleanup(request: Request) -> dict[str, int]:
-    if not cloud_mode():
-        raise HTTPException(404, "Scheduled cleanup is available only in Cloud Run mode")
-    expected_audience = os.getenv("CLEANUP_OIDC_AUDIENCE", "").strip()
-    expected_email = os.getenv("CLEANUP_SCHEDULER_EMAIL", "").strip().lower()
-    authorization = request.headers.get("authorization", "")
-    scheme, _, token = authorization.partition(" ")
-    token = token.strip()
-    if not expected_audience or not expected_email or scheme.lower() != "bearer" or not token:
-        raise HTTPException(401, "Cleanup service authentication is not configured")
-    try:
-        from google.auth.transport.requests import Request as GoogleAuthRequest
-        from google.oauth2 import id_token
-
-        claims = id_token.verify_oauth2_token(token, GoogleAuthRequest(), audience=expected_audience)
-    except Exception as exc:
-        raise HTTPException(401, "Invalid cleanup service identity token") from exc
-    token_email = claims.get("email")
-    if not isinstance(token_email, str) or token_email.lower() != expected_email or claims.get("email_verified") is not True:
-        raise HTTPException(403, "Cleanup service identity is not authorized")
-
-    result = cleanup_expired_sessions(force=True, limit=20)
-    if result["failures"]:
-        raise HTTPException(503, {"message": "Some expired sessions need cleanup retry", **result})
-    return result
-
-
-@app.post("/api/sessions")
-def start_session(response: Response, request: Request) -> dict[str, str]:
-    cleanup_expired_sessions()
-    session_data = create_anonymous_session()
-    response.set_cookie(
-        "knee_session",
-        session_data.pop("session_token"),
-        httponly=True,
-        secure=cloud_mode() or request.url.scheme == "https" or os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true",
-        samesite="none" if cloud_mode() else "lax",
-        path="/api",
-    )
-    return session_data
-
-
-@app.get("/api/sessions/current")
-def current_session(session: AnonymousSession = Depends(get_current_session)) -> dict[str, str]:
-    if cloud_mode():
-        row = metadata_store().get_session(session.session_id)
-        if not row:
-            raise HTTPException(401, "Temporary session expired; start a new session")
-        return {"idle_expires_at": row["idle_expires_at"], "absolute_expires_at": session.absolute_expires_at}
-    with db() as connection:
-        row = connection.execute(
-            "SELECT idle_expires_at FROM anonymous_sessions WHERE id = ?",
-            (session.session_id,),
-        ).fetchone()
-    if not row:
-        raise HTTPException(401, "Temporary session expired; start a new session")
-    return {"idle_expires_at": row["idle_expires_at"], "absolute_expires_at": session.absolute_expires_at}
-
-
-@app.delete("/api/sessions/current", status_code=204)
-def clear_current_session(request: Request, session: AnonymousSession = Depends(get_current_session)) -> Response:
-    if cloud_mode():
-        store = metadata_store()
-        try:
-            for study in store.session_studies(session.session_id):
-                delete_cloud_study_data(study["id"])
-            for upload in store.session_pending_uploads(session.session_id):
-                delete_cloud_pending_upload(upload)
-            store.delete_session(session.session_id)
-        except Exception as exc:
-            raise HTTPException(503, "Could not fully clear this workspace. Retry Clear session.") from exc
-        response = Response(status_code=204)
-        response.delete_cookie("knee_session", path="/api", secure=True, httponly=True, samesite="none")
-        return response
-    with db() as connection:
-        paths = connection.execute(
-            "SELECT instances.path FROM instances JOIN series ON series.id = instances.series_id "
-            "JOIN studies ON studies.id = series.study_id WHERE studies.owner_session_id = ?",
-            (session.session_id,),
-        ).fetchall()
-        connection.execute("DELETE FROM anonymous_sessions WHERE id = ?", (session.session_id,))
-    remove_upload_roots([row["path"] for row in paths])
-    response = Response(status_code=204)
-    response.delete_cookie(
-        "knee_session",
-        path="/api",
-        secure=request.url.scheme == "https" or os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true",
-        httponly=True,
-        samesite="lax",
-    )
-    return response
-
-
-@app.get("/api/studies")
-def list_studies(session: AnonymousSession = Depends(get_current_session)) -> list[dict[str, Any]]:
-    if cloud_mode():
-        rows = metadata_store().list_studies(session.session_id)
-        rows.sort(key=lambda row: (row.get("source") != "sample", row.get("created_at", "")))
-        return [study_payload(row) for row in rows]
-    with db() as connection:
-        rows = connection.execute(
-            "SELECT * FROM studies WHERE source = 'sample' OR owner_session_id = ? ORDER BY source DESC, created_at DESC",
-            (session.session_id,),
-        ).fetchall()
-    return [study_payload(row) for row in rows]
-
-
-@app.get("/api/studies/{study_id}")
-def get_study(study_id: str, session: AnonymousSession = Depends(get_current_session)) -> dict[str, Any]:
-    row = require_study_access(study_id, session)
-    return study_payload(row)
-
-
-@app.get("/api/studies/{study_id}/pipeline")
-def get_study_pipeline(study_id: str, session: AnonymousSession = Depends(get_current_session)) -> dict[str, Any]:
-    row = require_study_access(study_id, session)
-    return {"study_id": study_id, **study_payload(row)["pipeline"]}
-
-
-@app.get("/api/series/{series_id}/geometry")
-def get_series_geometry(series_id: str, session: AnonymousSession = Depends(get_current_session)) -> dict[str, Any]:
-    require_series_access(series_id, session)
-    if cloud_mode():
-        row = metadata_store().get_series(series_id)
-        if not row:
-            raise HTTPException(404, "Series not found")
-        try:
-            geometry = json.loads(row.get("geometry_json") or "{}")
-        except json.JSONDecodeError:
-            geometry = {}
-        geometry.setdefault("status", row.get("geometry_status") or "unknown")
-        geometry.setdefault("mapping_ready", False)
-        return {"series_id": row["id"], **geometry}
-    with db() as connection:
-        row = connection.execute("SELECT id, geometry_status, geometry_json FROM series WHERE id = ?", (series_id,)).fetchone()
-    if not row:
-        raise HTTPException(404, "Series not found")
-    try:
-        geometry = json.loads(row["geometry_json"] or "{}")
-    except json.JSONDecodeError:
-        geometry = {}
-    geometry.setdefault("status", row["geometry_status"] or "unknown")
-    geometry.setdefault("mapping_ready", False)
-    return {"series_id": row["id"], **geometry}
-
-
-def session_upload_bytes(session_id: str) -> int:
-    if cloud_mode():
-        total = 0
-        for study in metadata_store().session_studies(session_id):
-            for series in metadata_store().list_series(study["id"]):
-                for instance in metadata_store().list_instances(series["id"]):
-                    total += int(instance.get("size_bytes", 0))
-        return total
-    with db() as connection:
-        paths = connection.execute(
-            "SELECT instances.path FROM instances JOIN series ON series.id = instances.series_id "
-            "JOIN studies ON studies.id = series.study_id WHERE studies.owner_session_id = ?",
-            (session_id,),
-        ).fetchall()
-    unique_paths = {row["path"] for row in paths}
-    return sum(Path(path).stat().st_size for path in unique_paths if Path(path).is_file())
-
-
-@app.post("/api/uploads/resumable")
-def create_resumable_upload(
-    body: ResumableUploadRequest,
-    request: Request,
-    session: AnonymousSession = Depends(get_current_session),
-) -> dict[str, str]:
-    if not cloud_mode():
-        raise HTTPException(404, "Resumable upload is available only on the Cloud Storage deployment")
-    enforce_upload_limits(metadata_store(), session.session_id)
-    filename = Path(body.filename).name
-    if not filename.lower().endswith((".dcm", ".zip")):
-        raise HTTPException(400, "Only .dcm files or .zip archives are supported")
-    pending = metadata_store().session_pending_uploads(session.session_id)
-    pending_bytes = sum(int(item.get("size", 0)) for item in pending)
-    active_uploads = [item for item in pending if item.get("status", "uploading") == "uploading"]
-    if len(active_uploads) >= 3:
-        raise HTTPException(429, "Finish or cancel a pending upload before starting another", headers={"Retry-After": "60"})
-    if pending_bytes + body.size > MAX_SESSION_BYTES:
-        raise HTTPException(413, "Temporary session upload limit reached")
-    if session_upload_bytes(session.session_id) + pending_bytes + body.size > MAX_SESSION_BYTES:
-        raise HTTPException(413, f"Temporary session is limited to {MAX_SESSION_BYTES // (1024 * 1024)} MiB total")
-
-    upload_id = uuid.uuid4().hex
-    extension = ".zip" if filename.lower().endswith(".zip") else ".dcm"
-    object_name = f"incoming/{session.session_id}/{upload_id}{extension}"
-    stored_filename = f"upload-{upload_id}{extension}"
-    content_type = "application/zip" if filename.lower().endswith(".zip") else "application/dicom"
-    try:
-        upload_url = object_store().create_resumable_upload(
-            object_name,
-            content_type=content_type,
-            origin=request.headers.get("origin"),
-            size=body.size,
-        )
-    except Exception as exc:
-        raise HTTPException(503, "Could not start secure Cloud Storage upload") from exc
-    metadata_store().create_pending_upload(
-        upload_id,
-        {
-            "id": upload_id,
-            "owner_session_id": session.session_id,
-            "object_name": object_name,
-            "filename": stored_filename,
-            "size": body.size,
-            "status": "uploading",
-            "created_at": now(),
-        },
-    )
-    return {"upload_id": upload_id, "upload_url": upload_url, "content_type": content_type}
-
-
-@app.post("/api/uploads/{upload_id}/complete")
-def complete_resumable_upload(
-    upload_id: str,
-    session: AnonymousSession = Depends(get_current_session),
-) -> dict[str, str]:
-    if not cloud_mode():
-        raise HTTPException(404, "Resumable upload is available only on the Cloud Storage deployment")
-    store = metadata_store()
-    row = store.get_pending_upload(upload_id)
-    if not row or row.get("owner_session_id") != session.session_id:
-        raise HTTPException(404, "Upload session not found or expired")
-    object_uri = f"gs://{object_store().bucket_name}/{row['object_name']}"
-    try:
-        actual_size = object_store().size_uri(object_uri)
-    except Exception as exc:
-        raise HTTPException(400, "Uploaded object is not complete") from exc
-    if actual_size != int(row["size"]):
-        raise HTTPException(400, "Uploaded file size mismatch")
-    store.update_pending_upload(upload_id, {"status": "uploaded", "uploaded_at": now()})
-    return {"upload_id": upload_id, "status": "uploaded"}
-
-
-@app.post("/api/studies/finalize-upload")
-def finalize_resumable_uploads(
-    body: FinalizeUploadsRequest,
-    session: AnonymousSession = Depends(get_current_session),
-) -> dict[str, Any]:
-    if not cloud_mode():
-        raise HTTPException(404, "Resumable upload is available only on the Cloud Storage deployment")
-    if len(set(body.upload_ids)) != len(body.upload_ids):
-        raise HTTPException(400, "Duplicate upload IDs are not allowed")
-    enforce_finalize_limits(metadata_store(), session.session_id)
-
-    pending_rows: list[dict[str, Any]] = []
-    for upload_id in body.upload_ids:
-        row = metadata_store().get_pending_upload(upload_id)
-        if not row or row.get("owner_session_id") != session.session_id:
-            raise HTTPException(404, "Upload session not found or expired")
-        if row.get("status") != "uploaded":
-            raise HTTPException(409, "Upload must finish before it can be finalized")
-        pending_rows.append(row)
-
-    upload_root = STORAGE_DIR / f"upload-{uuid.uuid4().hex[:12]}"
-    staged_uploads: list[UploadFile] = []
-    try:
-        with tempfile.TemporaryDirectory(prefix="knee-incoming-") as temporary_directory:
-            temp_root = Path(temporary_directory)
-            for index, row in enumerate(pending_rows):
-                object_uri = f"gs://{object_store().bucket_name}/{row['object_name']}"
-                try:
-                    actual_size = object_store().size_uri(object_uri)
-                except Exception as exc:
-                    raise HTTPException(400, f"Uploaded object is unavailable: {row['filename']}") from exc
-                if actual_size != int(row["size"]):
-                    raise HTTPException(400, f"Uploaded file size mismatch: {row['filename']}")
-                extension = Path(row["filename"]).suffix.lower()
-                safe_filename = f"upload-{index:04d}{extension}"
-                local = object_store().download_file(object_uri, temp_root / safe_filename)
-                staged_uploads.append(UploadFile(filename=safe_filename, file=local.open("rb")))
-
-            accepted, rejected = stage_and_validate_uploads(staged_uploads, upload_root, parse_metadata_path)
-            if not accepted:
-                raise HTTPException(400, {"message": "No valid DICOM files were found", "rejected": rejected})
-            accepted_bytes = sum(path.stat().st_size for _, path in accepted if path.is_file())
-            if session_upload_bytes(session.session_id) + accepted_bytes > MAX_SESSION_BYTES:
-                raise HTTPException(413, f"Temporary session is limited to {MAX_SESSION_BYTES // (1024 * 1024)} MiB total")
-
-            created: list[str] = []
-            for study_uid in sorted({item[0]["study_uid"] for item in accepted}):
-                group = [item for item in accepted if item[0]["study_uid"] == study_uid]
-                created.append(
-                    insert_study(
-                        study_uid=study_uid,
-                        display_name=study_name(group[0][0], "upload"),
-                        source="upload",
-                        files=group,
-                        owner_session_id=session.session_id,
-                    )
-                )
-            return {"study_ids": created, "accepted_files": len(accepted), "rejected": rejected}
-    except UploadLimitExceeded as exc:
-        raise HTTPException(413, str(exc)) from exc
-    finally:
-        for upload in staged_uploads:
-            upload.file.close()
-        shutil.rmtree(upload_root, ignore_errors=True)
-        for row in pending_rows:
-            object_uri = f"gs://{object_store().bucket_name}/{row['object_name']}"
-            try:
-                object_store().delete_uri(object_uri)
-                metadata_store().delete_pending_upload(row["id"])
-            except Exception:
-                logger.exception("Failed to clean up a finalized-upload object; metadata retained for retry")
-
-
-@app.post("/api/studies/upload")
-async def upload_study(
-    files: list[UploadFile] = File(...),
-    session: AnonymousSession = Depends(get_current_session),
-) -> dict[str, Any]:
-    if cloud_mode():
-        raise HTTPException(413, "Use the resumable Cloud Storage upload flow for cloud studies")
-    upload_root = STORAGE_DIR / f"upload-{uuid.uuid4().hex[:12]}"
-    try:
-        accepted, rejected = await run_in_threadpool(stage_and_validate_uploads, files, upload_root, parse_metadata_path)
-        if not accepted:
-            raise HTTPException(400, {"message": "No valid DICOM files were found", "rejected": rejected})
-        accepted_bytes = sum(path.stat().st_size for _, path in accepted if path.is_file())
-        if session_upload_bytes(session.session_id) + accepted_bytes > MAX_SESSION_BYTES:
-            raise UploadLimitExceeded(f"Temporary session is limited to {MAX_SESSION_BYTES // (1024 * 1024)} MiB total")
-
-        created: list[str] = []
-        for study_uid in sorted({item[0]["study_uid"] for item in accepted}):
-            group = [item for item in accepted if item[0]["study_uid"] == study_uid]
-            created.append(
-                insert_study(
-                    study_uid=study_uid,
-                    display_name=study_name(group[0][0], "upload"),
-                    source="upload",
-                    files=group,
-                    owner_session_id=session.session_id,
-                )
-            )
-        return {"study_ids": created, "accepted_files": len(accepted), "rejected": rejected}
-    except UploadLimitExceeded as exc:
-        shutil.rmtree(upload_root, ignore_errors=True)
-        raise HTTPException(413, str(exc)) from exc
-    except HTTPException:
-        shutil.rmtree(upload_root, ignore_errors=True)
-        raise
-    except Exception:
-        shutil.rmtree(upload_root, ignore_errors=True)
-        raise
-
-
-@app.delete("/api/studies/{study_id}")
-def delete_study(study_id: str, session: AnonymousSession = Depends(get_current_session)) -> dict[str, str]:
-    if cloud_mode():
-        store = metadata_store()
-        row = store.get_study(study_id)
-        if not row:
-            raise HTTPException(404, "Study not found")
-        if row["source"] == "sample":
-            raise HTTPException(409, "The example study is read-only")
-        if row.get("owner_session_id") != session.session_id:
-            raise HTTPException(404, "Study not found")
-        try:
-            delete_cloud_study_data(study_id)
-        except Exception as exc:
-            raise HTTPException(503, "Could not fully delete this study. Retry the delete action.") from exc
-        return {"status": "deleted", "study_id": study_id}
-    with db() as connection:
-        row = connection.execute("SELECT * FROM studies WHERE id = ?", (study_id,)).fetchone()
-        if not row:
-            raise HTTPException(404, "Study not found")
-        if row["source"] == "sample":
-            raise HTTPException(409, "The example study is read-only")
-        if row["owner_session_id"] != session.session_id:
-            raise HTTPException(404, "Study not found")
-        paths = connection.execute("SELECT path FROM instances WHERE series_id IN (SELECT id FROM series WHERE study_id = ?)", (study_id,)).fetchall()
-        connection.execute("DELETE FROM studies WHERE id = ?", (study_id,))
-    remove_upload_roots([path["path"] for path in paths])
-    return {"status": "deleted", "study_id": study_id}
-
-
-@app.get("/api/series/{series_id}/slices")
-def list_slices(series_id: str, session: AnonymousSession = Depends(get_current_session)) -> list[dict[str, Any]]:
-    require_series_access(series_id, session)
-    if cloud_mode():
-        rows = metadata_store().list_instances(series_id)
-        if not rows:
-            raise HTTPException(404, "Series not found")
-        return [
-            {
-                "index": index,
-                "id": row["id"],
-                "filename": row["filename"],
-                "instance_number": row.get("instance_number"),
-                "position": row.get("position"),
-                "image_url": api_url(f"/api/instances/{row['id']}/image"),
-                "dicom_url": api_url(f"/api/instances/{row['id']}/dicom"),
-            }
-            for index, row in enumerate(rows)
-        ]
-    with db() as connection:
-        rows = connection.execute("SELECT * FROM instances WHERE series_id = ? ORDER BY position IS NULL, position, instance_number, filename", (series_id,)).fetchall()
-    if not rows:
-        raise HTTPException(404, "Series not found")
-    return [
-        {
-            "index": index,
-            "id": row["id"],
-            "filename": row["filename"],
-            "instance_number": row["instance_number"],
-            "position": row["position"],
-            "image_url": api_url(f"/api/instances/{row['id']}/image"),
-            "dicom_url": api_url(f"/api/instances/{row['id']}/dicom"),
-        }
-        for index, row in enumerate(rows)
-    ]
-
-
-@app.get("/api/series/{series_id}/volume")
-def series_volume(series_id: str, session: AnonymousSession = Depends(get_current_session)) -> dict[str, Any]:
-    require_series_access(series_id, session)
-    if cloud_mode():
-        rows = metadata_store().list_instances(series_id)
-        if not rows:
-            raise HTTPException(404, "Series not found")
-        try:
-            headers = [pydicom.dcmread(local_dicom_path(row["path"]), stop_before_pixels=True) for row in rows]
-            result = volume_eligibility(headers)
-        except (OSError, pydicom.errors.InvalidDicomError):
-            result = {"eligible": False, "reasons": ["One or more DICOM files are unavailable."]}
-        return {
-            "series_id": series_id,
-            **result,
-            "dicom_urls": [api_url(f"/api/instances/{row['id']}/dicom") for row in rows] if result["eligible"] else [],
-        }
-    with db() as connection:
-        rows = connection.execute(
-            "SELECT id, path FROM instances WHERE series_id = ? ORDER BY position IS NULL, position, instance_number, filename",
-            (series_id,),
-        ).fetchall()
-    if not rows:
-        raise HTTPException(404, "Series not found")
-    try:
-        headers = [pydicom.dcmread(row["path"], stop_before_pixels=True) for row in rows]
-        result = volume_eligibility(headers)
-    except (OSError, pydicom.errors.InvalidDicomError):
-        result = {"eligible": False, "reasons": ["One or more DICOM files are unavailable."]}
-    return {"series_id": series_id, **result,
-            "dicom_urls": [f"/api/instances/{row['id']}/dicom" for row in rows] if result["eligible"] else []}
-
-
-@app.get("/api/instances/{instance_id}/dicom")
-def instance_dicom(instance_id: str, session: AnonymousSession = Depends(get_current_session)) -> FileResponse:
-    row = require_instance_access(instance_id, session)
-    path = local_dicom_path(row["path"])
-    if not row or not path.is_file():
-        raise HTTPException(404, "DICOM file not found")
-    return FileResponse(path, media_type="application/dicom", headers={"Cache-Control": "private, max-age=3600"})
-
-
-@app.get("/api/instances/{instance_id}/image")
-def instance_image(instance_id: str, session: AnonymousSession = Depends(get_current_session)) -> Response:
-    row = require_instance_access(instance_id, session)
-    path = local_dicom_path(row["path"])
-    if not path.is_file():
-        raise HTTPException(404, "DICOM file is no longer available")
-    try:
-        ds = pydicom.dcmread(path)
-        pixels = ds.pixel_array.astype(np.float32)
-        if pixels.ndim > 2:
-            pixels = pixels[0]
-        pixels = pixels * float(getattr(ds, "RescaleSlope", 1) or 1) + float(getattr(ds, "RescaleIntercept", 0) or 0)
-        finite = pixels[np.isfinite(pixels)]
-        window_center = getattr(ds, "WindowCenter", None)
-        window_width = getattr(ds, "WindowWidth", None)
-        center = dicom_number(window_center)
-        width = dicom_number(window_width)
-        if width > 0:
-            low, high = center - width / 2, center + width / 2
-        else:
-            percentiles = np.asarray(np.percentile(finite, [1, 99]), dtype=float)
-            low, high = float(percentiles[0]), float(percentiles[1])
-        if high <= low:
-            low, high = float(np.min(pixels)), float(np.max(pixels) or 1)
-        pixels = np.clip((pixels - low) / max(high - low, 1e-6), 0, 1)
-        if clean(getattr(ds, "PhotometricInterpretation", "")) == "MONOCHROME1":
-            pixels = 1 - pixels
-        image = Image.fromarray((pixels * 255).astype(np.uint8), mode="L")
-        output = io.BytesIO()
-        image.save(output, format="PNG", optimize=True)
-        return Response(output.getvalue(), media_type="image/png", headers={"Cache-Control": "public, max-age=3600"})
-    except Exception as exc:
-        raise HTTPException(422, f"Unable to render DICOM image: {exc}")
+app.include_router(build_system_router(sys.modules[__name__]))
+app.include_router(build_session_router(sys.modules[__name__]))
+app.include_router(build_analysis_router(sys.modules[__name__]))
+app.include_router(build_studies_router(sys.modules[__name__]))
+app.include_router(build_uploads_router(sys.modules[__name__]))
+app.include_router(build_series_router(sys.modules[__name__]))
 
 
 if STATIC_DIR.exists():

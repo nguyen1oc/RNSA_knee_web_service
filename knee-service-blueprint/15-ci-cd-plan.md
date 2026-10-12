@@ -1,7 +1,7 @@
 # 15 — CI/CD: dev staging → main production
 
-> **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Rút ngắn Cloud Run traffic tag theo 12 ký tự SHA; tên service + tag phải không quá 46 ký tự.
+> **Cập nhật gần nhất:** 2026-10-13
+> **Thay đổi gần nhất:** CI chỉ validate Terraform của môi trường đích (`dev` → staging, `main` → production); frontend gọi API Analyze đã deploy.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Mục tiêu và ý nghĩa môi trường
@@ -24,6 +24,36 @@ feature/* → PR dev → CI → merge dev
 ```
 
 CI trên PR chạy Ruff, Mypy, pytest, Python compile, frontend tests/build. Docker image được build trong deploy job sau khi merge/push vào `dev` hoặc `main`; nếu build thất bại thì deploy dừng và revision đang phục vụ giữ nguyên. Như vậy PR không cần credential GCP/Docker Hub, còn image đúng với commit được deploy.
+
+CI chạy `terraform fmt -check` và `terraform validate` theo môi trường đích: PR/push vào `dev` chỉ kiểm tra `knee-web/terraform/staging`; PR/push vào `main` chỉ kiểm tra `knee-web/terraform/production`. Job deploy Cloud Run chỉ chờ validation tương ứng với branch đó. Terraform init trong CI dùng `-backend=false`, nên không đăng nhập GCP hoặc đọc remote state. CI **không chạy `terraform plan`/`apply`**: remote plan cần WIF identity và IAM tối thiểu cho state bucket cùng quyền đọc các resource; apply luôn cần plan review và phê duyệt riêng. Không tự động apply Terraform khi push.
+
+Frontend trên Vercel gọi `POST /api/studies/{study_id}/analyze` qua same-origin rewrite. Preview dùng `KNEE_API_ORIGIN` trỏ đến API staging và `KNEE_STAGING_GATE_TOKEN` lấy từ Secret Manager; Production trỏ đến API production. Kết quả chỉ được hiển thị sau khi inference trả thành công, không thay bằng điểm giả lập.
+
+### Terraform production — phase adopt existing resources
+
+Production Terraform nằm tại `knee-web/terraform/production`, dùng cùng private state bucket nhưng prefix riêng `knee-web/production`; tuyệt đối không dùng state `knee-web/staging`. Cấu hình hiện quản lý/adopt các tài nguyên đã tồn tại: bucket `rsna-knee-dicom-production-511004`, runtime service account `knee-review-api-production`, quyền object admin trên bucket và Firestore IAM condition giới hạn database `knee-review-production`. Bucket và service account có deletion guard; bucket không cho Terraform xóa dữ liệu.
+
+Firestore database `knee-review-production` chưa được khai báo thành Terraform resource để tránh vô tình xóa database/dữ liệu. Artifact Registry `knee-review` đang thuộc staging state nên không khai báo/import lần nữa. Cloud Run production service và revisions vẫn do GitHub Actions CD quản lý; không để Terraform cùng sở hữu resource đó.
+
+Các import blocks trong `imports.tf` nhận diện tài nguyên GCP có sẵn. Từ PowerShell, sau khi checkout branch đã chứa cấu hình:
+
+```powershell
+Set-Location knee-web/terraform/production
+terraform init
+terraform fmt -check -recursive
+terraform validate
+terraform plan -out=production.tfplan
+terraform show production.tfplan
+```
+
+Plan đầu tiên dự kiến hiển thị import bốn tài nguyên vào state production. Chỉ apply đúng file plan sau khi kiểm tra không có create/replace/delete và các chỉnh sửa in-place (nếu có) đều mong muốn:
+
+```powershell
+terraform apply production.tfplan
+terraform plan
+```
+
+Apply đầu tiên chỉ ghi nhận/import resources và áp các cấu hình đã duyệt; không chạy tự động từ CI. Plan sau apply nên báo `No changes`. Nếu plan đầu tiên đề nghị thay đổi quyền/CORS/lifecycle ngoài dự kiến, dừng lại và review trước, không apply vội. GCS state prefix khác giúp rollback và thao tác staging/production tách biệt.
 
 Dockerfile currently uses `mirror.gcr.io/library/node:24-alpine` and `mirror.gcr.io/library/python:3.12-slim` for the Node/Python base images. Both images were successfully pulled from the Google mirror locally on 2026-10-10. This avoids the direct Docker Hub login/token call that was timing out. Google mirror only retains frequently requested images and can evict them; it does not guarantee every tag remains available. If a future build reports a mirror miss, retry later or move to another trusted upstream.
 
@@ -149,7 +179,7 @@ Cloud Run service hiện có tên `knee-review-api` **không bị workflow ghi �
 
 **Đã tạo Artifact Registry:** repository `knee-review`, Docker/Standard, region `asia-southeast1`, URI `asia-southeast1-docker.pkg.dev/rsna-knee-511004/knee-review`. Tại lần kiểm tra 2026-10-10 repo còn 0 MB; mã hóa Google-managed. Vulnerability scanning đang tắt vì `containerscanning.googleapis.com` chưa bật. Repository `cloud-run-source-deploy` là repo riêng do Cloud Run source deployment tạo, không phải repo `knee-review` dùng cho workflow CD.
 
-**Trạng thái hiện tại:** staging WIF/provider, deployer identity, GitHub Environment/variables, Secret Manager gate và Cloud Run service đã được người dùng cấu hình; staging `/api/health` trả `ok` và example study đã có trong GCS/Firestore. Đã gỡ binding Firestore không-condition project-wide khỏi staging runtime; policy hiện chỉ cho `knee-review-api@...` truy cập `(default)` và production runtime truy cập `knee-review-production` bằng condition riêng. Người dùng xác nhận staging upload/delete thành công sau thay đổi IAM. Production Firestore database `knee-review-production`, bucket `rsna-knee-dicom-production-511004`, runtime identity `knee-review-api-production@rsna-knee-511004.iam.gserviceaccount.com`, và deployer identity `knee-review-deployer-prod@rsna-knee-511004.iam.gserviceaccount.com` đã được tạo. Deployer đã có `roles/artifactregistry.writer` trên repository `knee-review`, `roles/run.admin` trên project và `roles/iam.serviceAccountUser` chỉ trên runtime production SA. WIF pool `github-actions-production` và provider `github-main-production` đã được tạo; provider condition giới hạn repository ID `1406855192` và ref `refs/heads/main`; principalSet đã được bind bằng `roles/iam.workloadIdentityUser` vào production deployer. Production bucket có CORS cho `https://rnsa-knee-web-service.vercel.app`, lifecycle chỉ dọn prefix `incoming/` sau 1 ngày, Uniform access/Public access prevention bật, soft delete 7 ngày. Runtime identity có `roles/storage.objectAdmin` trên riêng bucket và `roles/datastore.user` với condition chỉ database production. **Production còn cần:** GitHub Environment approval/variables, Vercel Production API origin, cleanup/rate protection, sau đó PR `dev → main`. Firestore production báo `freeTier: false`, cần theo dõi chi phí. Không tạo JSON key. Có thể bật vulnerability scanning sau nếu muốn quét image; việc này không chặn workflow CD hiện tại.
+**Trạng thái hiện tại:** staging WIF/CD, API/GCS/Firestore và Triton L4 riêng tư đã được kiểm tra end-to-end bằng sample. Production có Firestore `knee-review-production`, DICOM bucket, API runtime/deployer identities, WIF và Cloud Run API. Ngày 2026-10-13 đã tạo thêm model bucket `rsna-knee-models-production-511004`, Triton runtime identity `knee-triton-runtime-prod@rsna-knee-511004.iam.gserviceaccount.com`, và service `knee-triton-production` tại `https://knee-triton-production-jnbsqra6ma-as.a.run.app`. Checkpoint/image digest giống staging; logs xác nhận model `knee_resnet34` READY. `roles/run.invoker` trên Triton chỉ cấp cho production API runtime. **Còn cần:** thêm 5 Triton/model variables vào GitHub Environment `production`, rồi PR/merge `dev → main` để deploy API production với Triton URL; sau đó kiểm tra Analyze end-to-end và xác nhận Vercel Production đang trỏ đúng API production. Cleanup/rate protection và theo dõi Firestore `freeTier: false` vẫn cần hoàn tất trước khi mời người dùng rộng hơn. Không tạo JSON key.
 
 Tạo Secret Manager secret `knee-review-staging-gate` với chuỗi ngẫu nhiên mạnh; cấp `roles/secretmanager.secretAccessor` trên secret đó cho staging runtime SA. GitHub Environment `staging` chỉ cần biến `STAGING_GATE_SECRET_NAME=knee-review-staging-gate` (tên secret, không phải giá trị).
 
@@ -169,7 +199,16 @@ CORS_ALLOWED_ORIGINS=https://<stable-staging-origin> # production origin tương
 WIF_PROVIDER=projects/<number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>
 WIF_SERVICE_ACCOUNT=<deployer>@rsna-knee-511004.iam.gserviceaccount.com
 STAGING_GATE_SECRET_NAME=knee-review-staging-gate  # staging only
+TRITON_URL=https://knee-triton-staging-jnbsqra6ma-as.a.run.app # GitHub Environment staging
+AI_CHECKPOINT_SHA256=<verified-checkpoint-sha256>  # both environments
+AI_CHECKPOINT_EPOCH=13                             # both environments
+AI_DEVICE_LABEL=NVIDIA L4                          # both environments
+TRITON_TIMEOUT_SECONDS=180                         # both environments
 ```
+
+For the GitHub Environment `production`, set `TRITON_URL=https://knee-triton-production-jnbsqra6ma-as.a.run.app`; the checkpoint SHA, epoch, device label, and timeout values match the table above. Never copy the staging URL into production.
+
+The deployment workflow requires the Triton/model variables for both `dev` and `main`, and writes them into the matching API revision. Do not set production `TRITON_URL` to the staging service. The production Triton endpoint is IAM-private; only `knee-review-api-production@...` gets `roles/run.invoker`. See the production steps and reviewed image/checkpoint details in [20 — Triton Cloud Run GPU](20-triton-cloudrun-gpu.md#production-rollout-manual-gpu-service-automated-api-deploy).
 
 `WIF_PROVIDER` là resource name đầy đủ; `WIF_SERVICE_ACCOUNT` là email deployer. WIF attribute condition phải giới hạn đúng repository và ref: staging chỉ `refs/heads/dev`, production chỉ `refs/heads/main`. Không trao quyền deploy cho fork PR.
 

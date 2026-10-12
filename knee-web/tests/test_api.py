@@ -107,6 +107,113 @@ def upload_zip(
     return response.json()
 
 
+def test_analyze_uploaded_study_uses_stored_dicoms_and_returns_scores(
+    client: TestClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.ai import runner
+    from backend.ai.contract import TARGETS
+
+    study_uid, series_uid = generate_uid(), generate_uid()
+    uploaded = upload_zip(
+        client,
+        zip_bytes({"series/one.dcm": dicom_bytes(study_uid, series_uid, 1)}),
+    )
+    checkpoint = tmp_path / "checkpoint.zip"
+    checkpoint.write_bytes(b"test checkpoint marker")
+    monkeypatch.setenv("AI_CHECKPOINT_PATH", str(checkpoint))
+    observed: dict[str, Any] = {}
+
+    def fake_inference(paths: list[Path], checkpoint_path: Path, *, device_name: str) -> dict[str, Any]:
+        observed["paths"] = paths
+        observed["checkpoint"] = checkpoint_path
+        observed["device"] = device_name
+        return {
+            "study_uid": study_uid,
+            "checkpoint_sha256": "test-sha",
+            "checkpoint_epoch": 13,
+            "device": "cuda",
+            "architecture": "ImageNet ResNet-34",
+            "pooling": "gated_attention",
+            "input_shape": [1, 4, 16, 3, 224, 224],
+            "laterality": "L",
+            "slot_order": ["SAG_FS", "SAG_NOFS", "COR_FS", "AX_FS"],
+            "slots": {"SAG_FS": {"present": False}},
+            "score_semantics": "sigmoid model score; not calibrated probability",
+            "scores": [{"target": target, "score": index / 100} for index, target in enumerate(TARGETS)],
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(runner, "run_inference_paths", fake_inference)
+    response = client.post(f"/api/studies/{uploaded['study_ids'][0]}/analyze")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["status"] == "complete"
+    assert payload["study_uid"] == study_uid
+    assert payload["scores"]["acl"] == 0
+    assert payload["scores"]["fracture"] == 0.11
+    assert payload["input"]["slots"]["SAG_FS"] == {"present": False}
+    assert payload["warnings"] == []
+    assert len(observed["paths"]) == 1 and observed["paths"][0].is_file()
+    assert observed["checkpoint"] == checkpoint
+    assert observed["device"] == "auto"
+
+
+def test_analyze_uploaded_study_forwards_prepared_tensors_to_triton(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    import numpy as np
+
+    from backend.ai import runner, series, triton_client
+    from backend.ai.contract import SLOTS, TARGETS
+
+    study_uid, series_uid = generate_uid(), generate_uid()
+    uploaded = upload_zip(
+        client,
+        zip_bytes({"series/one.dcm": dicom_bytes(study_uid, series_uid, 1)}),
+    )
+    expected_images = np.zeros((1, 4, 16, 3, 224, 224), dtype=np.uint8)
+    expected_slot_mask = np.array([[1, 0, 0, 0]], dtype=np.float32)
+    expected_slice_mask = np.zeros((1, 4, 16), dtype=np.float32)
+    expected_slice_mask[0, 0, 0] = 1
+    slot_details = {slot.name: {"present": slot.name == SLOTS[0].name} for slot in SLOTS}
+    monkeypatch.setenv("TRITON_URL", "http://127.0.0.1:8000")
+    monkeypatch.setenv("AI_CHECKPOINT_SHA256", "verified-checkpoint-sha")
+    observed: dict[str, Any] = {}
+
+    def fake_prepare(selected: Any, laterality: str | None) -> tuple[Any, ...]:
+        observed["selected"] = selected
+        observed["laterality"] = laterality
+        return expected_images, expected_slot_mask, expected_slice_mask, slot_details
+
+    monkeypatch.setattr(series, "build_series_records", lambda _paths: [SimpleNamespace(study_uid=study_uid)])
+    monkeypatch.setattr(series, "select_slots", lambda records: {"SAG_FS": records[0]})
+    monkeypatch.setattr(series, "study_laterality", lambda _records: "L")
+
+    def fake_infer(url: str, images: Any, slot_mask: Any, slice_mask: Any, **kwargs: Any) -> Any:
+        observed["request"] = (url, images, slot_mask, slice_mask, kwargs)
+        return np.arange(len(TARGETS), dtype=np.float32).reshape(1, -1) / 100
+
+    monkeypatch.setattr(runner, "prepare_model_input", fake_prepare)
+    monkeypatch.setattr(triton_client, "infer", fake_infer)
+    response = client.post(f"/api/studies/{uploaded['study_ids'][0]}/analyze")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["scores"]["acl"] == 0
+    assert payload["scores"]["fracture"] == pytest.approx(0.11)
+    assert payload["model"]["checkpoint_sha256"] == "verified-checkpoint-sha"
+    assert payload["model"]["device"] == "NVIDIA L4"
+    assert payload["input"]["slot_order"] == [slot.name for slot in SLOTS]
+    assert observed["request"][0] == "http://127.0.0.1:8000"
+    assert observed["request"][1] is expected_images
+
+
 def test_upload_valid_zip_groups_dicom_files(client: TestClient) -> None:
     study_uid = generate_uid()
     series_uid = generate_uid()
@@ -126,6 +233,52 @@ def test_upload_valid_zip_groups_dicom_files(client: TestClient) -> None:
     assert study["source"] == "upload"
     assert study["total_slices"] == 2
     assert study["series"][0]["slice_count"] == 2
+
+
+def test_study_acquisition_endpoint_returns_scanner_and_series_settings_without_patient_fields(
+    client: TestClient,
+) -> None:
+    import pydicom
+
+    study_uid, series_uid = generate_uid(), generate_uid()
+    dataset = pydicom.dcmread(io.BytesIO(dicom_bytes(study_uid, series_uid, 1)))
+    dataset.Manufacturer = "Example MRI"
+    dataset.ManufacturerModelName = "MR-3T"
+    dataset.MagneticFieldStrength = 3
+    dataset.SequenceName = "tse_sag_pd"
+    dataset.ScanningSequence = "SE"
+    dataset.RepetitionTime = 2800
+    dataset.EchoTime = 32
+    dataset.SliceThickness = 2.5
+    dataset.PatientName = "Must Not Be Returned"
+    buffer = io.BytesIO()
+    dataset.save_as(buffer, enforce_file_format=True)
+
+    uploaded = upload_zip(client, zip_bytes({"series/one.dcm": buffer.getvalue()}))
+    response = client.get(f"/api/studies/{uploaded['study_ids'][0]}/acquisition")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["scanner"]["manufacturer"] == ["Example MRI"]
+    assert payload["scanner"]["field_strength_t"] == ["3.0"]
+    assert payload["series"][0]["settings"]["sequence_name"] == "tse_sag_pd"
+    assert payload["series"][0]["settings"]["repetition_time_ms"] == 2800
+    assert "PatientName" not in str(payload)
+
+
+def test_study_acquisition_endpoint_enforces_session_ownership(
+    main_module: Any,
+    client: TestClient,
+) -> None:
+    uploaded = upload_zip(
+        client,
+        zip_bytes({"one.dcm": dicom_bytes(generate_uid(), generate_uid(), 1)}),
+    )
+    study_id = uploaded["study_ids"][0]
+    with TestClient(main_module.app) as other_client:
+        other_client.post("/api/sessions")
+        response = other_client.get(f"/api/studies/{study_id}/acquisition")
+    assert response.status_code == 404
 
 
 def test_upload_zip_without_dicom_is_rejected(client: TestClient) -> None:

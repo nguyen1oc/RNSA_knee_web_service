@@ -1,8 +1,9 @@
-# 18 — Anonymous temporary workspace
+# 18 — Workspace tạm không cần tài khoản
 
-> **Cập nhật gần nhất:** 2026-10-10
-> **Thay đổi gần nhất:** Ghi nhận cloud folder upload được đóng gói thành ZIP trong browser; làm rõ CORS Preview và upload limits.
+> **Cập nhật:** 13/10/2026. Mục tiêu sản phẩm và giới hạn upload được ghi ở đây; trạng thái cấu hình cloud phải xác minh trực tiếp trước khi mở public.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
+
+> **Lưu ý quan trọng:** Các phần “Public preview: còn điều kiện trước khi bật upload” bên dưới là checklist được viết trước khi chuyển sang Cloud Run + upload resumable trực tiếp lên Cloud Storage. Không làm theo các bước triển khai cũ như thể đó là trạng thái hiện tại. Xem [19 — triển khai public](19-public-preview-deployment.md) và [21 — bàn giao](21-project-handover.md).
 
 ## Quyết định sản phẩm
 

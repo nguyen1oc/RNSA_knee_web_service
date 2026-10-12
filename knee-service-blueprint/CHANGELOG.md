@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-13
-> **Thay đổi gần nhất:** Provisioned private Triton production L4; production API awaits environment variables and approved deployment.
+> **Thay đổi gần nhất:** Cập nhật tài liệu bàn giao, làm rõ trạng thái Analyze trên staging/production và kết quả baseline k6.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-12 — Refresh project READMEs
@@ -36,7 +36,16 @@
 - Created the private production model bucket and copied the same SHA-pinned checkpoint used in verified staging.
 - Deployed `knee-triton-production` with the pinned Triton image digest, L4 GPU, 4 vCPU, 16 GiB, scale-to-zero, max one instance, and GPU zonal redundancy disabled.
 - Confirmed `knee_resnet34` version 1 is READY and granted Cloud Run Invoker only to the production API runtime identity.
-- Production FastAPI remains disconnected until GitHub `production` receives the Triton/model variables and the approved `main` deployment succeeds.
+- Tại thời điểm provision, API production chưa được nối. Trạng thái sau đó được cập nhật ở entry bên dưới.
+
+## 2026-10-13 — Production Analyze connection and handover review
+
+### Updated / Verified
+
+- Người vận hành xác nhận đã cấu hình production API với Triton và thử Analyze thành công. Kiểm tra độc lập trong lượt rà soát này xác nhận API health `ok`, `TRITON_URL` trỏ đến Triton production, và Triton báo `Ready`; lượt rà soát không chạy lại Analyze end-to-end.
+- Thêm tài liệu bàn giao tóm tắt kiến trúc, staging/production, giới hạn kiểm chứng và checklist cho người review.
+- Ghi lại baseline k6 staging và giới hạn của số mẫu; không suy ra số người dùng tối đa từ bài test nhỏ.
+- Cập nhật các hướng dẫn tổng quan để phân biệt quy trình còn hiệu lực với các bước VM cũ.
 
 ## 2026-10-12 — Terraform staging state and CI checks
 

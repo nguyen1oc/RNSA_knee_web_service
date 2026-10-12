@@ -2,13 +2,14 @@
 
 > **Cập nhật gần nhất:** 2026-10-10
 > **Thay đổi gần nhất:** Ghi chú GCS bucket, Firestore Native `(default)` và IAM service identity đã provision để chuẩn bị Cloud Run.
+> **Lưu ý:** Đây là tài liệu nhập môn ghi lại giai đoạn tạo VM. VM không còn là nơi chạy web; hiện dùng Vercel, Cloud Run, Firestore, Cloud Storage và Triton Cloud Run GPU. Đọc [21 — tài liệu bàn giao](21-project-handover.md) trước khi làm theo phần “Bước hiện tại”.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 ## Mục tiêu
 
-Tài liệu này là glossary/runbook nhập môn cho hai người phát triển dự án. Scope trước mắt là đưa **viewer hiện tại** lên staging riêng tư, chưa có AI. Không cần tạo GPU, Triton hoặc Kubernetes ở bước này.
+Tài liệu này giải thích các dịch vụ GCP đã gặp trong quá trình triển khai. Các bước tạo VM bên dưới là ghi chép lịch sử; không phải hướng dẫn deploy hiện hành. Dự án hiện đã dùng Cloud Run và Triton cho AI serving.
 
-Trong project này, staging hiện tại là VM CPU `knee-review-staging-01` chạy Docker Compose, truy cập qua IAP tunnel tại `http://127.0.0.1:8081` trên máy đã mở tunnel. Nó chưa có domain/URL public, chưa có app login, và không phải nơi mời người dùng Internet upload study. Nhánh `dev` là nguồn staging; `main` là nguồn production sau review. Trạng thái cụ thể/đích URL-based frontend-backend xem [09 — GCP runbook](09-gcp-runbook.md).
+Trong giai đoạn đầu, staging chạy trên VM CPU `knee-review-staging-01` và được mở qua IAP tunnel. Cách đó đã được thay bằng Cloud Run. Hiện `dev` dùng staging và `main` dùng production; xem [21 — tài liệu bàn giao](21-project-handover.md) để biết trạng thái gần nhất.
 
 ## GCP là gì trong app này?
 
@@ -140,7 +141,7 @@ Terraform có thể mã hóa hạ tầng sau khi staging v0 được thử; nó 
 
 Chi tiết triển khai theo từng bước nằm ở [09 — GCP runbook](09-gcp-runbook.md), còn kiến trúc local hiện hành ở [04 — Architecture](04-architecture-data.md).
 
-## Bước hiện tại
+## Trạng thái tại thời điểm ghi chép ban đầu (lịch sử)
 
 1. Đã xong theo xác nhận người dùng: project `rsna-knee-511004`, billing liên kết, budget alert đã tạo.
 2. Đã xong theo xác nhận người dùng: VM `knee-review-staging-01` đang chạy ở `asia-southeast1-a`, không external IPv4; IAP/firewall/tag khớp và SSH tunnel hoạt động.

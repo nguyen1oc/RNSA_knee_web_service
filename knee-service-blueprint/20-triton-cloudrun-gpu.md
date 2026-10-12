@@ -1,6 +1,6 @@
 # Triton inference service on Cloud Run GPU
 
-> **Status:** Staging Triton L4 and FastAPI integration are verified end-to-end. Production Triton L4 is provisioned and model-ready (2026-10-13); production FastAPI is not connected until GitHub `production` variables are added and a `main` deployment runs.
+> **Status:** Staging Triton L4 and FastAPI integration are verified end-to-end. Production Triton L4 is provisioned. The operator reports that production API configuration and Analyze testing also succeeded; the 2026-10-13 handover independently checked API health, `TRITON_URL`, and Triton readiness, but did not repeat Analyze end-to-end.
 
 ## Goal and current status
 
@@ -12,7 +12,7 @@ Cloud Build pushed `asia-southeast1-docker.pkg.dev/rsna-knee-511004/knee-review/
 
 The Analyze route supports Triton when TRITON_URL is configured. FastAPI resolves study DICOMs, uses the existing slot selection and preprocessing, then sends fixed tensors over Triton's binary HTTP protocol with a Cloud Run ID token. Local AI_CHECKPOINT_PATH inference remains available. The API image uses INSTALL_LOCAL_AI=1 because preprocessing uses CPU PyTorch; model forward pass runs on L4. API route and Triton client tests pass locally.
 
-Cloud Build e7f46c18-9f11-46f8-a354-3a91ed1c119c succeeded for API image `knee-review-api:triton-wire-20261012-01`; its 1.1 MiB source archive excluded model/DICOM data. The API analyzed the shared sample study from Firestore/GCS and returned all 12 scores via Triton L4; revision `knee-review-api-staging-00012-lip` is at 100% staging traffic. Selected series/slots and checkpoint SHA match the local runner. Against local NVIDIA MX350 output, max absolute score difference was 0.000259 (mean 0.000082); all 12 fit `atol=5e-4`, `rtol=1e-4`. First cold end-to-end request took 63.5 seconds; next warm request took 1.83 seconds (one observation each, not a latency benchmark). Production remains disconnected.
+Cloud Build e7f46c18-9f11-46f8-a354-3a91ed1c119c succeeded for API image `knee-review-api:triton-wire-20261012-01`; its 1.1 MiB source archive excluded model/DICOM data. The API analyzed the shared sample study from Firestore/GCS and returned all 12 scores via Triton L4; revision `knee-review-api-staging-00012-lip` is at 100% staging traffic. Selected series/slots and checkpoint SHA match the local runner. Against local NVIDIA MX350 output, max absolute score difference was 0.000259 (mean 0.000082); all 12 fit `atol=5e-4`, `rtol=1e-4`. First cold end-to-end request took 63.5 seconds; next warm request took 1.83 seconds (one observation each, not a latency benchmark). These are staging observations, not production latency measurements.
 
 ## Phases
 
@@ -21,7 +21,7 @@ Cloud Build e7f46c18-9f11-46f8-a354-3a91ed1c119c succeeded for API image `knee-r
 3. **Cloud transport:** complete for one staging sample through the real authenticated API path; the input tensor is about 9.2 MiB and masks add a few hundred bytes.
 4. **Protect model artifacts:** staging uses a dedicated private model bucket, dedicated service identity, read-only bucket access, and invoker access limited to the staging API identity.
 5. **Deploy staging:** Triton L4 is private, min=0/max=1, concurrency 1; FastAPI staging is connected and returned all 12 scores.
-6. **Next:** finish staging acceptance and repeat cold/warm/concurrency measurements, then provision the isolated production Triton service below. Do not point production API at the staging model service.
+6. **Production is provisioned:** use the completed rollout below as an audit trail. Keep production isolated from staging; repeat end-to-end and load checks when the model or serving configuration changes.
 
 ## Production rollout (manual GPU service, automated API deploy)
 
@@ -99,7 +99,7 @@ The `main` deployment now fails closed if any of these are missing and injects t
 - Cloud Run service: `knee-triton-production`, URL `https://knee-triton-production-jnbsqra6ma-as.a.run.app`, ready revision `knee-triton-production-00001-zwf`; L4, 4 vCPU, 16 GiB, min 0/max 1, concurrency 1, GPU zonal redundancy disabled.
 - The service uses the verified image digest and read-only model-bucket mount. Triton logs show `knee_resnet34` version 1 `READY`; Cloud Run startup probe passed.
 - IAM is private: `roles/run.invoker` is granted only to `knee-review-api-production@rsna-knee-511004.iam.gserviceaccount.com`.
-- **Still pending:** add the five variables above to GitHub Environment `production`, then deploy the API from `main` and run one end-to-end Analyze test through the public frontend. The current production API revision has no `TRITON_URL`, so it is not yet invoking this Triton service.
+- **At initial provisioning,** the production API still needed those five variables and a `main` deployment. The operator later reported that setup and an Analyze test succeeded. On 2026-10-13, the handover independently confirmed API health and Triton readiness but did not repeat that Analyze request; see [21 — project handover](21-project-handover.md).
 
 ## Triton model repository contract
 

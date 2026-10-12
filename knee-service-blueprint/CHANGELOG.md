@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-13
-> **Thay đổi gần nhất:** Nối Analyze UI với API/Triton staging và tách Terraform validation theo branch/environment.
+> **Thay đổi gần nhất:** Chuẩn bị kết nối Triton production riêng tư; API deploy ở `main` yêu cầu cấu hình model rõ ràng.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-12 — Refresh project READMEs
@@ -20,6 +20,14 @@
 - Replaced the Analyze placeholder with a study-level API request, loading state, result panel, and export preview.
 - Limited Terraform staging validation to PRs/pushes targeting `dev`, and production validation to PRs/pushes targeting `main`; Cloud Run deploy waits only for the matching validation job.
 - Documented the Vercel Preview/Production API-origin and staging-gate split.
+
+## 2026-10-13 — Prepare private production Triton rollout
+
+### Added / Changed
+
+- Updated Cloud Run API CD so both `dev` and `main` require their environment's Triton URL and model metadata; the production API revision now receives the Triton settings instead of silently deploying disconnected.
+- Documented production isolation: separate private model-artifact bucket, Triton runtime identity and IAM-private L4 service; only the production API runtime identity can invoke it.
+- Added the production provisioning and verification runbook. This documents commands only; no production GPU resource was created by this change.
 
 ## 2026-10-12 — Terraform staging state and CI checks
 

@@ -146,6 +146,11 @@ jobs:
       WIF_PROVIDER: ${{ vars.WIF_PROVIDER }}
       WIF_SERVICE_ACCOUNT: ${{ vars.WIF_SERVICE_ACCOUNT }}
       STAGING_GATE_SECRET_NAME: ${{ vars.STAGING_GATE_SECRET_NAME }}
+      TRITON_URL: ${{ vars.TRITON_URL }}
+      AI_CHECKPOINT_SHA256: ${{ vars.AI_CHECKPOINT_SHA256 }}
+      AI_CHECKPOINT_EPOCH: ${{ vars.AI_CHECKPOINT_EPOCH }}
+      AI_DEVICE_LABEL: ${{ vars.AI_DEVICE_LABEL }}
+      TRITON_TIMEOUT_SECONDS: ${{ vars.TRITON_TIMEOUT_SECONDS }}
       IMAGE_URI: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.AR_REPOSITORY }}/knee-review-api:${{ github.sha }}
     steps:
       - name: Checkout
@@ -165,6 +170,14 @@ jobs:
             echo "Staging requires GitHub Environment variable STAGING_GATE_SECRET_NAME." >&2
             exit 1
           fi
+          if [[ "$GITHUB_REF_NAME" == "dev" ]]; then
+            for name in TRITON_URL AI_CHECKPOINT_SHA256 AI_CHECKPOINT_EPOCH AI_DEVICE_LABEL TRITON_TIMEOUT_SECONDS; do
+              if [[ -z "${!name}" ]]; then
+                echo "Staging requires GitHub Environment variable $name." >&2
+                exit 1
+              fi
+            done
+          fi
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
@@ -180,7 +193,7 @@ jobs:
         shell: bash
         run: |
           gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
-          docker build --tag "$IMAGE_URI" ./knee-web
+          docker build --build-arg INSTALL_LOCAL_AI=1 --tag "$IMAGE_URI" ./knee-web
           docker push "$IMAGE_URI"
 
       - name: Deploy candidate revision
@@ -191,6 +204,10 @@ jobs:
           secret_args=()
           if [[ "$GITHUB_REF_NAME" == "dev" ]]; then
             secret_args+=(--update-secrets "STAGING_GATE_TOKEN=${STAGING_GATE_SECRET_NAME}:latest")
+          fi
+          runtime_env="METADATA_BACKEND=firestore@GOOGLE_CLOUD_PROJECT=${GCP_PROJECT_ID}@FIRESTORE_DATABASE=${FIRESTORE_DATABASE}@DICOM_BUCKET=${DICOM_BUCKET}@CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}@SESSION_COOKIE_SECURE=true@MAX_UPLOAD_MIB=600@MAX_EXPANDED_MIB=800@MAX_SESSION_MIB=800@MAX_DICOM_FILE_MIB=200@MAX_DICOM_FILES=500"
+          if [[ "$GITHUB_REF_NAME" == "dev" ]]; then
+            runtime_env+="@TRITON_URL=${TRITON_URL}@AI_CHECKPOINT_SHA256=${AI_CHECKPOINT_SHA256}@AI_CHECKPOINT_EPOCH=${AI_CHECKPOINT_EPOCH}@AI_DEVICE_LABEL=${AI_DEVICE_LABEL}@TRITON_TIMEOUT_SECONDS=${TRITON_TIMEOUT_SECONDS}"
           fi
 
           deploy_args=(
@@ -206,7 +223,7 @@ jobs:
             --max 1 \
             --timeout 3600s \
             "${secret_args[@]}" \
-            "--update-env-vars=^@^METADATA_BACKEND=firestore@GOOGLE_CLOUD_PROJECT=${GCP_PROJECT_ID}@FIRESTORE_DATABASE=${FIRESTORE_DATABASE}@DICOM_BUCKET=${DICOM_BUCKET}@CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}@SESSION_COOKIE_SECURE=true@MAX_UPLOAD_MIB=600@MAX_EXPANDED_MIB=800@MAX_SESSION_MIB=800@MAX_DICOM_FILE_MIB=200@MAX_DICOM_FILES=500"
+            "--update-env-vars=^@^${runtime_env}"
           )
 
           describe_error="$RUNNER_TEMP/cloud-run-service-describe.err"

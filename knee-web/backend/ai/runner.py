@@ -12,11 +12,8 @@ from pathlib import Path
 from typing import Iterator
 
 import numpy as np
-import torch
 
 from backend.ai.contract import IMAGE_SIZE, SCORE_SEMANTICS, SLICES_PER_SLOT, SLOTS, TARGETS
-from backend.ai.model import load_checkpoint
-from backend.ai.preprocessing import normalize_laterality, preprocess_series
 from backend.ai.series import SeriesRecord, build_series_records, select_slots, study_laterality
 
 MAX_DICOM_FILES = 500
@@ -85,7 +82,9 @@ def read_series_metadata(path: Path | None) -> dict[str, dict[str, str]]:
         }
 
 
-def _choose_device(device_name: str) -> torch.device:
+def _choose_device(device_name: str):
+    import torch
+
     if device_name == "auto":
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device = torch.device(device_name)
@@ -98,6 +97,8 @@ def prepare_model_input(
     selected: dict[str, SeriesRecord], laterality: str | None
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, dict[str, object]]]:
     """Build uint8 [1,4,16,3,224,224] images plus slot/slice masks."""
+    from backend.ai.preprocessing import normalize_laterality, preprocess_series
+
     images = np.zeros((1, len(SLOTS), SLICES_PER_SLOT, 3, IMAGE_SIZE, IMAGE_SIZE), dtype=np.uint8)
     slot_mask: np.ndarray = np.zeros((1, len(SLOTS)), dtype=np.float32)
     slice_mask: np.ndarray = np.zeros((1, len(SLOTS), SLICES_PER_SLOT), dtype=np.float32)
@@ -155,6 +156,10 @@ def run_inference_paths(
     device_name: str = "auto",
 ) -> dict[str, object]:
     """Run one study already resolved from the viewer's stored DICOM instances."""
+    import torch
+
+    from backend.ai.model import load_checkpoint
+
     device = _choose_device(device_name)
     metadata_by_series = read_series_metadata(metadata_path)
     if not dicom_paths:

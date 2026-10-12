@@ -1,6 +1,6 @@
 # Triton inference service on Cloud Run GPU
 
-> **Status:** Staging Triton L4 and FastAPI integration are deployed and verified end-to-end (2026-10-12). Production remains disconnected; the production API workflow now requires explicit Triton configuration before deploying.
+> **Status:** Staging Triton L4 and FastAPI integration are verified end-to-end. Production Triton L4 is provisioned and model-ready (2026-10-13); production FastAPI is not connected until GitHub `production` variables are added and a `main` deployment runs.
 
 ## Goal and current status
 
@@ -90,6 +90,16 @@ Add the following non-secret variables to GitHub → Settings → Environments �
 | `TRITON_TIMEOUT_SECONDS` | `180` |
 
 The `main` deployment now fails closed if any of these are missing and injects them into the production FastAPI Cloud Run revision. Only after the Triton service is ready and these variables are set should the reviewed `dev → main` change be merged. GitHub's `production` Environment approval remains the human release gate. Then verify `/api/health`, run Analyze on the de-identified sample in the public production app, confirm all 12 scores, and inspect Cloud Run logs. Keep staging and production URLs, buckets, identities, and model storage separate.
+
+### Provisioning completed (2026-10-13)
+
+- Model bucket: `gs://rsna-knee-models-production-511004`; private, uniform bucket-level access, public access prevention.
+- Checkpoint copied to `resnet34/61cdcea1ae8c0377c37495c9fc1f43bbcbff632b4168636440d41d2e4e39f47c/fold_00_best.zip` (87,444,409 bytes; MD5 matches staging).
+- Triton runtime identity: `knee-triton-runtime-prod@rsna-knee-511004.iam.gserviceaccount.com`, with read-only `roles/storage.objectViewer` on the production model bucket.
+- Cloud Run service: `knee-triton-production`, URL `https://knee-triton-production-jnbsqra6ma-as.a.run.app`, ready revision `knee-triton-production-00001-zwf`; L4, 4 vCPU, 16 GiB, min 0/max 1, concurrency 1, GPU zonal redundancy disabled.
+- The service uses the verified image digest and read-only model-bucket mount. Triton logs show `knee_resnet34` version 1 `READY`; Cloud Run startup probe passed.
+- IAM is private: `roles/run.invoker` is granted only to `knee-review-api-production@rsna-knee-511004.iam.gserviceaccount.com`.
+- **Still pending:** add the five variables above to GitHub Environment `production`, then deploy the API from `main` and run one end-to-end Analyze test through the public frontend. The current production API revision has no `TRITON_URL`, so it is not yet invoking this Triton service.
 
 ## Triton model repository contract
 

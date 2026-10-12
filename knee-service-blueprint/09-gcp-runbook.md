@@ -1,12 +1,12 @@
 # 09 — GCP runbook: staging, public app và AI runtime
 
 > **Cập nhật gần nhất:** 2026-10-13
-> **Thay đổi gần nhất:** Ghi topology Triton Cloud Run L4 đã xác minh trên staging và thứ tự rollout Triton riêng cho production.
+> **Thay đổi gần nhất:** Provisioned Triton L4 production privately; production API awaits GitHub Environment variables and the approved `main` deployment.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 App dùng anonymous temporary session, không có tài khoản/mật khẩu. URL `rnsa-knee-web-service.vercel.app` là frontend; Vercel tự cấp HTTPS cho URL đó nhưng không tự chạy FastAPI. Vercel Preview dùng API staging, Vercel Production dùng API production thông qua same-origin `/api` rewrite.
 
-Staging là Cloud Run QA nội bộ; production là Cloud Run backend phục vụ frontend public. API, bucket, Firestore và runtime identities đã được tách theo môi trường. Staging Triton L4 riêng tư đã chạy Analyze end-to-end. Production Triton chưa tạo; production API chỉ nên bật AI sau khi có Triton service riêng và production GitHub Environment variables. VM `knee-review-staging-01` không chạy web hay Triton hiện tại; không cần bật VM cho Cloud Run GPU. Xem [20 — Triton Cloud Run GPU](20-triton-cloudrun-gpu.md) và [19 — Public preview deployment](19-public-preview-deployment.md).
+Staging là Cloud Run QA nội bộ; production là Cloud Run backend phục vụ frontend public. API, bucket, Firestore và runtime identities đã được tách theo môi trường. Triton L4 riêng tư staging đã chạy Analyze end-to-end; Triton L4 production hiện đã provisioned và model-ready, nhưng API production chưa được nối. VM `knee-review-staging-01` không chạy web hay Triton hiện tại; không cần bật VM cho Cloud Run GPU. Xem [20 — Triton Cloud Run GPU](20-triton-cloudrun-gpu.md) và [19 — Public preview deployment](19-public-preview-deployment.md).
 
 ## Môi trường và pipeline
 
@@ -16,7 +16,7 @@ feature branch → PR dev (CI) → merge dev
                    ├─ GCS resumable DICOM upload
                    └─ FastAPI staging → private Cloud Run L4/Triton staging
 main ← reviewed/approved PR dev→main ← staging accepted
-  └─ FastAPI production → private Cloud Run L4/Triton production (pending)
+  └─ FastAPI production → private Cloud Run L4/Triton production (API connection pending)
 ```
 
 - Vercel frontend hiện có URL HTTPS công khai; không cần mua custom domain để test phần frontend. Cloud Run cấp URL HTTPS `run.app` cho API sau khi service được deploy.

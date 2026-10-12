@@ -1,7 +1,7 @@
 # Changelog — Knee Review
 
 > **Cập nhật gần nhất:** 2026-10-13
-> **Thay đổi gần nhất:** Chuẩn bị kết nối Triton production riêng tư; API deploy ở `main` yêu cầu cấu hình model rõ ràng.
+> **Thay đổi gần nhất:** Provisioned private Triton production L4; production API awaits environment variables and approved deployment.
 > **Quy ước:** Mỗi entry ghi ngày, commit hoặc nguồn, nhóm thay đổi và tác động. Các kế hoạch cũ không bị xóa; chúng được đánh dấu historical/deferred trong tài liệu liên quan.
 
 ## 2026-10-12 — Refresh project READMEs
@@ -28,6 +28,15 @@
 - Updated Cloud Run API CD so both `dev` and `main` require their environment's Triton URL and model metadata; the production API revision now receives the Triton settings instead of silently deploying disconnected.
 - Documented production isolation: separate private model-artifact bucket, Triton runtime identity and IAM-private L4 service; only the production API runtime identity can invoke it.
 - Added the production provisioning and verification runbook. This documents commands only; no production GPU resource was created by this change.
+
+## 2026-10-13 — Provision private Triton production service
+
+### Added / Verified
+
+- Created the private production model bucket and copied the same SHA-pinned checkpoint used in verified staging.
+- Deployed `knee-triton-production` with the pinned Triton image digest, L4 GPU, 4 vCPU, 16 GiB, scale-to-zero, max one instance, and GPU zonal redundancy disabled.
+- Confirmed `knee_resnet34` version 1 is READY and granted Cloud Run Invoker only to the production API runtime identity.
+- Production FastAPI remains disconnected until GitHub `production` receives the Triton/model variables and the approved `main` deployment succeeds.
 
 ## 2026-10-12 — Terraform staging state and CI checks
 

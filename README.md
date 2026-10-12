@@ -23,7 +23,7 @@ docker compose up --build -d
 
 Open <http://localhost:8080>.
 
-The viewer accepts DICOM files, folders, or ZIP archives, displays studies/series/slices, and provides geometry-aware MPR and MRI volume visualization where source data supports it. Analyze/Triton inference is not connected yet. Docker builds the React frontend in a multi-stage image; no local `dist/` folder is required. Runtime DICOM files and database data are intentionally ignored by Git.
+The viewer accepts DICOM files, folders, or ZIP archives, displays studies/series/slices, and provides geometry-aware MPR and MRI volume visualization where source data supports it. Analyze uses the configured FastAPI-to-Triton path in staging; check the handover guide for the verified production status. Docker builds the React frontend in a multi-stage image; no local `dist/` folder is required. Runtime DICOM files and database data are intentionally ignored by Git.
 
 The sample DICOM folder is local-only and is not committed. Local Docker can seed an example through the Compose `EXAMPLES_DIR` mount; Cloud Run environments use separately provisioned example data in GCS/Firestore. Users can also import their own studies.
 
@@ -35,3 +35,5 @@ The sample DICOM folder is local-only and is not committed. Local Docker can see
 - Production Terraform adopts the existing DICOM bucket, runtime service account and IAM bindings. The production database is intentionally left unmanaged by Terraform; review a plan carefully and get human approval before applying any production changes.
 
 See [deployment and Terraform workflow](knee-service-blueprint/15-ci-cd-plan.md) and the [GCP runbook](knee-service-blueprint/09-gcp-runbook.md) for setup, plans, apply, smoke tests and rollback guidance.
+
+For the verified environment status and handover checklist, start with [project handover](knee-service-blueprint/21-project-handover.md).

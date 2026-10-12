@@ -1,12 +1,12 @@
 # 03 — Design system: Knee Review
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Capture preview uses square 64/128/512 export presets; 512×512 is the default.
+> **Cập nhật gần nhất:** 2026-10-13
+> **Thay đổi gần nhất:** Giao diện Analyze gọi API theo study; staging đã được kiểm tra qua Triton. Xem [21 — tài liệu bàn giao](21-project-handover.md).
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
 Tên làm việc: **Knee Review**. Đây là đề xuất UI cho prototype, không phải thương hiệu đã chốt. Xem [design board](templates/design-board.html) và [CSS tokens](templates/design-tokens.css).
 
-Phạm vi hiện hành: không account/login hoặc AI panel. Trong workspace, Overview là MRI Volume + ba MPR planes từ một source series; direction tabs giữ original stack. Study information và ingest pipeline nằm bên phải. Analyze là placeholder. Thông báo ingest căn trong cột workspace, không phủ ngang sidebar và viewer.
+Ứng dụng không có đăng nhập. Trong workspace, Overview là MRI Volume và ba mặt phẳng MPR dựng từ cùng một series; các tab hướng vẫn hiển thị stack gốc. Panel bên phải chuyển giữa Study Information và AI Analysis. Analyze gọi API theo study và hiển thị 12 model scores khi inference thành công; nếu API/model lỗi, giao diện phải báo lỗi thay vì tạo điểm giả. Thông báo nhập study nằm trong workspace, không phủ ngang sidebar và viewer.
 
 ## Định hướng
 
@@ -71,14 +71,15 @@ Badge trạng thái: nền surface/raised, text màu đậm tương ứng. Nút 
 - Study header actions: giữ `Analyze` và `Delete study` thành hai nút riêng có khoảng cách rõ ràng; không wrap chữ nút và cho phép xuống dòng có chủ đích ở viewport hẹp.
 - Confirmations: thao tác xóa study và Clear session dùng modal của Knee Review, nêu rõ dữ liệu bị xóa và có Cancel/action riêng; không dùng hộp `window.confirm` mặc định của trình duyệt.
 - Sau khi xóa study đang mở, tự mở study còn lại đầu tiên; nếu thư viện trống thì trở về empty workspace. Xóa study khác đang mở thì giữ nguyên selection hiện tại.
-- Không score/result hoặc AI panel trong local; Analyze chỉ mở notice rằng AI/Triton chưa kết nối. Thiết kế score chỉ thực hiện khi bắt đầu phase inference.
+- Analyze mở AI Analysis panel thay Study Information. Khi API trả kết quả, hiển thị 12 scores theo study; không hiển thị thanh năng lượng. Màu số chuyển xanh lá → vàng → đỏ theo score và score trên 75% có viền nhấn mạnh. Panel thông tin kỹ thuật được thu gọn mặc định. Nếu inference thất bại, hiển thị lỗi rõ ràng; không dùng điểm 0 làm placeholder. Luôn ghi rõ scores chỉ để tham khảo, không thay kết luận của bác sĩ.
+- Kết quả Analyze và panel đang chọn được giữ theo Study ID trong `sessionStorage` của tab để chuyển study/quay lại hoặc refresh không làm mất. Hai panel có nút chuyển qua lại; xóa study xóa entry của study đó, Clear session dọn toàn bộ kết quả local. Study UID hiển thị đầy đủ, cho phép ngắt dòng thay vì ellipsis. Giao diện giữ kết quả trong tab; không xem đây là lưu trữ lâu dài trên server.
 
 ## Accessibility và ngôn ngữ
 
 - Text thường đạt contrast ≥4.5:1, text lớn ≥3:1; control/focus cần ≥3:1 với nền liên quan. Đo trên màu thật của component, không chỉ bảng token.
 - Toolbar button có aria-label; slider có label, min/max/value và keyboard; tooltip không chứa thông tin duy nhất.
 - Không cướp phím scroll khi focus ở input. Loading/error công bố qua live region phù hợp.
-- UI sản phẩm hiện dùng tiếng Anh: “Study”, “Series”, “Slice”, “Analyze”, “Coming soon”, “No axial series”. Tài liệu này có thể dùng tiếng Việt để giải thích, nhưng không được suy ra rằng UI runtime phải dịch sang tiếng Việt.
+- UI sản phẩm hiện dùng tiếng Anh cho các nhãn chính như “Study”, “Series”, “Slice”, “Analyze”, “Study information” và “AI Analysis”. Tên target giữ tiếng Anh, kèm chú giải tên bệnh bằng tiếng Việt. Chỉ hiện lỗi kết nối model khi request thật thất bại; không hiển thị trạng thái giả “Model not connected” khi inference đang hoạt động.
 - Window/level điều chỉnh ảnh y khoa tách biệt tiêu chí contrast chữ UI. Checklist UI không chứng nhận chất lượng màn hình đọc chẩn đoán.
 
 Nguồn: [WCAG 2.2](https://www.w3.org/TR/WCAG22/). Màu/font là quyết định thiết kế của dự án; không phải yêu cầu do thư viện quy định.

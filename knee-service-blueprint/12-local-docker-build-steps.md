@@ -1,19 +1,18 @@
 # 12 — Build local từng bước: upload, viewer, 1 example study, Docker
 
-> **Cập nhật gần nhất:** 2026-10-09
-> **Thay đổi gần nhất:** Documented anonymous session, upload ownership/caps and commit/CI links.
+> **Tài liệu lịch sử:** Phạm vi ban đầu ngày 05/10/2026. Các bước và trạng thái bên dưới có thể đã cũ.
 > **Lịch sử:** [CHANGELOG](CHANGELOG.md)
 
-Ngày chốt phạm vi ban đầu: **05/10/2026**. Local vertical slice hiện có FastAPI + SQLite + React build tĩnh, Docker Compose, sample study, upload/view DICOM và Overview MRI Volume + linked MPR. AI/Triton/GCP vẫn để phase sau.
+Tài liệu này ghi lại kế hoạch dựng bản local ở giai đoạn đầu. Hiện ứng dụng đã có luồng Analyze qua API; staging dùng Triton trên Cloud Run GPU. Để chạy và kiểm tra đúng trạng thái hiện tại, xem [README của ứng dụng](../knee-web/README.md) và [tài liệu bàn giao](21-project-handover.md).
 
 ## 1. Kết quả cần có
 
-Mở `http://localhost:8080` → thấy một sample study gồm hai series và danh sách đã nhập → mở sample hoặc nhập file/thư mục `.dcm` → ingest pipeline validate/group/sort → xem ảnh trong tabs + 4 ô, panel thông tin, expand cây Study → Series → slice files, chọn series, lướt lát, zoom/pan/contrast → bấm Analyze để nhận thông báo placeholder → refresh/restart vẫn mở lại được.
+Luồng ở đoạn này là kịch bản nghiệm thu ban đầu. Phần mô tả Analyze bằng 12 score placeholder `0%` đã cũ; hiện Analyze gọi API, còn model local chỉ chạy khi đã cấu hình checkpoint. Xem [README của ứng dụng](../knee-web/README.md) để chạy theo cách hiện tại.
 
 - React + TypeScript + Tailwind; Cornerstone cho DICOM `.dcm`.
 - FastAPI, SQLite, một worker index; chạy bằng Docker Compose trên máy local.
 - Không username/password/account/provider. Backend cấp temporary HttpOnly cookie để isolate từng browser; không dùng một catalog chung cho study upload.
-- Chưa build model/checkpoint, preprocessing AI, Triton, AI panel hoặc GCP. Analyze chỉ là CTA placeholder, không gọi backend inference.
+- **Trạng thái lịch sử lúc viết kế hoạch:** chưa build model/checkpoint/Triton; Analyze chỉ hiện 12 giá trị `0%` để kiểm thử giao diện. Trạng thái này không còn đúng; xem [20 — Triton](20-triton-cloudrun-gpu.md).
 - Input trong giai đoạn này chỉ là DICOM `.dcm`; TIFF, NIfTI, PNG/JPG, NPY, video và PDF chưa thuộc supported matrix.
 
 ## 2. Những thiếu sót của plan trước và cách sửa
@@ -27,7 +26,7 @@ Mở `http://localhost:8080` → thấy một sample study gồm hai series và 
 | SQLite đặt cạnh code trong OneDrive dễ bị đồng bộ khi đang ghi | Runtime SQLite + raw data nằm trong Docker named volume |
 | Upload retry/restart và import trùng chưa rõ | Receipt theo file, complete idempotent; worker persist trạng thái; không overwrite cùng UID khác nội dung |
 | Đòi ba hướng/3D cho mọi input | Chỉ hiện các hướng thực có; thiếu geometry thì báo rõ và chưa dựng MPR |
-| Demo có score giả và panel AI | Chỉ giữ Analyze CTA có notice; không tạo score/result giả |
+| Chưa có model nhưng cần test AI panel | Dùng 12 score placeholder `0%`, gắn nhãn model unavailable; không gọi đây là output model hoặc kết luận bệnh |
 
 ## 3. Thứ tự build và điều kiện xong từng bước
 
@@ -37,7 +36,7 @@ Mở `http://localhost:8080` → thấy một sample study gồm hai series và 
 | **2 — Skeleton Docker** | Tạo `knee-web/` với frontend, backend, worker, compose; SQLite migration; web proxy `/api/v1` | Người 1; Người 2 dựng shell | Một URL localhost mở app; `/health/ready` báo DB/storage được; chưa cần GPU |
 | **3 — Import DICOM** | Upload file/thư mục, receipt, index UID, manifest, file endpoint; dựng một stack bằng Cornerstone | Người 1 API; Người 2 viewer | Tự upload ca DICOM hiện có → 1 study, 2 series, 34 và 30 ảnh; lướt ảnh đúng thứ tự |
 | **4 — Danh sách + sample** | Study list, import dialog/progress, seed folder hoặc `results.zip` cùng pipeline | Người 1 seed; Người 2 UI | Bấm Mở mẫu không upload lại; seed chạy lần 2 không sinh thêm study |
-| **5 — Workspace tree** | Sidebar Study → Series → slice files, 4 ô hoặc một stack, hướng, zoom/pan/display preview/reset, Analyze placeholder | Người 2; Người 1 metadata | Series chọn độc lập; thiếu hướng báo rõ |
+| **5 — Workspace tree** | Sidebar Study → Series → slice files, 4 ô hoặc một stack, hướng, zoom/pan/display preview/reset, Analyze fallback panel | Người 2; Người 1 metadata | Series chọn độc lập; thiếu hướng báo rõ; fallback được ghi rõ không phải inference |
 | **6 — Xóa + bền vững** | Confirmation, sample read-only, cleanup files/DB, refresh, restart, duplicate import | Người 1 storage; Người 2 states | Study upload xóa được; sample không xóa; restart không mất dữ liệu |
 | **7 — Lỗi + limits** | Unsupported DICOM, disk/memory, partial/failed | Cả hai | Lỗi có hành động rõ, không orphan/delete nhầm |
 | **8 — ZIP (deferred)** | Chỉ làm khi scope mở lại: giải nén giới hạn, nhận diện DICOM, report lỗi | Cả hai khi được bật lại | Không block local vertical slice hiện tại |

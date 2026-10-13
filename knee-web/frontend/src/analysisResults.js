@@ -16,6 +16,32 @@ export const analysisTargets = [
   { id: 'fracture', name: 'Fracture', translation: 'Gãy xương' },
 ]
 
+export const ANALYSIS_SCORE_THRESHOLD = 0.5
+
+export function groupAnalysisScores(scores = {}) {
+  const ranked = analysisTargets.map((target, index) => {
+    const raw = scores?.[target.id]
+    const parsed = typeof raw === 'number' || (typeof raw === 'string' && raw.trim() !== '')
+      ? Number(raw)
+      : NaN
+    const score = Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : null
+    return { ...target, score, index }
+  }).sort((a, b) => {
+    if (a.score === null) return b.score === null ? a.index - b.index : 1
+    if (b.score === null) return -1
+    return b.score - a.score || a.index - b.index
+  })
+
+  return {
+    atOrAboveThreshold: ranked.filter(({ score }) => score !== null && score >= ANALYSIS_SCORE_THRESHOLD),
+    remaining: ranked.filter(({ score }) => score === null || score < ANALYSIS_SCORE_THRESHOLD),
+  }
+}
+
+export function formatAnalysisScore(score) {
+  return score === null ? '—' : score.toFixed(3)
+}
+
 function readSessionValue(key) {
   try {
     const value = window.sessionStorage.getItem(key)

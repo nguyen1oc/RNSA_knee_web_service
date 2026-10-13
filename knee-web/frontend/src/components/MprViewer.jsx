@@ -328,7 +328,7 @@ export default function MprViewer({ series }) {
           {slicePlanes.map((plane, index) => <polygon key={plane.id} points={plane.points.map((point) => point.join(',')).join(' ')} fill={plane.color} fillOpacity={selectedPlane === index ? 0.2 : 0.08} stroke={plane.color} strokeWidth={selectedPlane === index ? 2 : 1} vectorEffect="non-scaling-stroke" className="mpr-slice-plane" role="button" aria-label={`Select ${plane.label} slice plane`} onClick={() => { setSelectedPlane(index); setActive(3) }} onPointerDown={(event) => planePointerDown(event, index)} />)}
         </svg>
         <div className="mpr-plane-legend">{planes.map((plane, index) => <button key={plane} className={selectedPlane === index ? 'selected-control' : ''} onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedPlane(index); setActive(3) }}><i style={{ backgroundColor: planeColors[index] }} />{plane}</button>)}</div>
-        <VolumeOrientationGizmo onRotate={rotateVolumeCamera} />
+        {ready && <VolumeOrientationGizmo onRotate={rotateVolumeCamera} />}
       </div>
       <div className="mpr-volume-foot">Patient-specific voxel volume · {volumePresets.find(({ value }) => value === volumePreset)?.label} · {projection === 'mip' ? 'Maximum-intensity projection' : 'Composite projection'}</div>
     </article></div>

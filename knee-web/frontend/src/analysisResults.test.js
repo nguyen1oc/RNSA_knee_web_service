@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   analysisTargets,
-  formatAnalysisScore,
+  modelSignalLevel,
   groupAnalysisScores,
   removeStudyAnalysis,
 } from './analysisResults.js'
@@ -44,5 +44,16 @@ test('scores at or above 0.5 come first in descending order and the rest stay so
   assert.equal(remaining[0].id, 'fracture')
   assert.equal(remaining.length, 7)
   assert.equal(remaining.find(({ id }) => id === 'effusion').score, null)
-  assert.equal(formatAnalysisScore(atOrAboveThreshold[0].score), '0.930')
+  assert.deepEqual(modelSignalLevel(atOrAboveThreshold[0].score), { key: 'strong', label: 'Strong signal' })
+})
+
+test('model signal labels use inclusive lower bounds without claiming a probability', () => {
+  const examples = [
+    [0, 'minimal'], [0.249, 'minimal'],
+    [0.25, 'low'], [0.499, 'low'],
+    [0.5, 'moderate'], [0.749, 'moderate'],
+    [0.75, 'strong'], [1, 'strong'],
+  ]
+  for (const [score, key] of examples) assert.equal(modelSignalLevel(score).key, key)
+  assert.equal(modelSignalLevel(null).label, 'Unavailable')
 })

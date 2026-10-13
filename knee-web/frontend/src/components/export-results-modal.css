@@ -1,0 +1,97 @@
+.analysis-export-button { width: 100%; margin-top: 12px; }
+
+.export-results-backdrop {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 12px;
+  background: rgb(12 28 44 / 52%);
+  backdrop-filter: blur(3px);
+}
+
+.export-results-dialog {
+  width: min(560px, calc(100vw - 24px));
+  height: min(760px, calc(100dvh - 24px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid #d7e3ed;
+  border-radius: 12px;
+  background: #f2f6fa;
+  box-shadow: 0 24px 80px rgb(12 35 55 / 28%);
+}
+
+.export-results-toolbar,
+.export-results-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+  padding: 7px 14px;
+}
+
+.export-results-toolbar { border-bottom: 1px solid #dce6ee; }
+.export-results-toolbar h2 { margin: 0; color: #29445d; font: 700 13px Manrope, sans-serif; }
+.export-results-sheet {
+  width: min(calc(100% - 32px), 420px);
+  height: 100%;
+  min-height: 0;
+  margin: 0 auto;
+  padding: clamp(12px, 3.5vh, 28px) clamp(20px, 5vw, 34px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fff;
+  color: #26394b;
+  box-shadow: 0 4px 18px rgb(23 48 77 / 12%);
+}
+
+.export-results-sheet h1 {
+  margin: 0;
+  color: #17304d;
+  flex: 0 0 auto;
+  font: 800 18px Manrope, sans-serif;
+  letter-spacing: .015em;
+  text-transform: uppercase;
+}
+
+.export-results-date { flex: 0 0 auto; margin: 6px 0 10px; color: #66798b; font-size: 10px; }
+.export-results-study { display: grid; gap: 4px; padding: 10px 0 8px; border-bottom: 1px solid #dce4eb; }
+.export-results-study span { color: #788897; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.export-results-study b { color: #344a5f; font: 600 10px ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+.export-results-list { flex: 1 1 auto; min-height: 0; display: grid; grid-template-rows: repeat(12, minmax(0, 1fr)); padding-top: 5px; }
+.export-results-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 0; padding: 1px 0; border-bottom: 1px solid #edf1f4; color: #40566a; font-size: 10px; text-transform: lowercase; }
+.export-results-row > b { display: grid; gap: 2px; justify-items: end; text-align: right; }
+.export-results-row > b small { color: #8796a3; font-size: 8px; font-weight: 600; text-transform: none; }
+.export-results-row.high-score { color: #7d2424; font-weight: 800; }
+.export-results-row.high-score b { font-weight: 900; }
+.export-results-footnote { flex: 0 0 auto; margin: 7px 0 0; padding-top: 6px; border-top: 1px solid #e3e9ee; color: #7c8994; font-size: 8px; line-height: 1.35; }
+.export-results-actions { justify-content: flex-end; border-top: 1px solid #dce6ee; background: #fff; }
+
+@media (max-height: 680px) {
+  .export-results-backdrop { padding: 8px; }
+  .export-results-dialog { width: min(520px, calc(100vw - 16px)); height: calc(100dvh - 16px); }
+  .export-results-sheet { padding: 10px 24px; }
+  .export-results-sheet h1 { font-size: 16px; }
+  .export-results-study { padding: 6px 0; }
+  .export-results-date { margin: 4px 0 6px; }
+  .export-results-row { font-size: 9px; }
+}
+
+@media print {
+  @page { size: A4 portrait; margin: 16mm; }
+  body * { visibility: hidden !important; }
+  .export-results-backdrop,
+  .export-results-backdrop * { visibility: visible !important; }
+  .export-results-backdrop { position: absolute; inset: 0; display: block; overflow: visible; padding: 0; background: #fff; backdrop-filter: none; }
+  .export-results-dialog { width: 100%; height: auto; overflow: visible; border: 0; border-radius: 0; background: #fff; box-shadow: none; }
+  .export-results-toolbar,
+  .export-results-actions { display: none !important; }
+  .export-results-sheet { width: 100%; height: auto; min-height: 0; margin: 0; padding: 0; overflow: visible; box-shadow: none; }
+  .export-results-list { display: block; }
+  .export-results-row { min-height: 20px; padding: 4px 0; }
+}

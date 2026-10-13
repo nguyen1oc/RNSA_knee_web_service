@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Image as ImageIcon, Info, Sparkles, Trash2, X } from 'lucide-react'
+import { Image as ImageIcon, Sparkles, Trash2 } from 'lucide-react'
 import './styles.css'
 import './upload-progress.css'
 import './viewer-overrides.css'
@@ -13,14 +13,22 @@ import MprViewer from './components/MprViewer'
 import './native-viewer.css'
 import EmptyWorkspace from './components/EmptyWorkspace'
 import FocusedViewer from './components/FocusedViewer'
-import SeriesBrowser from './components/SeriesBrowser'
 import StudyInfoPanel from './components/StudyInfoPanel'
+import AIAnalysisPanel from './components/AIAnalysisPanel'
+import AnalysisLoadingModal from './components/AnalysisLoadingModal'
 import StudySidebar from './components/StudySidebar'
 import ViewerTabs from './components/ViewerTabs'
 import ViewerToolbar from './components/ViewerToolbar'
 import ImportStudyMenu from './components/ImportStudyMenu'
 import { uploadStudy } from './uploadStudy'
 import { apiFetch } from './api'
+import {
+  loadAnalysisResults,
+  loadStudyPanelModes,
+  removeStudyAnalysis,
+  saveAnalysisResults,
+  saveStudyPanelModes,
+} from './analysisResults'
 
 function readableError(error, fallback) {
   const message = typeof error?.message === 'string' ? error.message.trim() : ''
@@ -60,7 +68,6 @@ const tabs = [
   { label: 'Sagittal', plane: 'SAG' },
   { label: 'Coronal', plane: 'COR' },
   { label: 'Axial', plane: 'AX' },
-  { label: 'Images / Series' },
 ]
 
 function chooseInitialMprSource(series = []) {
@@ -86,11 +93,17 @@ function App() {
   const [confirmation, setConfirmation] = useState(null)
   const [confirming, setConfirming] = useState(false)
   const [notice, setNotice] = useState(null)
+  const [analysisResults, setAnalysisResults] = useState(loadAnalysisResults)
+  const [analyzingStudyId, setAnalyzingStudyId] = useState(null)
+  const [panelModes, setPanelModes] = useState(loadStudyPanelModes)
   const [expandedStudies, setExpandedStudies] = useState(new Set())
   const [expandedSeries, setExpandedSeries] = useState(new Set())
   const fileInput = useRef(null)
   const folderInput = useRef(null)
   const seriesRequest = useRef(0)
+
+  useEffect(() => { saveAnalysisResults(analysisResults) }, [analysisResults])
+  useEffect(() => { saveStudyPanelModes(panelModes) }, [panelModes])
 
   const showError = (error, fallback = 'Something went wrong. Please try again.') => {
     setNotice({ type: 'error', text: readableError(error, fallback) })
@@ -138,7 +151,7 @@ function App() {
     const request = ++seriesRequest.current
     setActiveSeries(series)
     if (switchToDirection) {
-      setViewerTab(series.plane === 'SAG' ? 'Sagittal' : series.plane === 'COR' ? 'Coronal' : series.plane === 'AX' ? 'Axial' : 'Images / Series')
+      setViewerTab(series.plane === 'SAG' ? 'Sagittal' : series.plane === 'COR' ? 'Coronal' : series.plane === 'AX' ? 'Axial' : 'Overview')
       setSliceIndex(0)
     } else {
       setSliceIndex(null)
@@ -209,6 +222,9 @@ function App() {
         const deletingActiveStudy = activeStudy?.id === study.id
         try {
           await api(`/api/studies/${study.id}`, { method: 'DELETE' })
+          const cleaned = removeStudyAnalysis(study.id, analysisResults, panelModes)
+          setAnalysisResults(cleaned.results)
+          setPanelModes(cleaned.modes)
           setNotice({ type: 'success', text: 'Study deleted.' })
           await refresh(deletingActiveStudy ? undefined : activeStudy?.id, { fallbackToActive: !deletingActiveStudy })
         } catch (error) {
@@ -218,7 +234,31 @@ function App() {
     })
   }
 
-  const analyzeStudy = () => setNotice({ type: 'analyze', text: 'Analyze is reserved for the upcoming AI pipeline. Triton inference is not connected in this local viewer yet.' })
+  const analyzeStudy = async () => {
+    if (!activeStudy) return
+    const studyId = activeStudy.id
+    setAnalyzingStudyId(studyId)
+    setNotice(null)
+    try {
+      const result = await api(`/api/studies/${studyId}/analyze`, { method: 'POST' })
+      setAnalysisResults((current) => ({ ...current, [studyId]: result }))
+      setPanelModes((current) => ({ ...current, [studyId]: 'analysis' }))
+    } catch (error) {
+      showError(error, 'AI analysis failed. Check that the local backend has the checkpoint configured.')
+    } finally {
+      setAnalyzingStudyId(null)
+    }
+  }
+
+  const showStudyInfo = () => {
+    if (!activeStudy) return
+    setPanelModes((current) => ({ ...current, [activeStudy.id]: 'info' }))
+  }
+
+  const showAIAnalysis = () => {
+    if (!activeStudy || !analysisResults[activeStudy.id]) return
+    setPanelModes((current) => ({ ...current, [activeStudy.id]: 'analysis' }))
+  }
 
   const toggleStudy = (studyId) => setExpandedStudies((current) => {
     const next = new Set(current)
@@ -250,6 +290,8 @@ function App() {
         setClearingSession(true)
         try {
           await clearTemporarySession()
+          setAnalysisResults({})
+          setPanelModes({})
           setStudies([])
           setActiveStudy(null)
           setActiveSeries(null)
@@ -278,12 +320,11 @@ function App() {
   const focusedSeries = focusedPlane ? planeSeries[focusedPlane] : null
   const focusedItems = seriesSliceMap[focusedSeries?.id] || []
   const focusedSlices = focusedSeries?.id === activeSeries?.id ? slices : focusedItems
+  const analyzingStudy = studies.find((study) => study.id === analyzingStudyId)
   if (loading && !activeStudy) return <div className="loading-screen"><div className="brand-mark">KR</div><p>Opening temporary workspace…</p></div>
 
   const viewerContent = viewerTab === 'Overview' ? (
     <MprViewer series={activeSeries} />
-  ) : viewerTab === 'Images / Series' ? (
-    <SeriesBrowser study={activeStudy} activeSeriesId={activeSeries?.id} sliceMap={seriesSliceMap} onSelect={(series) => selectSeries(series, { switchToDirection: false })} />
   ) : (
     <FocusedViewer
       series={focusedSeries}
@@ -324,25 +365,26 @@ function App() {
             <>
               <div className="content-head">
                 <div><div className="title-row"><h2>{activeStudy.display_name}</h2><span className={`source-badge ${activeStudy.source}`}>{activeStudy.source === 'sample' ? 'Example' : 'Imported'}</span></div><p className="subline">{activeStudy.series.length} series · {activeStudy.total_slices} images · UID ending {activeStudy.study_uid.slice(-12)}</p></div>
-                <div className="head-actions"><button className="button analyze-button" onClick={analyzeStudy}><Sparkles size={15} /> Analyze <span>Coming soon</span></button><button className="button ghost" onClick={() => deleteStudy(activeStudy)} disabled={activeStudy.source === 'sample'}><Trash2 size={15} /> Delete study</button></div>
+                <div className="head-actions"><button className="button analyze-button" onClick={analyzeStudy} disabled={analyzingStudyId === activeStudy.id}><Sparkles size={15} /> {analyzingStudyId === activeStudy.id ? 'Analyzing…' : 'Analyze'}</button><button className="button ghost" onClick={() => deleteStudy(activeStudy)} disabled={activeStudy.source === 'sample'}><Trash2 size={15} /> Delete study</button></div>
               </div>
-
-              {notice?.type === 'analyze' && <div className="notice analyze"><span><Info size={16} />{notice.text}</span><button aria-label="Dismiss notice" onClick={() => setNotice(null)}><X size={15} /></button></div>}
 
               <div className="viewer-shell">
                 <section className="viewer-pane" aria-label="DICOM viewer">
                   <ViewerTabs tabs={tabs} activeTab={viewerTab} onChange={changeTab} />
-                  <ViewerToolbar activeStudy={activeStudy} activeSeries={activeSeries} seriesLabel={viewerTab === 'Overview' ? 'MPR source' : 'Active series'} selectSeries={(series) => selectSeries(series, { switchToDirection: !['Overview', 'Images / Series'].includes(viewerTab) })} currentIndex={currentIndex} slices={slices} setSliceIndex={setSliceIndex} showZoom={false} showSlices={false} />
+                  <ViewerToolbar activeStudy={activeStudy} activeSeries={activeSeries} seriesLabel={viewerTab === 'Overview' ? 'MPR source' : 'Active series'} selectSeries={(series) => selectSeries(series, { switchToDirection: viewerTab !== 'Overview' })} currentIndex={currentIndex} slices={slices} setSliceIndex={setSliceIndex} showZoom={false} showSlices={false} />
                   {viewerContent}
                   <div className="viewer-footer"><span><ImageIcon size={14} /> {viewerTab === 'Overview' ? `Synchronized MPR · ${activeSeries?.description || 'Select an active series'}` : currentSlice?.filename || 'Select a series to view images'}</span><span>Native DICOM · Research use only · Not validated for diagnosis</span></div>
                 </section>
-                <StudyInfoPanel study={activeStudy} />
+                {panelModes[activeStudy.id] === 'analysis' && analysisResults[activeStudy.id]
+                  ? <AIAnalysisPanel study={activeStudy} result={analysisResults[activeStudy.id]} onShowStudyInfo={showStudyInfo} />
+                  : <StudyInfoPanel study={activeStudy} hasAnalysis={Boolean(analysisResults[activeStudy.id])} onShowAIAnalysis={showAIAnalysis} />}
               </div>
             </>
           )}
         </main>
       </div>
       <ConfirmationDialog confirmation={confirmation} busy={confirming || clearingSession} onCancel={cancelConfirmation} onConfirm={runConfirmation} />
+      <AnalysisLoadingModal open={Boolean(analyzingStudyId)} studyName={analyzingStudy?.display_name} />
     </div>
   )
 }

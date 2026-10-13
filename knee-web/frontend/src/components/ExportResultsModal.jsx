@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { groupAnalysisScores, modelSignalLevel } from '../analysisResults'
 import './export-results-modal.css'
 import './export-results-print.css'
+import './model-signal.css'
 
 function exportDate(value) {
   return new Intl.DateTimeFormat('en', { dateStyle: 'long' }).format(new Date(value))
@@ -40,8 +41,8 @@ export default function ExportResultsModal({ study, result, onClose }) {
           <h2 className="export-results-score-heading">AI-flagged findings</h2>
           <div className="export-results-list" aria-label="AI-flagged findings for this study">
             {atOrAboveThreshold.map(({ id, name, score }) => (
-              <div className={`export-results-row${score >= 0.75 ? ' high-score' : ''}`} key={id}>
-                <span>{name}</span><b>{modelSignalLevel(score).label}</b>
+              <div className={`export-results-row${modelSignalLevel(score).key === 'strong' ? ' high-score' : ''}`} key={id}>
+                <span>{name}</span><b className={`model-signal--${modelSignalLevel(score).key}`}>{modelSignalLevel(score).label}</b>
               </div>
             ))}
             {atOrAboveThreshold.length === 0 && <p className="export-results-empty">No model signals reached the moderate or strong range.</p>}

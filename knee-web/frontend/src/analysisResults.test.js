@@ -55,5 +55,9 @@ test('model signal labels use inclusive lower bounds without claiming a probabil
     [0.75, 'strong'], [1, 'strong'],
   ]
   for (const [score, key] of examples) assert.equal(modelSignalLevel(score).key, key)
+  assert.deepEqual(examples.map(([score]) => modelSignalLevel(score).label), [
+    'Minimal signal', 'Minimal signal', 'Low signal', 'Low signal',
+    'Moderate signal', 'Moderate signal', 'Strong signal', 'Strong signal',
+  ])
   assert.equal(modelSignalLevel(null).label, 'Unavailable')
 })

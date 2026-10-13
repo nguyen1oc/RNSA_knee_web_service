@@ -4,11 +4,7 @@ import { groupAnalysisScores, modelSignalLevel } from '../analysisResults'
 import ExportResultsModal from './ExportResultsModal'
 import './analysis-details.css'
 import './analysis-score-summary.css'
-
-function scoreColor(score) {
-  const hue = Math.max(0, Math.min(120, 120 - Number(score) * 120))
-  return `hsl(${hue} 58% 38%)`
-}
+import './model-signal.css'
 
 function formattedDate(value) {
   const date = value ? new Date(value) : new Date()
@@ -60,9 +56,9 @@ export default function AIAnalysisPanel({ study, result, onShowStudyInfo }) {
       )}
       <ul className="analysis-score-list">
         {inferenceComplete && visibleScores.map(({ id, name, translation, score }) => (
-          <li className={`analysis-score-row${score !== null && score >= 0.75 ? ' high-score' : ''}`} key={id}>
+          <li className={`analysis-score-row${modelSignalLevel(score).key === 'strong' ? ' high-score' : ''}`} key={id}>
             <span className="analysis-target-name"><b>{name}</b><small>{translation}</small></span>
-            <b className="analysis-score-value" style={score === null ? undefined : { color: scoreColor(score) }}>
+            <b className={`analysis-score-value model-signal--${modelSignalLevel(score).key}`}>
               {modelSignalLevel(score).label}
             </b>
           </li>

@@ -1,0 +1,6 @@
+/* One fixed color per displayed model-signal band; the hue never encodes a hidden score. */
+.model-signal--minimal { color: #278054; }
+.model-signal--low { color: #6c8629; }
+.model-signal--moderate { color: #a2660a; }
+.model-signal--strong { color: #b83f45; }
+.model-signal--unavailable { color: #72869a; }

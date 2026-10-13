@@ -33,8 +33,8 @@ export function groupAnalysisScores(scores = {}) {
   })
 
   return {
-    aboveThreshold: ranked.filter(({ score }) => score !== null && score > ANALYSIS_SCORE_THRESHOLD),
-    remaining: ranked.filter(({ score }) => score === null || score <= ANALYSIS_SCORE_THRESHOLD),
+    atOrAboveThreshold: ranked.filter(({ score }) => score !== null && score >= ANALYSIS_SCORE_THRESHOLD),
+    remaining: ranked.filter(({ score }) => score === null || score < ANALYSIS_SCORE_THRESHOLD),
   }
 }
 

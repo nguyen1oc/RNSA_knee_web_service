@@ -27,8 +27,8 @@ test('removing a study clears only that study result and panel mode', () => {
   })
 })
 
-test('scores above 0.5 come first in descending order and the rest stay sorted', () => {
-  const { aboveThreshold, remaining } = groupAnalysisScores({
+test('scores at or above 0.5 come first in descending order and the rest stay sorted', () => {
+  const { atOrAboveThreshold, remaining } = groupAnalysisScores({
     acl: 0.5,
     mcl: 0.93,
     'medial-meniscus': 0.71,
@@ -38,11 +38,11 @@ test('scores above 0.5 come first in descending order and the rest stay sorted',
     effusion: null,
   })
 
-  assert.deepEqual(aboveThreshold.map(({ id }) => id), [
-    'mcl', 'lateral-meniscus', 'medial-meniscus', 'synovitis',
+  assert.deepEqual(atOrAboveThreshold.map(({ id }) => id), [
+    'mcl', 'lateral-meniscus', 'medial-meniscus', 'synovitis', 'acl',
   ])
-  assert.deepEqual(remaining.slice(0, 2).map(({ id }) => id), ['acl', 'fracture'])
-  assert.equal(remaining.length, 8)
+  assert.equal(remaining[0].id, 'fracture')
+  assert.equal(remaining.length, 7)
   assert.equal(remaining.find(({ id }) => id === 'effusion').score, null)
-  assert.equal(formatAnalysisScore(aboveThreshold[0].score), '0.930')
+  assert.equal(formatAnalysisScore(atOrAboveThreshold[0].score), '0.930')
 })

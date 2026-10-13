@@ -11,7 +11,7 @@ function exportDate(value) {
 
 export default function ExportResultsModal({ study, result, onClose }) {
   const [exportedAt] = useState(() => new Date().toISOString())
-  const { aboveThreshold } = groupAnalysisScores(result.scores)
+  const { atOrAboveThreshold } = groupAnalysisScores(result.scores)
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow
@@ -37,14 +37,14 @@ export default function ExportResultsModal({ study, result, onClose }) {
           <h1>RSNA Knee Review</h1>
           <div className="export-results-study"><span>Study UID</span><b>{study.study_uid}</b></div>
           <p className="export-results-date">Date: {exportDate(exportedAt)}</p>
-          <h2 className="export-results-score-heading">Scores above {ANALYSIS_SCORE_THRESHOLD}</h2>
-          <div className="export-results-list" aria-label={`Study scores above ${ANALYSIS_SCORE_THRESHOLD}`}>
-            {aboveThreshold.map(({ id, name, score }) => (
+          <h2 className="export-results-score-heading">Scores ≥ {ANALYSIS_SCORE_THRESHOLD}</h2>
+          <div className="export-results-list" aria-label={`Study scores at or above ${ANALYSIS_SCORE_THRESHOLD}`}>
+            {atOrAboveThreshold.map(({ id, name, score }) => (
               <div className={`export-results-row${score > 0.75 ? ' high-score' : ''}`} key={id}>
                 <span>{name}</span><b>{formatAnalysisScore(score)}</b>
               </div>
             ))}
-            {aboveThreshold.length === 0 && <p className="export-results-empty">No scores above {ANALYSIS_SCORE_THRESHOLD}.</p>}
+            {atOrAboveThreshold.length === 0 && <p className="export-results-empty">No scores ≥ {ANALYSIS_SCORE_THRESHOLD}.</p>}
           </div>
           <p className="export-results-footnote">AI predictions are for reference only. Final interpretation and diagnosis are the responsibility of the physician.</p>
         </article>

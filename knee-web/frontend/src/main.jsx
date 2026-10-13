@@ -102,6 +102,7 @@ function App() {
   const [expandedSeries, setExpandedSeries] = useState(new Set())
   const fileInput = useRef(null)
   const folderInput = useRef(null)
+  const uploadController = useRef(null)
   const seriesRequest = useRef(0)
 
   useEffect(() => { saveAnalysisResults(analysisResults) }, [analysisResults])
@@ -196,22 +197,31 @@ function App() {
     setNotice(null)
     const totalBytes = files.reduce((sum, file) => sum + file.size, 0)
     const startedAt = Date.now()
+    const controller = new AbortController()
+    uploadController.current = controller
     setUploadProgress({ phase: 'uploading', fileCount: files.length, loaded: 0, total: totalBytes, percent: 0, eta: null })
     const form = new FormData()
     files.forEach((file) => form.append('files', file, file.name))
     try {
       const result = await uploadStudy(form, (progress) => {
         setUploadProgress({ ...progress, fileCount: files.length })
-      }, startedAt)
+      }, startedAt, controller.signal)
       const rejectedText = result.rejected?.length ? ` ${result.rejected.length} file(s) skipped.` : ''
       setNotice({ type: 'success', text: `DICOM ingest complete: ${result.accepted_files} file(s) indexed.${rejectedText}` })
       await refresh(result.study_ids[0])
     } catch (error) {
-      showError(error, 'Study import failed. Check the backend connection and retry.')
+      if (error?.name === 'AbortError') setNotice({ type: 'success', text: 'Upload cancelled. Temporary upload data was cleaned up.' })
+      else showError(error, 'Study import failed. Check the backend connection and retry.')
     } finally {
+      if (uploadController.current === controller) uploadController.current = null
       setUploading(false)
       setUploadProgress(null)
     }
+  }
+
+  const cancelUpload = () => {
+    if (!uploadProgress || uploadProgress.phase === 'indexing') return
+    uploadController.current?.abort()
   }
 
   const deleteStudy = async (study) => {
@@ -355,6 +365,7 @@ function App() {
           expandedStudies={expandedStudies}
           expandedSeries={expandedSeries}
           uploadProgress={uploadProgress}
+          onCancelUpload={cancelUpload}
           onRefresh={() => refresh()}
           onToggleStudy={toggleStudy}
           onToggleSeries={toggleSeries}

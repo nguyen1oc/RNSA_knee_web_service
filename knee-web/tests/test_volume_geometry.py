@@ -36,6 +36,29 @@ def test_regular_stack_accepts_reversed_file_order(headers: list[Dataset]) -> No
     assert result["anisotropic"]
 
 
+def test_regular_stack_accepts_preparsed_header_dicts(headers: list[Dataset]) -> None:
+    fields = (
+        "ImageOrientationPatient",
+        "ImagePositionPatient",
+        "PixelSpacing",
+        "FrameOfReferenceUID",
+        "Rows",
+        "Columns",
+        "NumberOfFrames",
+        "SamplesPerPixel",
+        "PhotometricInterpretation",
+        "SeriesInstanceUID",
+        "BitsAllocated",
+        "PixelRepresentation",
+    )
+    parsed = [{field: getattr(ds, field) for field in fields if hasattr(ds, field)} for ds in headers]
+
+    result = volume_eligibility(parsed)
+
+    assert result["eligible"]
+    assert result["slice_count"] == len(headers)
+
+
 def test_oblique_regular_stack(headers: list[Dataset]) -> None:
     root = float(np.sqrt(0.5))
     for index, ds in enumerate(headers):

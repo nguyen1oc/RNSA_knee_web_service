@@ -33,6 +33,10 @@ from backend.dicom_rendering import render_preview  # noqa: F401
 from backend.example_study import seed_example, seed_example_archive
 from backend.geometry_backfill import refresh_geometry_records as backfill_geometry_records
 from backend.ingest import MAX_SESSION_BYTES, UploadLimitExceeded, stage_and_validate_uploads  # noqa: F401
+from backend.rate_limits import (  # noqa: F401 - injected into upload routes
+    enforce_finalize_limits,
+    enforce_upload_limits,
+)
 from backend.session_token import AnonymousSession, format_timestamp, hash_session_token, new_session_record, utc_now
 from backend.study_catalog import StudyCatalog
 from backend.volume_geometry import volume_eligibility  # noqa: F401

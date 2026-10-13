@@ -105,6 +105,136 @@ def test_resumable_upload_openapi_exposes_json_bodies(client: TestClient) -> Non
         assert not any(parameter["name"] == "body" for parameter in operation.get("parameters", []))
 
 
+def test_cloud_resumable_upload_can_access_rate_limit_services(
+    client: TestClient,
+    main_module: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class MetadataStore:
+        def __init__(self) -> None:
+            self.pending: list[dict[str, Any]] = []
+
+        def consume_rate_limit(self, counter_id: str, limit: int, expires_at: Any) -> bool:
+            return True
+
+        def session_by_token_hash(self, token_hash: str) -> dict[str, str]:
+            expires_at = "2999-01-01T00:00:00+00:00"
+            return {"id": "test-session", "idle_expires_at": expires_at, "absolute_expires_at": expires_at}
+
+        def touch_session(self, session_id: str, last_seen_at: str, idle_expires_at: str) -> None:
+            pass
+
+        def session_pending_uploads(self, session_id: str) -> list[dict[str, Any]]:
+            return self.pending
+
+        def session_studies(self, session_id: str) -> list[dict[str, Any]]:
+            return []
+
+        def create_pending_upload(self, upload_id: str, record: dict[str, Any]) -> None:
+            self.pending.append(record)
+
+    class ObjectStore:
+        def create_resumable_upload(
+            self,
+            object_name: str,
+            *,
+            content_type: str,
+            origin: str | None,
+            size: int,
+        ) -> str:
+            return "https://storage.example/resumable-upload"
+
+    metadata = MetadataStore()
+    monkeypatch.setattr(main_module, "cloud_mode", lambda: True)
+    monkeypatch.setattr(main_module, "cleanup_expired_sessions", lambda: {})
+    monkeypatch.setattr(main_module, "metadata_store", lambda: metadata)
+    monkeypatch.setattr(main_module, "object_store", ObjectStore)
+
+    response = client.post(
+        "/api/uploads/resumable",
+        json={"filename": "study.zip", "size": 123},
+        headers={"Origin": "http://localhost:5173"},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["upload_url"] == "https://storage.example/resumable-upload"
+
+
+def test_cloud_resumable_upload_can_be_cancelled_and_cleaned(
+    client: TestClient,
+    main_module: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class MetadataStore:
+        pending = {
+            "upload-1": {
+                "id": "upload-1",
+                "owner_session_id": "test-session",
+                "object_name": "incoming/test-session/upload-1.zip",
+            }
+        }
+
+        def session_by_token_hash(self, token_hash: str) -> dict[str, str]:
+            expiry = "2999-01-01T00:00:00+00:00"
+            return {"id": "test-session", "idle_expires_at": expiry, "absolute_expires_at": expiry}
+
+        def touch_session(self, session_id: str, last_seen_at: str, idle_expires_at: str) -> None:
+            pass
+
+        def get_pending_upload(self, upload_id: str) -> dict[str, Any] | None:
+            return self.pending.get(upload_id)
+
+        def delete_pending_upload(self, upload_id: str) -> None:
+            self.pending.pop(upload_id, None)
+
+    class ObjectStore:
+        bucket_name = "test-bucket"
+
+        def __init__(self) -> None:
+            self.deleted: list[str] = []
+
+        def delete_uri(self, uri: str) -> None:
+            self.deleted.append(uri)
+
+    metadata = MetadataStore()
+    objects = ObjectStore()
+    monkeypatch.setattr(main_module, "cloud_mode", lambda: True)
+    monkeypatch.setattr(main_module, "cleanup_expired_sessions", lambda: {})
+    monkeypatch.setattr(main_module, "metadata_store", lambda: metadata)
+    monkeypatch.setattr(main_module, "object_store", lambda: objects)
+
+    response = client.delete("/api/uploads/upload-1", headers={"Origin": "http://localhost:5173"})
+
+    assert response.status_code == 204
+    assert objects.deleted == ["gs://test-bucket/incoming/test-session/upload-1.zip"]
+    assert "upload-1" not in metadata.pending
+
+
+def test_cloud_resumable_upload_cannot_be_cancelled_by_another_session(
+    client: TestClient,
+    main_module: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class MetadataStore:
+        def session_by_token_hash(self, token_hash: str) -> dict[str, str]:
+            expiry = "2999-01-01T00:00:00+00:00"
+            return {"id": "other-session", "idle_expires_at": expiry, "absolute_expires_at": expiry}
+
+        def touch_session(self, session_id: str, last_seen_at: str, idle_expires_at: str) -> None:
+            pass
+
+        def get_pending_upload(self, upload_id: str) -> dict[str, Any]:
+            return {"id": upload_id, "owner_session_id": "test-session", "object_name": "incoming/owned.zip"}
+
+    monkeypatch.setattr(main_module, "cloud_mode", lambda: True)
+    monkeypatch.setattr(main_module, "cleanup_expired_sessions", lambda: {})
+    monkeypatch.setattr(main_module, "metadata_store", MetadataStore)
+
+    response = client.delete("/api/uploads/upload-1", headers={"Origin": "http://localhost:5173"})
+
+    assert response.status_code == 404
+
+
 def test_staging_gate_blocks_api_without_token_but_keeps_health_public(
     main_module: Any,
     monkeypatch: pytest.MonkeyPatch,
@@ -260,6 +390,31 @@ def test_upload_valid_zip_groups_dicom_files(client: TestClient) -> None:
     assert study["source"] == "upload"
     assert study["total_slices"] == 2
     assert study["series"][0]["slice_count"] == 2
+
+
+def test_volume_eligibility_is_cached_after_first_inspection(
+    client: TestClient,
+    main_module: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    uploaded = upload_zip(
+        client,
+        zip_bytes({"series/one.dcm": dicom_bytes(generate_uid(), generate_uid(), 1)}),
+    )
+    study_id = uploaded["study_ids"][0]
+    series_id = client.get(f"/api/studies/{study_id}").json()["series"][0]["id"]
+
+    first = client.get(f"/api/series/{series_id}/volume")
+    assert first.status_code == 200
+    with main_module.db() as connection:
+        geometry_json = connection.execute("SELECT geometry_json FROM series WHERE id = ?", (series_id,)).fetchone()[0]
+    assert '"volume_eligibility"' in geometry_json
+
+    monkeypatch.setattr(main_module, "volume_eligibility", lambda _headers: pytest.fail("cache miss"))
+    second = client.get(f"/api/series/{series_id}/volume")
+
+    assert second.status_code == 200
+    assert second.json()["reasons"] == first.json()["reasons"]
 
 
 def test_study_acquisition_endpoint_returns_scanner_and_series_settings_without_patient_fields(

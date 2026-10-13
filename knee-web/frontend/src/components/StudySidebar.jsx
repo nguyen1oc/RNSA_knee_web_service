@@ -49,6 +49,7 @@ export default function StudySidebar({
   expandedStudies,
   expandedSeries,
   uploadProgress,
+  onCancelUpload,
   onRefresh,
   onToggleStudy,
   onToggleSeries,
@@ -68,7 +69,7 @@ export default function StudySidebar({
         <div className="upload-progress" role="status" aria-live="polite">
           <div className="upload-progress-heading">
             <b>{uploadProgress.phase === 'preparing' ? 'Preparing study' : uploadProgress.phase === 'uploading' ? 'Uploading study' : 'Indexing study'}</b>
-            {uploadProgress.phase !== 'indexing' && <span>{uploadProgress.percent}%</span>}
+            {uploadProgress.phase !== 'indexing' && <><span>{uploadProgress.percent}%</span><button className="upload-cancel" onClick={onCancelUpload}>Cancel</button></>}
           </div>
           {uploadProgress.phase !== 'indexing' ? (
             <>
@@ -78,7 +79,7 @@ export default function StudySidebar({
                 : <small>{formatBytes(uploadProgress.loaded)} of about {formatBytes(uploadProgress.total)} · {uploadProgress.eta ? `about ${uploadProgress.eta} left for transfer` : 'estimating transfer time…'}</small>}
             </>
           ) : (
-            <small>{uploadProgress.fileCount} selected file(s) received. Validating and indexing; processing time depends on file count and size.</small>
+            <small>{uploadProgress.fileCount} selected file(s) received. Validating and indexing; this step can’t be cancelled once it starts.</small>
           )}
         </div>
       )}

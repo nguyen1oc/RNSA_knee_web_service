@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -48,6 +50,44 @@ class DicomObjectStore:
         destination.parent.mkdir(parents=True, exist_ok=True)
         blob.download_to_filename(str(destination))
         return destination
+
+    def signed_read_url(self, object_uri: str) -> str:
+        """Create a short-lived, read-only URL after the API has checked ownership."""
+        credentials, service_account_email = self._url_signing_identity()
+        return self._sign_read_url(object_uri, service_account_email, credentials.token)
+
+    def signed_read_urls(self, object_uris: list[str]) -> list[str]:
+        """Sign a series' DICOM URLs concurrently with a bounded worker pool."""
+        credentials, service_account_email = self._url_signing_identity()
+        with ThreadPoolExecutor(max_workers=min(8, max(1, len(object_uris)))) as executor:
+            return list(executor.map(
+                lambda uri: self._sign_read_url(uri, service_account_email, credentials.token),
+                object_uris,
+            ))
+
+    @staticmethod
+    def _url_signing_identity() -> tuple[Any, str]:
+        import google.auth
+        from google.auth.transport.requests import Request
+
+        credentials, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        credentials.refresh(Request())
+        service_account_email = (
+            os.getenv("GCS_SIGNING_SERVICE_ACCOUNT", "").strip()
+            or getattr(credentials, "service_account_email", None)
+        )
+        if not service_account_email:
+            raise RuntimeError("Could not determine the Cloud Run service account for GCS URL signing")
+        return credentials, service_account_email
+
+    def _sign_read_url(self, object_uri: str, service_account_email: str, access_token: str) -> str:
+        return self._blob_from_uri(object_uri).generate_signed_url(
+            version="v4",
+            expiration=timedelta(minutes=10),
+            method="GET",
+            service_account_email=service_account_email,
+            access_token=access_token,
+        )
 
     def delete_uri(self, object_uri: str) -> None:
         try:

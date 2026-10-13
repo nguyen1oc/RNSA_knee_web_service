@@ -11,6 +11,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from starlette.concurrency import run_in_threadpool
 
+from backend.api.schemas import FinalizeUploadsRequest, ResumableUploadRequest
+
 
 def build_router(services: Any) -> APIRouter:
     router = APIRouter()
@@ -34,10 +36,15 @@ def build_router(services: Any) -> APIRouter:
 
     @router.post("/api/uploads/resumable")
     def create_resumable_upload(
-        body: services.ResumableUploadRequest,
+        body: ResumableUploadRequest,
         request: Request,
         session: services.AnonymousSession = Depends(services.get_current_session),
     ) -> dict[str, str]:
+        if body.size > services.MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                413,
+                f"Each upload is limited to {services.MAX_UPLOAD_BYTES // (1024 * 1024)} MiB",
+            )
         if not services.cloud_mode():
             raise HTTPException(404, "Resumable upload is available only on the Cloud Storage deployment")
         services.enforce_upload_limits(services.metadata_store(), session.session_id)
@@ -109,7 +116,7 @@ def build_router(services: Any) -> APIRouter:
 
     @router.post("/api/studies/finalize-upload")
     def finalize_resumable_uploads(
-        body: services.FinalizeUploadsRequest,
+        body: FinalizeUploadsRequest,
         session: services.AnonymousSession = Depends(services.get_current_session),
     ) -> dict[str, Any]:
         if not services.cloud_mode():

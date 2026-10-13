@@ -1,6 +1,6 @@
 import { ArrowLeft, ChevronDown, Download, Info, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { ANALYSIS_SCORE_THRESHOLD, formatAnalysisScore, groupAnalysisScores } from '../analysisResults'
+import { groupAnalysisScores, modelSignalLevel } from '../analysisResults'
 import ExportResultsModal from './ExportResultsModal'
 import './analysis-details.css'
 import './analysis-score-summary.css'
@@ -21,9 +21,9 @@ export default function AIAnalysisPanel({ study, result, onShowStudyInfo }) {
   const inferenceComplete = result.status === 'complete'
   const { atOrAboveThreshold, remaining } = groupAnalysisScores(inferenceComplete ? result.scores : {})
   const visibleScores = showAllScores ? [...atOrAboveThreshold, ...remaining] : atOrAboveThreshold
-  let scoreHeading = `Scores ≥ ${ANALYSIS_SCORE_THRESHOLD} (${atOrAboveThreshold.length})`
-  if (!inferenceComplete) scoreHeading = 'Target scores'
-  else if (showAllScores) scoreHeading = 'All 12 target scores'
+  let scoreHeading = `AI-flagged findings (${atOrAboveThreshold.length})`
+  if (!inferenceComplete) scoreHeading = 'Model targets'
+  else if (showAllScores) scoreHeading = 'All 12 model targets'
 
   useEffect(() => { setShowAllScores(false) }, [study.id, result])
 
@@ -53,17 +53,17 @@ export default function AIAnalysisPanel({ study, result, onShowStudyInfo }) {
       </div>
       <div className="analysis-score-heading">
         <span>{scoreHeading}</span>
-        <span>Score</span>
+        <span>Model signal</span>
       </div>
       {inferenceComplete && !showAllScores && atOrAboveThreshold.length === 0 && (
-        <p className="analysis-score-empty">No scores ≥ {ANALYSIS_SCORE_THRESHOLD}.</p>
+        <p className="analysis-score-empty">No model signals reached the moderate or strong range.</p>
       )}
       <ul className="analysis-score-list">
         {inferenceComplete && visibleScores.map(({ id, name, translation, score }) => (
-          <li className={`analysis-score-row${score > 0.75 ? ' high-score' : ''}`} key={id}>
+          <li className={`analysis-score-row${score !== null && score >= 0.75 ? ' high-score' : ''}`} key={id}>
             <span className="analysis-target-name"><b>{name}</b><small>{translation}</small></span>
             <b className="analysis-score-value" style={score === null ? undefined : { color: scoreColor(score) }}>
-              {formatAnalysisScore(score)}
+              {modelSignalLevel(score).label}
             </b>
           </li>
         ))}
@@ -76,7 +76,7 @@ export default function AIAnalysisPanel({ study, result, onShowStudyInfo }) {
           onClick={() => setShowAllScores((current) => !current)}
         >
           <ChevronDown size={14} aria-hidden="true" />
-          {showAllScores ? `Show scores ≥ ${ANALYSIS_SCORE_THRESHOLD} only` : `Show all 12 scores (${remaining.length} more)`}
+          {showAllScores ? 'Show flagged findings only' : `Show all 12 targets (${remaining.length} more)`}
         </button>
       )}
       <button className="button primary analysis-export-button" disabled={!inferenceComplete} onClick={() => setShowExportPreview(true)}>

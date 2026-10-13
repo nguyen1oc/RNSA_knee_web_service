@@ -38,8 +38,14 @@ export function groupAnalysisScores(scores = {}) {
   }
 }
 
-export function formatAnalysisScore(score) {
-  return score === null ? '—' : score.toFixed(3)
+export function modelSignalLevel(score) {
+  if (score === null || !Number.isFinite(score) || score < 0 || score > 1) {
+    return { key: 'unavailable', label: 'Unavailable' }
+  }
+  if (score < 0.25) return { key: 'minimal', label: 'Minimal signal' }
+  if (score < 0.5) return { key: 'low', label: 'Low signal' }
+  if (score < 0.75) return { key: 'moderate', label: 'Moderate signal' }
+  return { key: 'strong', label: 'Strong signal' }
 }
 
 function readSessionValue(key) {

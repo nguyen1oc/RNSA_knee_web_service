@@ -151,6 +151,22 @@ def metadata_from_dataset(ds: Any) -> dict[str, Any]:
         "spacing": geometry["pixel_spacing"] or [],
         "geometry": geometry,
         "geometry_status": geometry["status"],
+        # The volume eligibility gate uses only headers; keep its required fields
+        # from the single parse already performed during ingestion.
+        "volume_header": {
+            "ImageOrientationPatient": as_float_list(getattr(ds, "ImageOrientationPatient", [])),
+            "ImagePositionPatient": as_float_list(getattr(ds, "ImagePositionPatient", [])),
+            "PixelSpacing": as_float_list(getattr(ds, "PixelSpacing", [])),
+            "FrameOfReferenceUID": clean(getattr(ds, "FrameOfReferenceUID", "")),
+            "Rows": int(getattr(ds, "Rows", 0) or 0),
+            "Columns": int(getattr(ds, "Columns", 0) or 0),
+            "NumberOfFrames": int(getattr(ds, "NumberOfFrames", 1) or 1),
+            "SamplesPerPixel": int(getattr(ds, "SamplesPerPixel", 1) or 1),
+            "PhotometricInterpretation": clean(getattr(ds, "PhotometricInterpretation", "")),
+            "SeriesInstanceUID": series_uid,
+            "BitsAllocated": int(getattr(ds, "BitsAllocated", 0) or 0),
+            "PixelRepresentation": int(getattr(ds, "PixelRepresentation", 0) or 0),
+        },
     }
 
 

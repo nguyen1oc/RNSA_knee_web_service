@@ -25,9 +25,10 @@ function safeArchivePath(file, index) {
   return path || `slice-${index + 1}.dcm`
 }
 
-async function fileCrc32(file, onChunk) {
+async function fileCrc32(file, onChunk, signal) {
   let crc = 0xffffffff
   for (let offset = 0; offset < file.size; offset += CRC_CHUNK_BYTES) {
+    signal?.throwIfAborted()
     const bytes = new Uint8Array(await file.slice(offset, offset + CRC_CHUNK_BYTES).arrayBuffer())
     for (const byte of bytes) crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8)
     onChunk(bytes.length)
@@ -78,7 +79,7 @@ function endRecord(count, centralSize, centralOffset) {
   return record
 }
 
-export async function createDicomArchive(files, onProgress = () => {}) {
+export async function createDicomArchive(files, onProgress = () => {}, signal) {
   if (files.length > MAX_DICOM_FILES) {
     throw new Error(`A study can contain at most ${MAX_DICOM_FILES} DICOM files in this preview.`)
   }
@@ -104,8 +105,9 @@ export async function createDicomArchive(files, onProgress = () => {}) {
     entry.crc32 = await fileCrc32(entry.file, (chunkBytes) => {
       preparedBytes += chunkBytes
       onProgress({ phase: 'preparing', loaded: preparedBytes, total: rawBytes, percent: rawBytes ? Math.min(100, Math.round(preparedBytes / rawBytes * 100)) : 100 })
-    })
+    }, signal)
   }
+  signal?.throwIfAborted()
 
   const parts = []
   const centralParts = []

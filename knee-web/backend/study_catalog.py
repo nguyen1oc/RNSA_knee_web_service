@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+import logging
+import time
 import uuid
 from pathlib import Path
 from typing import Any
 
 from backend.dicom_metadata import summarize_study_geometry, validate_series_geometry
+
+logger = logging.getLogger("knee_review.upload")
 
 
 class StudyCatalog:
@@ -37,10 +41,15 @@ class StudyCatalog:
             series_rows: list[dict[str, Any]] = []
             instance_rows: list[dict[str, Any]] = []
             store = runtime.object_store()
+            storage_started = time.perf_counter()
+            stored_bytes = 0
             for series_uid, items in grouped.items():
                 first = items[0][0]
                 series_id = f"series-{uuid.uuid4().hex[:12]}"
                 series_geometry = validate_series_geometry(items)
+                series_geometry["volume_eligibility"] = runtime.volume_eligibility(
+                    [metadata["volume_header"] for metadata, _ in items]
+                )
                 has_positions = all(item[0]["position"] is not None for item in items)
                 series_rows.append(
                     {
@@ -73,6 +82,7 @@ class StudyCatalog:
                         f"sessions/{owner_session_id or 'examples'}/studies/{study_id}/{series_id}/{instance_id}.dcm"
                     )
                     stored_path = store.upload_file(local_path, object_name)
+                    stored_bytes += local_path.stat().st_size
                     instance_rows.append(
                         {
                             "id": instance_id,
@@ -88,6 +98,13 @@ class StudyCatalog:
                             "spacing": ",".join(map(str, metadata["spacing"])),
                         }
                     )
+            logger.info(
+                "upload_timing phase=study_object_storage files=%s size_bytes=%s duration_ms=%s",
+                len(instance_rows),
+                stored_bytes,
+                round((time.perf_counter() - storage_started) * 1000),
+            )
+            metadata_started = time.perf_counter()
             runtime.metadata_store().put_study(
                 {
                     "id": study_id,
@@ -101,6 +118,11 @@ class StudyCatalog:
                 series_rows,
                 instance_rows,
             )
+            logger.info(
+                "upload_timing phase=study_metadata_commit files=%s duration_ms=%s",
+                len(instance_rows),
+                round((time.perf_counter() - metadata_started) * 1000),
+            )
             return study_id
 
         with runtime.db() as connection:
@@ -112,6 +134,9 @@ class StudyCatalog:
                 first = items[0][0]
                 series_id = f"series-{uuid.uuid4().hex[:12]}"
                 series_geometry = validate_series_geometry(items)
+                series_geometry["volume_eligibility"] = runtime.volume_eligibility(
+                    [metadata["volume_header"] for metadata, _ in items]
+                )
                 has_positions = all(item[0]["position"] is not None for item in items)
                 connection.execute(
                     "INSERT INTO series(id, study_id, series_uid, description, plane, slice_count, rows, cols, spacing, sort_method, geometry_status, geometry_json, preview_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",

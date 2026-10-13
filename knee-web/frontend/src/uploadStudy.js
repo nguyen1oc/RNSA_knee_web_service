@@ -27,7 +27,11 @@ function errorMessage(payload, fallback) {
   return fallback
 }
 
-function uploadDirectToCloudStorage(form, onProgress, startedAt) {
+function logUploadTiming(phase, startedAt, details = {}) {
+  console.info('[upload_timing]', { phase, duration_ms: Date.now() - startedAt, ...details })
+}
+
+function uploadDirectToCloudStorage(form, onProgress, startedAt, signal) {
   const selectedFiles = form.getAll('files')
   if (!selectedFiles.length) return Promise.reject(new Error('Choose at least one .dcm file or ZIP archive.'))
 
@@ -40,7 +44,7 @@ function uploadDirectToCloudStorage(form, onProgress, startedAt) {
   const prepareFiles = async () => {
     const files = [...archiveFiles]
     if (dicomFiles.length > 1) {
-      const archive = await createDicomArchive(dicomFiles, onProgress)
+      const archive = await createDicomArchive(dicomFiles, onProgress, signal)
       files.push(archive)
     } else if (dicomFiles.length === 1) {
       if (dicomFiles[0].size > 200 * 1024 * 1024) {
@@ -59,13 +63,24 @@ function uploadDirectToCloudStorage(form, onProgress, startedAt) {
   }
 
   return (async () => {
+    const prepareStarted = Date.now()
     const { files, totalBytes } = await prepareFiles()
-    return uploadPreparedFiles(files, totalBytes, onProgress, startedAt)
+    logUploadTiming('browser_prepare', prepareStarted, { files: files.length, size_bytes: totalBytes })
+    return uploadPreparedFiles(files, totalBytes, onProgress, startedAt, signal)
   })()
 }
 
-function uploadPreparedFiles(files, total, onProgress, startedAt) {
+async function cleanupPendingUploads(uploadIds) {
+  await Promise.allSettled(uploadIds.map((uploadId) => fetch(apiUrl(`/api/uploads/${uploadId}`), {
+    method: 'DELETE',
+    credentials: 'include',
+  })))
+}
+
+function uploadPreparedFiles(files, total, onProgress, startedAt, signal) {
   let loadedBeforeCurrent = 0
+  const uploadIds = []
+  const transferStarted = Date.now()
 
   const updateProgress = (loaded) => {
     const loadedTotal = Math.min(total, loadedBeforeCurrent + loaded)
@@ -82,14 +97,17 @@ function uploadPreparedFiles(files, total, onProgress, startedAt) {
   }
 
   const uploadOne = async (file) => {
+    signal?.throwIfAborted()
     const response = await fetch(apiUrl('/api/uploads/resumable'), {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filename: file.name, size: file.size }),
+      signal,
     })
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(errorMessage(payload, `Could not prepare ${file.name} for upload.`))
+    uploadIds.push(payload.upload_id)
 
     const chunkBytes = 8 * 1024 * 1024
     let offset = 0
@@ -97,6 +115,13 @@ function uploadPreparedFiles(files, total, onProgress, startedAt) {
       const chunkEnd = Math.min(offset + chunkBytes, file.size) - 1
       const status = await new Promise((resolve, reject) => {
         const request = new XMLHttpRequest()
+        const removeAbortListener = () => signal?.removeEventListener('abort', abortRequest)
+        const abortRequest = () => {
+          request.abort()
+          removeAbortListener()
+          reject(new DOMException('Upload was cancelled.', 'AbortError'))
+        }
+        if (signal?.aborted) { reject(new DOMException('Upload was cancelled.', 'AbortError')); return }
         request.open('PUT', payload.upload_url)
         request.setRequestHeader('Content-Type', payload.content_type)
         request.setRequestHeader('Content-Range', `bytes ${offset}-${chunkEnd}/${file.size}`)
@@ -104,6 +129,7 @@ function uploadPreparedFiles(files, total, onProgress, startedAt) {
           if (event.lengthComputable) updateProgress(offset + event.loaded)
         })
         request.addEventListener('load', () => {
+          removeAbortListener()
           if (request.status === 308) {
             const acknowledged = request.getResponseHeader('Range')?.match(/bytes=0-(\d+)/)
             resolve({ complete: false, nextOffset: acknowledged ? Number(acknowledged[1]) + 1 : chunkEnd + 1 })
@@ -113,16 +139,20 @@ function uploadPreparedFiles(files, total, onProgress, startedAt) {
             reject(new Error(`Cloud Storage upload failed for ${file.name} (HTTP ${request.status}).`))
           }
         })
-        request.addEventListener('error', () => reject(new Error(`Network error uploading ${file.name} to Cloud Storage.`)))
-        request.addEventListener('abort', () => reject(new Error('Upload was cancelled.')))
+        request.addEventListener('error', () => { removeAbortListener(); reject(new Error(`Network error uploading ${file.name} to Cloud Storage.`)) })
+        request.addEventListener('abort', () => { removeAbortListener(); reject(new DOMException('Upload was cancelled.', 'AbortError')) })
+        signal?.addEventListener('abort', abortRequest, { once: true })
+        if (signal?.aborted) { abortRequest(); return }
         request.send(file.slice(offset, chunkEnd + 1))
       })
       offset = status.nextOffset
       if (status.complete) break
     }
+    signal?.throwIfAborted()
     const completionResponse = await fetch(apiUrl(`/api/uploads/${payload.upload_id}/complete`), {
       method: 'POST',
       credentials: 'include',
+      signal,
     })
     const completionPayload = await completionResponse.json().catch(() => ({}))
     if (!completionResponse.ok) {
@@ -134,27 +164,43 @@ function uploadPreparedFiles(files, total, onProgress, startedAt) {
   }
 
   return (async () => {
-    const uploadIds = []
-    for (const file of files) uploadIds.push(await uploadOne(file))
-    onProgress({ phase: 'indexing', loaded: total, total, percent: 100, eta: null })
-    const response = await fetch(apiUrl('/api/studies/finalize-upload'), {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ upload_ids: uploadIds }),
-    })
-    const payload = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(errorMessage(payload, 'The API could not validate and index this study.'))
-    return payload
+    try {
+      for (const file of files) await uploadOne(file)
+      signal?.throwIfAborted()
+      logUploadTiming('browser_transfer', transferStarted, { files: files.length, size_bytes: total })
+      onProgress({ phase: 'indexing', loaded: total, total, percent: 100, eta: null })
+      const finalizeStarted = Date.now()
+      const response = await fetch(apiUrl('/api/studies/finalize-upload'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ upload_ids: uploadIds }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(errorMessage(payload, 'The API could not validate and index this study.'))
+      logUploadTiming('browser_finalize', finalizeStarted, { files: files.length, size_bytes: total })
+      return payload
+    } catch (error) {
+      await cleanupPendingUploads(uploadIds)
+      throw error
+    }
   })()
 }
 
-export function uploadStudy(form, onProgress, startedAt = Date.now()) {
+export function uploadStudy(form, onProgress, startedAt = Date.now(), signal) {
   if (import.meta.env.VITE_DIRECT_GCS_UPLOAD === 'true') {
-    return uploadDirectToCloudStorage(form, onProgress, startedAt)
+    return uploadDirectToCloudStorage(form, onProgress, startedAt, signal)
   }
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest()
+    const transferStarted = Date.now()
+    const abortRequest = () => {
+      request.abort()
+      removeAbortListener()
+      reject(new DOMException('Upload was cancelled.', 'AbortError'))
+    }
+    const removeAbortListener = () => signal?.removeEventListener('abort', abortRequest)
+    if (signal?.aborted) { reject(new DOMException('Upload was cancelled.', 'AbortError')); return }
     request.open('POST', apiUrl('/api/studies/upload'))
     request.withCredentials = true
 
@@ -175,6 +221,7 @@ export function uploadStudy(form, onProgress, startedAt = Date.now()) {
     })
 
     request.addEventListener('load', () => {
+      removeAbortListener()
       let payload = {}
       try { payload = JSON.parse(request.responseText || '{}') } catch { /* handled below */ }
       if (request.status < 200 || request.status >= 300) {
@@ -190,13 +237,17 @@ export function uploadStudy(form, onProgress, startedAt = Date.now()) {
         reject(new Error('The API returned an invalid upload response. Confirm the frontend is connected to FastAPI.'))
         return
       }
+      logUploadTiming('local_upload_and_index', transferStarted)
       resolve(payload)
     })
 
     request.addEventListener('error', () => {
+      removeAbortListener()
       reject(new Error('Cannot reach the API backend. Confirm it is deployed and connected to this website.'))
     })
-    request.addEventListener('abort', () => reject(new Error('Upload was cancelled.')))
+    request.addEventListener('abort', () => { removeAbortListener(); reject(new DOMException('Upload was cancelled.', 'AbortError')) })
+    signal?.addEventListener('abort', abortRequest, { once: true })
+    if (signal?.aborted) { abortRequest(); return }
     request.send(form)
   })
 }

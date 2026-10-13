@@ -37,6 +37,16 @@
   font-size: 10px;
 }
 
+.upload-cancel {
+  border: 0;
+  padding: 0 2px;
+  background: transparent;
+  color: #b44747;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .upload-progress progress {
   display: block;
   width: 100%;

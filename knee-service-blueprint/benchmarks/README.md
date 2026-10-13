@@ -15,6 +15,23 @@ Mỗi báo cáo nên ghi ngày giờ, commit/revision, phiên bản k6, study m�
 
 Các script ở `knee-web/scripts/k6/` chỉ chấp nhận host Cloud Run staging. Chúng không gửi request tới Vercel hay production. Script Analyze chỉ dùng study mẫu `sample-knee`; nó không upload hoặc xóa study. Mỗi lượt Analyze có thể phát sinh chi phí GPU, vì vậy bắt đầu với tải thấp.
 
+## Đo MRI Volume
+
+Script `staging-volume.js` chỉ gọi API kiểm tra eligibility và tải một DICOM đầu tiên từ example study; nó không gọi Analyze, upload hay delete. Chạy với một VU trước, rồi tăng lên 2 và 5 nếu không có lỗi:
+
+```powershell
+$run = "knee-service-blueprint/benchmarks/YYYY-MM-DD-volume-proxy-1vu"
+New-Item -ItemType Directory -Force $run | Out-Null
+k6 run --summary-export "$run/k6-summary.json" `
+  --env API_BASE_URL=$env:API_BASE_URL `
+  --env STAGING_ORIGIN=$env:STAGING_ORIGIN `
+  --env KNEE_STAGING_GATE_TOKEN=$env:KNEE_STAGING_GATE_TOKEN `
+  --env VUS=1 --env ITERATIONS_PER_VU=3 `
+  knee-web/scripts/k6/staging-volume.js
+```
+
+Để kiểm tra hướng đọc trực tiếp từ GCS, cần bật cờ và CORS theo hướng dẫn trong [tài liệu upload và MRI Volume](../22-upload-and-volume-performance.md). Lưu mỗi chế độ vào thư mục riêng. Kết quả baseline proxy đo ngày 13/10/2026 nằm trong [báo cáo](2026-10-13-staging-volume-baseline-proxy/report.md).
+
 ## Cài k6 và chuẩn bị PowerShell
 
 Nếu máy chưa cài k6:

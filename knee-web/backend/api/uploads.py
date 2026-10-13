@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+import time
 import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from backend.api.schemas import FinalizeUploadsRequest, ResumableUploadRequest
@@ -16,6 +17,14 @@ from backend.api.schemas import FinalizeUploadsRequest, ResumableUploadRequest
 
 def build_router(services: Any) -> APIRouter:
     router = APIRouter()
+
+    def upload_timing(phase: str, started: float, *, files: int | None = None, size_bytes: int | None = None) -> None:
+        fields = [f"phase={phase}", f"duration_ms={round((time.perf_counter() - started) * 1000)}"]
+        if files is not None:
+            fields.append(f"files={files}")
+        if size_bytes is not None:
+            fields.append(f"size_bytes={size_bytes}")
+        services.logger.info("upload_timing %s", " ".join(fields))
 
     def session_upload_bytes(session_id: str) -> int:
         if services.cloud_mode():
@@ -114,6 +123,26 @@ def build_router(services: Any) -> APIRouter:
         store.update_pending_upload(upload_id, {"status": "uploaded", "uploaded_at": services.now()})
         return {"upload_id": upload_id, "status": "uploaded"}
 
+    @router.delete("/api/uploads/{upload_id}", status_code=204)
+    def cancel_resumable_upload(
+        upload_id: str,
+        session: services.AnonymousSession = Depends(services.get_current_session),
+    ) -> Response:
+        """Cancel an unfinished Cloud Storage upload and release its pending slot."""
+        if not services.cloud_mode():
+            raise HTTPException(404, "Resumable upload cancellation is available only on the Cloud Storage deployment")
+        store = services.metadata_store()
+        row = store.get_pending_upload(upload_id)
+        if not row or row.get("owner_session_id") != session.session_id:
+            raise HTTPException(404, "Upload session not found or expired")
+        object_uri = f"gs://{services.object_store().bucket_name}/{row['object_name']}"
+        try:
+            services.object_store().delete_uri(object_uri)
+            store.delete_pending_upload(upload_id)
+        except Exception as exc:
+            raise HTTPException(503, "Could not clean up the cancelled upload. Please retry.") from exc
+        return Response(status_code=204)
+
     @router.post("/api/studies/finalize-upload")
     def finalize_resumable_uploads(
         body: FinalizeUploadsRequest,
@@ -139,6 +168,8 @@ def build_router(services: Any) -> APIRouter:
         try:
             with tempfile.TemporaryDirectory(prefix="knee-incoming-") as temporary_directory:
                 temp_root = Path(temporary_directory)
+                download_started = time.perf_counter()
+                downloaded_bytes = 0
                 for index, row in enumerate(pending_rows):
                     object_uri = f"gs://{services.object_store().bucket_name}/{row['object_name']}"
                     try:
@@ -150,11 +181,15 @@ def build_router(services: Any) -> APIRouter:
                     extension = Path(row["filename"]).suffix.lower()
                     safe_filename = f"upload-{index:04d}{extension}"
                     local = services.object_store().download_file(object_uri, temp_root / safe_filename)
+                    downloaded_bytes += actual_size
                     staged_uploads.append(UploadFile(filename=safe_filename, file=local.open("rb")))
+                upload_timing("finalize_download", download_started, files=len(pending_rows), size_bytes=downloaded_bytes)
 
+                validation_started = time.perf_counter()
                 accepted, rejected = services.stage_and_validate_uploads(
                     staged_uploads, upload_root, services.parse_metadata_path
                 )
+                upload_timing("finalize_validate", validation_started, files=len(accepted) + len(rejected), size_bytes=downloaded_bytes)
                 if not accepted:
                     raise HTTPException(400, {"message": "No valid DICOM files were found", "rejected": rejected})
                 accepted_bytes = sum(path.stat().st_size for _, path in accepted if path.is_file())
@@ -164,6 +199,7 @@ def build_router(services: Any) -> APIRouter:
                     )
 
                 created: list[str] = []
+                persist_started = time.perf_counter()
                 for study_uid in sorted({item[0]["study_uid"] for item in accepted}):
                     group = [item for item in accepted if item[0]["study_uid"] == study_uid]
                     created.append(
@@ -175,10 +211,12 @@ def build_router(services: Any) -> APIRouter:
                             owner_session_id=session.session_id,
                         )
                     )
+                upload_timing("finalize_persist", persist_started, files=len(accepted), size_bytes=accepted_bytes)
                 return {"study_ids": created, "accepted_files": len(accepted), "rejected": rejected}
         except services.UploadLimitExceeded as exc:
             raise HTTPException(413, str(exc)) from exc
         finally:
+            cleanup_started = time.perf_counter()
             for upload in staged_uploads:
                 upload.file.close()
             shutil.rmtree(upload_root, ignore_errors=True)
@@ -191,6 +229,7 @@ def build_router(services: Any) -> APIRouter:
                     services.logger.exception(
                         "Failed to clean up a finalized-upload object; metadata retained for retry"
                     )
+            upload_timing("finalize_cleanup", cleanup_started, files=len(pending_rows))
 
     @router.post("/api/studies/upload")
     async def upload_study(
@@ -200,6 +239,7 @@ def build_router(services: Any) -> APIRouter:
         if services.cloud_mode():
             raise HTTPException(413, "Use the resumable Cloud Storage upload flow for cloud studies")
         upload_root = services.STORAGE_DIR / f"upload-{uuid.uuid4().hex[:12]}"
+        validation_started = time.perf_counter()
         try:
             accepted, rejected = await run_in_threadpool(
                 services.stage_and_validate_uploads,
@@ -209,6 +249,7 @@ def build_router(services: Any) -> APIRouter:
             )
             if not accepted:
                 raise HTTPException(400, {"message": "No valid DICOM files were found", "rejected": rejected})
+            upload_timing("local_validate", validation_started, files=len(accepted) + len(rejected))
             accepted_bytes = sum(path.stat().st_size for _, path in accepted if path.is_file())
             if session_upload_bytes(session.session_id) + accepted_bytes > services.MAX_SESSION_BYTES:
                 raise services.UploadLimitExceeded(
@@ -216,6 +257,7 @@ def build_router(services: Any) -> APIRouter:
                 )
 
             created: list[str] = []
+            persist_started = time.perf_counter()
             for study_uid in sorted({item[0]["study_uid"] for item in accepted}):
                 group = [item for item in accepted if item[0]["study_uid"] == study_uid]
                 created.append(
@@ -227,6 +269,7 @@ def build_router(services: Any) -> APIRouter:
                         owner_session_id=session.session_id,
                     )
                 )
+            upload_timing("local_persist", persist_started, files=len(accepted), size_bytes=accepted_bytes)
             return {"study_ids": created, "accepted_files": len(accepted), "rejected": rejected}
         except services.UploadLimitExceeded as exc:
             shutil.rmtree(upload_root, ignore_errors=True)

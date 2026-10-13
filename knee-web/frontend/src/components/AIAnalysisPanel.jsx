@@ -1,8 +1,9 @@
-import { ArrowLeft, Download, Info, Sparkles } from 'lucide-react'
-import { useState } from 'react'
-import { analysisTargets } from '../analysisResults'
+import { ArrowLeft, ChevronDown, Download, Info, Sparkles } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ANALYSIS_SCORE_THRESHOLD, formatAnalysisScore, groupAnalysisScores } from '../analysisResults'
 import ExportResultsModal from './ExportResultsModal'
 import './analysis-details.css'
+import './analysis-score-summary.css'
 
 function scoreColor(score) {
   const hue = Math.max(0, Math.min(120, 120 - Number(score) * 120))
@@ -16,7 +17,15 @@ function formattedDate(value) {
 
 export default function AIAnalysisPanel({ study, result, onShowStudyInfo }) {
   const [showExportPreview, setShowExportPreview] = useState(false)
+  const [showAllScores, setShowAllScores] = useState(false)
   const inferenceComplete = result.status === 'complete'
+  const { aboveThreshold, remaining } = groupAnalysisScores(inferenceComplete ? result.scores : {})
+  const visibleScores = showAllScores ? [...aboveThreshold, ...remaining] : aboveThreshold
+  let scoreHeading = `Scores above ${ANALYSIS_SCORE_THRESHOLD} (${aboveThreshold.length})`
+  if (!inferenceComplete) scoreHeading = 'Target scores'
+  else if (showAllScores) scoreHeading = 'All 12 target scores'
+
+  useEffect(() => { setShowAllScores(false) }, [study.id, result])
 
   return (
     <aside className="study-info-panel ai-analysis-panel" aria-label="AI analysis results">
@@ -42,22 +51,34 @@ export default function AIAnalysisPanel({ study, result, onShowStudyInfo }) {
       <div className="analysis-study-meta">
         <div className="analysis-study-uid"><span>Study UID</span><b>{study.study_uid}</b></div>
       </div>
-      <div className="analysis-score-heading"><span>12 target scores</span><span>Score</span></div>
+      <div className="analysis-score-heading">
+        <span>{scoreHeading}</span>
+        <span>Score</span>
+      </div>
+      {inferenceComplete && !showAllScores && aboveThreshold.length === 0 && (
+        <p className="analysis-score-empty">No scores above {ANALYSIS_SCORE_THRESHOLD}.</p>
+      )}
       <ul className="analysis-score-list">
-        {analysisTargets.map(({ id, name, translation }) => {
-          const rawScore = result.scores?.[id]
-          const hasScore = inferenceComplete && Number.isFinite(Number(rawScore))
-          const score = hasScore ? Number(rawScore) * 100 : null
-          return (
-            <li className={`analysis-score-row${score > 75 ? ' high-score' : ''}`} key={id}>
-              <span className="analysis-target-name"><b>{name}</b><small>{translation}</small></span>
-              <b className="analysis-score-value" style={score === null ? undefined : { color: scoreColor(score / 100) }}>
-                {score === null ? '—' : `${score.toFixed(0)}%`}
-              </b>
-            </li>
-          )
-        })}
+        {inferenceComplete && visibleScores.map(({ id, name, translation, score }) => (
+          <li className={`analysis-score-row${score > 0.75 ? ' high-score' : ''}`} key={id}>
+            <span className="analysis-target-name"><b>{name}</b><small>{translation}</small></span>
+            <b className="analysis-score-value" style={score === null ? undefined : { color: scoreColor(score) }}>
+              {formatAnalysisScore(score)}
+            </b>
+          </li>
+        ))}
       </ul>
+      {inferenceComplete && remaining.length > 0 && (
+        <button
+          className="button ghost analysis-expand-button"
+          type="button"
+          aria-expanded={showAllScores}
+          onClick={() => setShowAllScores((current) => !current)}
+        >
+          <ChevronDown size={14} aria-hidden="true" />
+          {showAllScores ? `Show scores above ${ANALYSIS_SCORE_THRESHOLD} only` : `Show all 12 scores (${remaining.length} more)`}
+        </button>
+      )}
       <button className="button primary analysis-export-button" disabled={!inferenceComplete} onClick={() => setShowExportPreview(true)}>
         <Download size={14} /> Export results
       </button>

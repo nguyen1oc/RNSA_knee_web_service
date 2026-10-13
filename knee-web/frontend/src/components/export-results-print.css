@@ -1,3 +1,16 @@
+.export-results-score-heading {
+  margin: 0 0 6px;
+  color: #526d83;
+  font: 700 11px Manrope, sans-serif;
+}
+
+.export-results-empty {
+  margin: 4px 0 0;
+  padding: 8px 0;
+  color: #687b8d;
+  font-size: 11px;
+}
+
 @media screen {
   .export-results-dialog { width: min(560px, calc(100vw - 24px)); }
   .export-results-sheet {
@@ -40,5 +53,5 @@
   .export-results-toolbar, .export-results-actions { display: none !important; }
   .export-results-sheet { width: 100% !important; max-width: none !important; max-height: none !important; overflow: visible !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; break-inside: avoid; page-break-inside: avoid; }
   .export-results-sheet h1 { margin-bottom: 8mm; }
-  .export-results-study, .export-results-date, .export-results-row, .export-results-footnote { break-inside: avoid; page-break-inside: avoid; }
+  .export-results-study, .export-results-date, .export-results-score-heading, .export-results-row, .export-results-empty, .export-results-footnote { break-inside: avoid; page-break-inside: avoid; }
 }

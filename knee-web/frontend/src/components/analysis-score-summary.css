@@ -1,0 +1,27 @@
+.analysis-score-empty {
+  margin: 4px 0 8px;
+  padding: 9px 7px;
+  color: #697f90;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.analysis-expand-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  margin-top: 7px;
+  padding: 6px 8px;
+  color: #426c8d;
+  font-size: 10px;
+}
+
+.analysis-expand-button svg {
+  transition: transform .15s ease;
+}
+
+.analysis-expand-button[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}

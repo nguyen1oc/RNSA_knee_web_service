@@ -78,6 +78,33 @@ def client(main_module: Any) -> TestClient:
         yield test_client
 
 
+def test_resumable_upload_routes_parse_json_request_bodies(client: TestClient) -> None:
+    upload_response = client.post(
+        "/api/uploads/resumable",
+        json={"filename": "study.zip", "size": 123},
+    )
+    finalize_response = client.post(
+        "/api/studies/finalize-upload",
+        json={"upload_ids": ["upload-id"]},
+    )
+
+    assert upload_response.status_code == 404
+    assert upload_response.json()["detail"] == (
+        "Resumable upload is available only on the Cloud Storage deployment"
+    )
+    assert finalize_response.status_code == 404
+    assert finalize_response.json()["detail"] == "Resumable upload is available only on the Cloud Storage deployment"
+
+
+def test_resumable_upload_openapi_exposes_json_bodies(client: TestClient) -> None:
+    schema = client.get("/openapi.json").json()
+
+    for path in ("/api/uploads/resumable", "/api/studies/finalize-upload"):
+        operation = schema["paths"][path]["post"]
+        assert "requestBody" in operation
+        assert not any(parameter["name"] == "body" for parameter in operation.get("parameters", []))
+
+
 def test_staging_gate_blocks_api_without_token_but_keeps_health_public(
     main_module: Any,
     monkeypatch: pytest.MonkeyPatch,

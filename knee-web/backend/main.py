@@ -17,7 +17,6 @@ from fastapi import Cookie, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
 
 from backend.api.analysis import build_router as build_analysis_router
 from backend.api.series import build_router as build_series_router
@@ -95,15 +94,6 @@ if METADATA_BACKEND not in {"sqlite", "firestore"}:
 _firestore_metadata: Any | None = None
 _object_store: Any | None = None
 _last_cloud_cleanup = 0.0
-
-
-class ResumableUploadRequest(BaseModel):
-    filename: str = Field(min_length=1, max_length=255)
-    size: int = Field(gt=0, le=MAX_UPLOAD_BYTES)
-
-
-class FinalizeUploadsRequest(BaseModel):
-    upload_ids: list[str] = Field(min_length=1, max_length=500)
 
 
 def cloud_mode() -> bool:

@@ -1,7 +1,7 @@
 import { Printer, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
-import { ANALYSIS_SCORE_THRESHOLD, formatAnalysisScore, groupAnalysisScores } from '../analysisResults'
+import { groupAnalysisScores, modelSignalLevel } from '../analysisResults'
 import './export-results-modal.css'
 import './export-results-print.css'
 
@@ -37,14 +37,14 @@ export default function ExportResultsModal({ study, result, onClose }) {
           <h1>RSNA Knee Review</h1>
           <div className="export-results-study"><span>Study UID</span><b>{study.study_uid}</b></div>
           <p className="export-results-date">Date: {exportDate(exportedAt)}</p>
-          <h2 className="export-results-score-heading">Scores ≥ {ANALYSIS_SCORE_THRESHOLD}</h2>
-          <div className="export-results-list" aria-label={`Study scores at or above ${ANALYSIS_SCORE_THRESHOLD}`}>
+          <h2 className="export-results-score-heading">AI-flagged findings</h2>
+          <div className="export-results-list" aria-label="AI-flagged findings for this study">
             {atOrAboveThreshold.map(({ id, name, score }) => (
-              <div className={`export-results-row${score > 0.75 ? ' high-score' : ''}`} key={id}>
-                <span>{name}</span><b>{formatAnalysisScore(score)}</b>
+              <div className={`export-results-row${score >= 0.75 ? ' high-score' : ''}`} key={id}>
+                <span>{name}</span><b>{modelSignalLevel(score).label}</b>
               </div>
             ))}
-            {atOrAboveThreshold.length === 0 && <p className="export-results-empty">No scores ≥ {ANALYSIS_SCORE_THRESHOLD}.</p>}
+            {atOrAboveThreshold.length === 0 && <p className="export-results-empty">No model signals reached the moderate or strong range.</p>}
           </div>
           <p className="export-results-footnote">AI predictions are for reference only. Final interpretation and diagnosis are the responsibility of the physician.</p>
         </article>

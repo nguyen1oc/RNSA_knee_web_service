@@ -105,6 +105,61 @@ def test_resumable_upload_openapi_exposes_json_bodies(client: TestClient) -> Non
         assert not any(parameter["name"] == "body" for parameter in operation.get("parameters", []))
 
 
+def test_cloud_resumable_upload_can_access_rate_limit_services(
+    client: TestClient,
+    main_module: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class MetadataStore:
+        def __init__(self) -> None:
+            self.pending: list[dict[str, Any]] = []
+
+        def consume_rate_limit(self, counter_id: str, limit: int, expires_at: Any) -> bool:
+            return True
+
+        def session_by_token_hash(self, token_hash: str) -> dict[str, str]:
+            expires_at = "2999-01-01T00:00:00+00:00"
+            return {"id": "test-session", "idle_expires_at": expires_at, "absolute_expires_at": expires_at}
+
+        def touch_session(self, session_id: str, last_seen_at: str, idle_expires_at: str) -> None:
+            pass
+
+        def session_pending_uploads(self, session_id: str) -> list[dict[str, Any]]:
+            return self.pending
+
+        def session_studies(self, session_id: str) -> list[dict[str, Any]]:
+            return []
+
+        def create_pending_upload(self, upload_id: str, record: dict[str, Any]) -> None:
+            self.pending.append(record)
+
+    class ObjectStore:
+        def create_resumable_upload(
+            self,
+            object_name: str,
+            *,
+            content_type: str,
+            origin: str | None,
+            size: int,
+        ) -> str:
+            return "https://storage.example/resumable-upload"
+
+    metadata = MetadataStore()
+    monkeypatch.setattr(main_module, "cloud_mode", lambda: True)
+    monkeypatch.setattr(main_module, "cleanup_expired_sessions", lambda: {})
+    monkeypatch.setattr(main_module, "metadata_store", lambda: metadata)
+    monkeypatch.setattr(main_module, "object_store", ObjectStore)
+
+    response = client.post(
+        "/api/uploads/resumable",
+        json={"filename": "study.zip", "size": 123},
+        headers={"Origin": "http://localhost:5173"},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["upload_url"] == "https://storage.example/resumable-upload"
+
+
 def test_staging_gate_blocks_api_without_token_but_keeps_health_public(
     main_module: Any,
     monkeypatch: pytest.MonkeyPatch,
